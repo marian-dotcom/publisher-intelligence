@@ -2504,28 +2504,272 @@ Temporal overlap is context only until publisher-specific evidence matches.
 
 ---
 
+# ADR-126 — Repository bootstrap toolchain uses uv and pnpm
+
+**Status:** ACCEPTED  
+**Date:** 2026-08-13
+
+## Context
+
+The canonical architecture selected FastAPI/Python and Next.js/React but intentionally left the Python dependency manager and exact repository tooling open. EP-001 needs reproducible local and CI installs without maintaining multiple competing workflows.
+
+## Decision
+
+Backend:
+
+```text
+Python 3.12
+uv
+FastAPI
+Ruff
+mypy
+pytest
+```
+
+Frontend:
+
+```text
+Node.js LTS pinned by repository version metadata
+pnpm pinned through packageManager metadata
+Next.js / React / TypeScript
+ESLint
+TypeScript typecheck
+focused frontend test runner
+```
+
+Commit one backend lockfile and one frontend lockfile. CI and documentation use only these package-manager paths.
+
+Exact library patch versions are selected and frozen during EP-001 implementation. They are implementation locks, not new product decisions.
+
+## Reason
+
+`uv` provides a fast, low-ceremony Python environment and lockfile workflow that fits the available Python 3.12 runtime. `pnpm` provides deterministic Node installs with efficient dependency handling. The selected quality tools are established and small enough for the modular-monolith foundation.
+
+## Consequences
+
+- `OPEN-001` is resolved.
+- Poetry, pip-tools, npm, and yarn are not parallel supported workflows.
+- Backend and frontend CI can use locked/frozen installs.
+- Node LTS and package-manager versions must be explicit in repository metadata.
+- Significant new tooling still requires normal dependency review.
+
+## Alternatives considered
+
+- Poetry
+- pip-tools
+- npm
+- yarn
+- supporting several package managers
+
+Rejected because parallel workflows increase drift and onboarding cost without MVP benefit.
+
+## Revisit trigger
+
+Revisit only if the selected manager becomes unmaintained, cannot support required reproducible builds, or creates a measured deployment/security blocker.
+
+---
+
+# ADR-127 — Persistence uses SQLAlchemy 2.x, psycopg 3, and Alembic
+
+**Status:** ACCEPTED  
+**Date:** 2026-08-13
+
+## Context
+
+The system requires PostgreSQL, tenant-aware relational modeling, migrations, ordinary repository queries, and explicit concurrency SQL for job claiming. `OPEN-002` left the ORM undecided.
+
+## Decision
+
+Use:
+
+```text
+SQLAlchemy 2.x typed declarative models
+psycopg 3 PostgreSQL driver
+AsyncEngine / AsyncSession application convention
+Alembic migrations
+```
+
+The relational schema is the contract. Use explicit SQL where it is clearer or required for PostgreSQL-specific primitives such as `FOR UPDATE SKIP LOCKED`, partial indexes, and fenced queue transitions.
+
+All schema changes are version-controlled migrations. Application runtime and migration credentials/configuration remain separable.
+
+## Reason
+
+This stack is mature, explicit, well supported by FastAPI, and preserves access to PostgreSQL semantics. It avoids using a convenience model layer as the source of domain or database truth.
+
+## Consequences
+
+- `OPEN-002` is resolved.
+- EP-001 must establish one documented session and transaction convention.
+- Alembic is mandatory for schema changes.
+- Queue primitives may use reviewed SQL without creating a second persistence architecture.
+- Core semantics remain typed relational columns; JSONB remains bounded and purposeful.
+
+## Alternatives considered
+
+- SQLModel
+- raw SQL for every persistence path
+- another ORM/migration framework
+
+Rejected because SQLModel adds another abstraction over SQLAlchemy while raw SQL everywhere would increase routine persistence work without improving the queue-specific operations that already remain explicit.
+
+## Revisit trigger
+
+Revisit only if the stack produces a measured correctness, maintainability, or performance blocker that cannot be solved with explicit SQL inside the same PostgreSQL architecture.
+
+---
+
+# ADR-128 — PostgreSQL jobs use explicit reclaim, fencing, and split idempotency namespaces
+
+**Status:** ACCEPTED  
+**Date:** 2026-08-13
+
+## Context
+
+ADR-081 requires a PostgreSQL-backed job queue. The architecture describes transactional claims and leases, but EP-001 needs precise behavior for crash recovery, stale workers, tenant/global jobs, idempotency, and initial status scope.
+
+Without an explicit contract:
+
+- a stale worker may complete work after another worker reclaimed it;
+- normal claiming may silently steal expired RUNNING work;
+- nullable `tenant_id` uniqueness may treat global and tenant jobs incorrectly;
+- an attempt-history table and extra statuses may be added before a product need exists.
+
+## Decision
+
+### Status vocabulary
+
+EP-001 uses exactly:
+
+```text
+PENDING
+RUNNING
+RETRY
+COMPLETE
+FAILED
+```
+
+Do not add `CANCELLED` in EP-001.
+
+### Claiming
+
+Normal claim selects eligible `PENDING` or `RETRY` rows with transactional PostgreSQL locking equivalent to:
+
+```sql
+FOR UPDATE SKIP LOCKED
+```
+
+Every successful claim creates a new opaque `lock_token`, records worker ownership and lease expiry, and transitions the job to `RUNNING`.
+
+### Fencing
+
+Heartbeat, completion, retry, and failure updates require all of:
+
+```text
+job id
+status = RUNNING
+matching lock_token
+```
+
+An update that affects no row is a lost/stale lease, not success.
+
+### Reclaim
+
+Expired `RUNNING` jobs are handled by a separate reclaim operation. Normal claim does not silently reclaim them.
+
+Reclaim:
+
+- identifies expired leases;
+- transitions retryable work to `RETRY` with bounded backoff;
+- transitions exhausted work to `FAILED`;
+- clears worker ownership, `lock_token`, and lease fields;
+- preserves attempt count and stable error metadata.
+
+The reclaimed row can be claimed normally only after reclaim completes.
+
+### Attempts
+
+EP-001 stores the current attempt count and last error metadata on `jobs`.
+
+Do not create a `job_attempts` table in EP-001. Domain attempts such as future checkpoint attempts remain separate domain truth.
+
+### Idempotency namespaces
+
+Use two partial unique indexes for non-null `idempotency_key` values:
+
+```sql
+UNIQUE (tenant_id, idempotency_key)
+WHERE tenant_id IS NOT NULL
+  AND idempotency_key IS NOT NULL
+```
+
+and:
+
+```sql
+UNIQUE (idempotency_key)
+WHERE tenant_id IS NULL
+  AND idempotency_key IS NOT NULL
+```
+
+This preserves one namespace per tenant and a distinct namespace for explicitly global jobs.
+
+### Security boundary
+
+Tenant-owned jobs carry `tenant_id`. Job payloads contain identifiers/references, never raw OAuth tokens, API keys, passwords, or signing secrets. Workers validate job tenant ownership against referenced objects before executing future domain handlers.
+
+## Reason
+
+Separate reclaim makes ownership transitions observable and testable. A per-claim token fences stale workers even if worker identity is reused. Partial indexes model PostgreSQL NULL behavior correctly for tenant and global work. Avoiding premature status and attempt-history expansion keeps the first queue understandable.
+
+## Consequences
+
+- claim, reclaim, and finalization are separate repository operations;
+- queue tests must include concurrent claims, expired leases, stale tokens, and both idempotency namespaces;
+- retries do not erase domain run/attempt evidence;
+- cancellation requires a later concrete use case and ADR/update;
+- detailed infrastructure attempt history may be added later only if operational evidence justifies it;
+- older architecture examples that list `CANCELLED` are generic and are specialized by this accepted decision for EP-001.
+
+## Alternatives considered
+
+- reclaim expired RUNNING rows inside normal claim;
+- fence only by `locked_by` worker name;
+- use one ordinary unique constraint with nullable `tenant_id`;
+- create `job_attempts` immediately;
+- include `CANCELLED` before cancellation semantics exist.
+
+Rejected because they create ambiguous ownership, incorrect uniqueness, or premature workflow complexity.
+
+## Revisit trigger
+
+Revisit when a real product workflow requires cancellation, per-attempt infrastructure forensics, substantially different scheduling semantics, or measured PostgreSQL queue limitations.
+
+---
+
 # 18. Open decisions
 
 These are intentionally NOT locked yet.
 
 They should be decided during repository bootstrap or implementation and added as new ADRs.
 
-## OPEN-001 — Python dependency manager
+## OPEN-001 — Python dependency manager — RESOLVED
 
-Candidates:
+**Resolved by:** ADR-126
+
+Selected:
+
 ```text
 uv
-Poetry
-pip-tools
 ```
 
-## OPEN-002 — ORM
+## OPEN-002 — ORM — RESOLVED
 
-Candidates:
+**Resolved by:** ADR-127
+
+Selected:
+
 ```text
-SQLAlchemy
-SQLModel
-other minimal option
+SQLAlchemy 2.x + psycopg 3 + Alembic
 ```
 
 ## OPEN-003 — Authentication provider
