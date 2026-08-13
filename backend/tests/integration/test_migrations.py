@@ -32,6 +32,7 @@ async def test_schema_is_minimal_and_rejects_cancelled_status() -> None:
             "alembic_version",
             "artifacts",
             "browser_scenarios",
+            "interaction_profiles",
             "checkpoint_attempts",
             "checkpoint_runs",
             "checkpoint_windows",

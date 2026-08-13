@@ -12,6 +12,15 @@ CheckpointStatus = Literal[
     "BLOCKED",
 ]
 CollectorStatus = Literal["OK", "NOT_PRESENT", "NOT_OBSERVABLE", "ERROR", "TIMEOUT"]
+InteractionStepType = Literal["WAIT", "SCROLL_PERCENT", "INSPECT"]
+
+
+@dataclass(frozen=True, slots=True)
+class InteractionStep:
+    step_type: InteractionStepType
+    duration_ms: int | None = None
+    percent: int | None = None
+    marker: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +38,15 @@ class BrowserTarget:
     timezone: str
     viewport_width: int
     viewport_height: int
+    scheduled_for: datetime | None = None
+    device_scale_factor: float = 1.0
+    user_agent: str | None = None
+    is_mobile: bool = False
+    has_touch: bool = False
+    interaction_profile_id: uuid.UUID | None = None
+    interaction_profile_code: str | None = None
+    interaction_profile_version: int | None = None
+    interaction_steps: tuple[InteractionStep, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

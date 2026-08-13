@@ -3,6 +3,7 @@ import asyncio
 import logging
 import signal
 
+from app.browser.scheduling import CheckpointSchedulingService
 from app.common.logging import configure_logging
 from app.config.settings import get_settings
 from app.db.session import get_session_factory
@@ -12,13 +13,20 @@ logger = logging.getLogger(__name__)
 
 
 async def run_once() -> None:
-    queue = JobQueue(get_session_factory())
-    job_id = await queue.enqueue(
-        job_type="BOOTSTRAP_NOOP",
-        payload={"purpose": "EP-001 scheduler integration smoke"},
-        idempotency_key="global:bootstrap-noop:v1",
+    settings = get_settings()
+    factory = get_session_factory()
+    queue = JobQueue(factory)
+    result = await CheckpointSchedulingService(factory, queue, settings).schedule_due()
+    logger.info(
+        "browser checkpoint scheduling pass completed",
+        extra={
+            "context": {
+                "site_count": result.site_count,
+                "run_count": result.run_count,
+                "job_count": result.job_count,
+            }
+        },
     )
-    logger.info("bootstrap job scheduled", extra={"context": {"job_id": str(job_id)}})
 
 
 async def run(*, once: bool) -> None:

@@ -29,6 +29,10 @@ class RecordingRepository:
     async def finalize(self, **kwargs: Any) -> None:
         self.finalized = kwargs
 
+    async def previous_comparable(self, **kwargs: Any) -> None:
+        del kwargs
+        return None
+
 
 async def test_manifest_is_uploaded_last_and_finalized_after_objects() -> None:
     ids = [uuid.uuid4() for _ in range(5)]

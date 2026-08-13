@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     browser_locale: str = "en-US"
     browser_timezone: str = "UTC"
     browser_allow_private_networks: bool = False
+    browser_schedule_stagger_seconds: int = Field(default=30, ge=0, le=900)
 
     @model_validator(mode="after")
     def reject_local_defaults_in_production(self) -> "Settings":
@@ -90,6 +91,7 @@ class Settings(BaseSettings):
             "browser_locale": self.browser_locale,
             "browser_timezone": self.browser_timezone,
             "browser_allow_private_networks": self.browser_allow_private_networks,
+            "browser_schedule_stagger_seconds": self.browser_schedule_stagger_seconds,
         }
 
 

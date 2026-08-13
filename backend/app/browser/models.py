@@ -114,6 +114,31 @@ class MonitoredUrl(Base):
     )
 
 
+class InteractionProfile(Base):
+    __tablename__ = "interaction_profiles"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "site_id", "code", "version"),
+        Index("ix_interaction_profiles_site_status", "site_id", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    site_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sites.id", ondelete="RESTRICT")
+    )
+    code: Mapped[str] = mapped_column(String(100), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    steps: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="ACTIVE")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
+    retired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class BrowserScenario(Base):
     __tablename__ = "browser_scenarios"
     __table_args__ = (UniqueConstraint("tenant_id", "site_id", "code", "version"),)
@@ -124,6 +149,9 @@ class BrowserScenario(Base):
     )
     site_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("sites.id", ondelete="RESTRICT"), nullable=False
+    )
+    interaction_profile_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("interaction_profiles.id", ondelete="RESTRICT")
     )
     code: Mapped[str] = mapped_column(String(100), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
@@ -136,6 +164,7 @@ class BrowserScenario(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
+    retired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class CheckpointWindow(Base):

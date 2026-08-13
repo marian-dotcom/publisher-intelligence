@@ -33,9 +33,10 @@ make scheduler
 make frontend
 ```
 
-## Minimal browser checkpoint (B1)
+## Repeatable browser checkpoints (B2)
 
-Register one explicit public pilot URL and enqueue one checkpoint:
+Register one explicit public pilot URL. The command also enqueues one immediate legacy B1
+diagnostic run so an operator can verify the configuration without waiting for the next window:
 
 ```bash
 uv --directory backend run python -m app.browser_cli register-and-enqueue \
@@ -53,16 +54,24 @@ make browser-worker
 uv --directory backend run python -m app.browser_worker --once
 ```
 
-Each B1 run uses a fresh non-persistent Chromium context with a fixed desktop scenario. It
-persists viewport and full-page screenshots, rendered DOM, script/network/error observations,
-observer provenance, hashes, and a versioned manifest. PostgreSQL stores authoritative metadata;
-private S3-compatible storage holds artifact bytes. No public artifact URLs are created.
+The scheduler idempotently materializes one desktop and one mobile run for every active monitored
+URL in the site-local 00:00, 06:00, 12:00, and 18:00 windows. Jobs are deterministically staggered
+inside the window. Repeated scheduler ticks do not create duplicate windows, runs, or jobs.
+
+Each scheduled run uses a fresh non-persistent Chromium context and a frozen, versioned device and
+interaction profile. B2 waits and scrolls deterministically to 25%, 50%, and 75% of the available
+document range, records requested/actual positions, and captures the full-page screenshot last.
+The versioned manifest preserves complete observer/action provenance plus the previous comparable
+run ID for the same URL and exact scenario. It does not compute a semantic diff yet.
+
+PostgreSQL stores authoritative metadata; private S3-compatible storage holds viewport/full-page
+screenshots, rendered DOM, manifests, and their hashes. No public artifact URLs are created.
 
 `BROWSER_ALLOW_PRIVATE_NETWORKS` defaults to `false` and must remain false outside controlled
 tests. The application validates DNS destinations and intercepts browser requests, but production
 deployment still requires network-level egress enforcement to cover DNS rebinding and browser
-runtime failures. B1 does not authenticate, bypass paywalls, click ads, submit forms, run stealth,
-or make incident/AI judgments.
+runtime failures. B2 does not perform consent actions, authenticate, bypass paywalls, click ads,
+submit forms, run stealth, or make diff/event/incident/AI judgments.
 
 Apply or inspect migrations independently:
 
@@ -96,5 +105,6 @@ If Docker is unavailable, run the local unit/lint/build checks and rely on GitHu
 
 ## Repository boundaries
 
-EP-002 adds the minimal B1 evidence checkpoint only. No provider connector, recurring browser
-schedule, event, incident, LLM, or production authentication behavior is implemented here.
+EP-003 adds repeatable six-hour-compatible desktop/mobile checkpoints and deterministic scroll
+interactions. No provider connector, semantic diff, event, incident, LLM, consent action, or
+production authentication behavior is implemented here.

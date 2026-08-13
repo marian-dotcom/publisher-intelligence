@@ -1,16 +1,20 @@
+import logging
 import re
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from urllib.parse import urlsplit
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.browser.interactions import parse_interaction_steps
 from app.browser.models import (
     BrowserScenario,
     CheckpointRun,
     CheckpointWindow,
+    InteractionProfile,
     MonitoredUrl,
     Publisher,
     Site,
@@ -21,7 +25,30 @@ from app.config.settings import Settings
 from app.db.models import Tenant
 from app.jobs.queue import JobQueue
 
+logger = logging.getLogger(__name__)
+
 CORE_SCENARIO_CODE = "core_desktop_v1"
+B2_DESKTOP_SCENARIO_CODE = "core_desktop_v2"
+B2_MOBILE_SCENARIO_CODE = "core_mobile_v1"
+B2_INTERACTION_PROFILE_CODE = "core_scroll_v1"
+B2_INTERACTION_STEPS: list[dict[str, Any]] = [
+    {"type": "wait", "duration_ms": 500},
+    {"type": "scroll", "percent": 25},
+    {"type": "wait", "duration_ms": 250},
+    {"type": "scroll", "percent": 50},
+    {"type": "wait", "duration_ms": 250},
+    {"type": "scroll", "percent": 75},
+    {"type": "inspect", "marker": "sticky_and_video"},
+]
+
+DESKTOP_USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+)
+MOBILE_USER_AGENT = (
+    "Mozilla/5.0 (Linux; Android 15; Pixel 7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,6 +112,7 @@ class CheckpointService:
             template = await self._template(session, tenant.id, site.id)
             monitored_url = await self._monitored_url(session, tenant.id, site.id, template.id, url)
             scenario = await self._scenario(session, tenant.id, site.id)
+            await self._ensure_b2_configuration(session, tenant.id, site.id, site.timezone, now)
             window = CheckpointWindow(
                 id=uuid.uuid4(),
                 tenant_id=tenant.id,
@@ -271,3 +299,175 @@ class CheckpointService:
             session.add(scenario)
             await session.flush()
         return scenario
+
+    async def _ensure_b2_configuration(
+        self,
+        session: AsyncSession,
+        tenant_id: uuid.UUID,
+        site_id: uuid.UUID,
+        timezone_name: str,
+        now: datetime,
+    ) -> None:
+        profile = await self._interaction_profile(session, tenant_id, site_id)
+        await self._b2_scenario(
+            session,
+            tenant_id=tenant_id,
+            site_id=site_id,
+            profile=profile,
+            code=B2_DESKTOP_SCENARIO_CODE,
+            version=2,
+            device_class="DESKTOP",
+            device_profile={
+                "profile_name": "desktop_1440x900",
+                "profile_version": 1,
+                "viewport": {
+                    "width": self._settings.browser_viewport_width,
+                    "height": self._settings.browser_viewport_height,
+                },
+                "device_scale_factor": 1.0,
+                "user_agent": DESKTOP_USER_AGENT,
+                "is_mobile": False,
+                "has_touch": False,
+            },
+            timezone_name=timezone_name,
+        )
+        await self._b2_scenario(
+            session,
+            tenant_id=tenant_id,
+            site_id=site_id,
+            profile=profile,
+            code=B2_MOBILE_SCENARIO_CODE,
+            version=1,
+            device_class="MOBILE",
+            device_profile={
+                "profile_name": "pixel_7_class",
+                "profile_version": 1,
+                "viewport": {"width": 412, "height": 915},
+                "device_scale_factor": 2.625,
+                "user_agent": MOBILE_USER_AGENT,
+                "is_mobile": True,
+                "has_touch": True,
+            },
+            timezone_name=timezone_name,
+        )
+        legacy = await session.scalar(
+            select(BrowserScenario).where(
+                BrowserScenario.tenant_id == tenant_id,
+                BrowserScenario.site_id == site_id,
+                BrowserScenario.code == CORE_SCENARIO_CODE,
+                BrowserScenario.version == 1,
+            )
+        )
+        if legacy is not None and legacy.status == "ACTIVE":
+            legacy.status = "RETIRED"
+            legacy.retired_at = now
+
+    async def _interaction_profile(
+        self,
+        session: AsyncSession,
+        tenant_id: uuid.UUID,
+        site_id: uuid.UUID,
+    ) -> InteractionProfile:
+        profile = await session.scalar(
+            select(InteractionProfile).where(
+                InteractionProfile.tenant_id == tenant_id,
+                InteractionProfile.site_id == site_id,
+                InteractionProfile.code == B2_INTERACTION_PROFILE_CODE,
+                InteractionProfile.version == 1,
+            )
+        )
+        parse_interaction_steps(B2_INTERACTION_STEPS)
+        if profile is None:
+            profile = InteractionProfile(
+                id=uuid.uuid4(),
+                tenant_id=tenant_id,
+                site_id=site_id,
+                code=B2_INTERACTION_PROFILE_CODE,
+                version=1,
+                description="Bounded deterministic B2 article scroll",
+                steps=B2_INTERACTION_STEPS,
+                status="ACTIVE",
+            )
+            session.add(profile)
+            await session.flush()
+        elif profile.steps != B2_INTERACTION_STEPS or profile.status != "ACTIVE":
+            raise ValueError("existing B2 interaction profile does not match its immutable version")
+        return profile
+
+    async def _b2_scenario(
+        self,
+        session: AsyncSession,
+        *,
+        tenant_id: uuid.UUID,
+        site_id: uuid.UUID,
+        profile: InteractionProfile,
+        code: str,
+        version: int,
+        device_class: str,
+        device_profile: dict[str, object],
+        timezone_name: str,
+    ) -> BrowserScenario:
+        scenario = await session.scalar(
+            select(BrowserScenario).where(
+                BrowserScenario.tenant_id == tenant_id,
+                BrowserScenario.site_id == site_id,
+                BrowserScenario.code == code,
+                BrowserScenario.version == version,
+            )
+        )
+        expected = {
+            "interaction_profile_id": profile.id,
+            "device_class": device_class,
+            "device_profile": device_profile,
+            "locale": self._settings.browser_locale,
+            "timezone": timezone_name,
+            "cache_mode": "CLEAN",
+            "status": "ACTIVE",
+        }
+        if scenario is None:
+            scenario = BrowserScenario(
+                id=uuid.uuid4(),
+                tenant_id=tenant_id,
+                site_id=site_id,
+                code=code,
+                version=version,
+                **expected,
+            )
+            session.add(scenario)
+            await session.flush()
+            return scenario
+        actual = {key: getattr(scenario, key) for key in expected}
+        if actual != expected:
+            raise ValueError(
+                f"existing browser scenario {code} does not match its immutable version"
+            )
+        return scenario
+
+    async def ensure_b2_configuration_for_active_sites(self) -> int:
+        now = datetime.now(UTC)
+        async with self._session_factory() as session:
+            sites = list((await session.scalars(select(Site).where(Site.status == "ACTIVE"))).all())
+        configured = 0
+        for site in sites:
+            try:
+                async with self._session_factory() as session, session.begin():
+                    await self._ensure_b2_configuration(
+                        session,
+                        site.tenant_id,
+                        site.id,
+                        site.timezone,
+                        now,
+                    )
+                configured += 1
+            except ValueError as error:
+                logger.error(
+                    "B2 browser configuration rejected",
+                    extra={
+                        "context": {
+                            "tenant_id": str(site.tenant_id),
+                            "site_id": str(site.id),
+                            "error_class": type(error).__name__,
+                        }
+                    },
+                )
+        return configured
