@@ -73,7 +73,16 @@ class JobQueue:
                 raise RuntimeError("idempotent job conflict could not be resolved")
             return existing
 
-    async def claim(self, *, worker_id: str, lease_seconds: int) -> JobLease | None:
+    async def claim(
+        self,
+        *,
+        worker_id: str,
+        lease_seconds: int,
+        job_type: str | None = None,
+        excluded_job_type: str | None = None,
+    ) -> JobLease | None:
+        if job_type is not None and excluded_job_type is not None:
+            raise ValueError("job_type and excluded_job_type are mutually exclusive")
         lock_token = uuid.uuid4()
         statement = text(
             """
@@ -83,6 +92,14 @@ class JobQueue:
                 WHERE status IN ('PENDING', 'RETRY')
                   AND scheduled_at <= CURRENT_TIMESTAMP
                   AND available_at <= CURRENT_TIMESTAMP
+                  AND (
+                      CAST(:job_type AS text) IS NULL
+                      OR job_type = CAST(:job_type AS text)
+                  )
+                  AND (
+                      CAST(:excluded_job_type AS text) IS NULL
+                      OR job_type <> CAST(:excluded_job_type AS text)
+                  )
                 ORDER BY priority DESC, available_at ASC, created_at ASC
                 FOR UPDATE SKIP LOCKED
                 LIMIT 1
@@ -112,6 +129,8 @@ class JobQueue:
                             "worker_id": worker_id,
                             "lock_token": lock_token,
                             "lease_seconds": lease_seconds,
+                            "job_type": job_type,
+                            "excluded_job_type": excluded_job_type,
                         },
                     )
                 )

@@ -11,6 +11,7 @@ The product contracts live in the root Markdown files. Engineering work follows 
 - Node.js 24 LTS
 - `pnpm` 11
 - Docker with Compose for PostgreSQL and MinIO integration checks
+- Playwright's pinned Chromium build for browser checkpoints
 
 ## Local setup
 
@@ -18,6 +19,7 @@ The product contracts live in the root Markdown files. Engineering work follows 
 cp .env.example .env
 docker compose up -d postgres minio minio-init
 uv --directory backend sync --all-groups --locked
+uv --directory backend run playwright install --with-deps chromium
 pnpm --dir frontend install --frozen-lockfile
 uv --directory backend run alembic upgrade head
 ```
@@ -31,11 +33,36 @@ make scheduler
 make frontend
 ```
 
-The browser-worker is deliberately a placeholder in EP-001:
+## Minimal browser checkpoint (B1)
+
+Register one explicit public pilot URL and enqueue one checkpoint:
 
 ```bash
+uv --directory backend run python -m app.browser_cli register-and-enqueue \
+  --tenant-slug pilot \
+  --tenant-name "Pilot Tenant" \
+  --publisher-name "Example Publisher" \
+  --site-name "Example Site" \
+  --url "https://www.example.com/"
+```
+
+Run the isolated browser worker in a separate terminal, or use `--once` for one polling cycle:
+
+```bash
+make browser-worker
 uv --directory backend run python -m app.browser_worker --once
 ```
+
+Each B1 run uses a fresh non-persistent Chromium context with a fixed desktop scenario. It
+persists viewport and full-page screenshots, rendered DOM, script/network/error observations,
+observer provenance, hashes, and a versioned manifest. PostgreSQL stores authoritative metadata;
+private S3-compatible storage holds artifact bytes. No public artifact URLs are created.
+
+`BROWSER_ALLOW_PRIVATE_NETWORKS` defaults to `false` and must remain false outside controlled
+tests. The application validates DNS destinations and intercepts browser requests, but production
+deployment still requires network-level egress enforcement to cover DNS rebinding and browser
+runtime failures. B1 does not authenticate, bypass paywalls, click ads, submit forms, run stealth,
+or make incident/AI judgments.
 
 Apply or inspect migrations independently:
 
@@ -69,4 +96,5 @@ If Docker is unavailable, run the local unit/lint/build checks and rely on GitHu
 
 ## Repository boundaries
 
-EP-001 establishes infrastructure only. Browser evidence collection begins in EP-002. No provider connector, event, incident, LLM, or production authentication behavior is implemented here.
+EP-002 adds the minimal B1 evidence checkpoint only. No provider connector, recurring browser
+schedule, event, incident, LLM, or production authentication behavior is implemented here.

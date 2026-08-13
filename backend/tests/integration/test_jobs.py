@@ -63,6 +63,22 @@ async def test_concurrent_claims_return_one_lease() -> None:
     assert leases[0].id == job_id
 
 
+async def test_job_type_claim_filter_keeps_browser_work_isolated() -> None:
+    queue = JobQueue(get_session_factory())
+    browser_job = await queue.enqueue(job_type="BROWSER_CHECKPOINT", priority=10)
+    general_job = await queue.enqueue(job_type="BOOTSTRAP_NOOP")
+
+    general = await queue.claim(
+        worker_id="general", lease_seconds=30, excluded_job_type="BROWSER_CHECKPOINT"
+    )
+    browser = await queue.claim(
+        worker_id="browser", lease_seconds=30, job_type="BROWSER_CHECKPOINT"
+    )
+
+    assert general is not None and general.id == general_job
+    assert browser is not None and browser.id == browser_job
+
+
 async def test_reclaim_fences_stale_worker() -> None:
     queue = JobQueue(get_session_factory())
     await queue.enqueue(job_type="BOOTSTRAP_NOOP", max_attempts=3)

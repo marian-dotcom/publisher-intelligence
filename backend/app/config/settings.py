@@ -37,6 +37,16 @@ class Settings(BaseSettings):
     job_lease_seconds: int = Field(default=30, gt=0, le=3600)
     job_reclaim_backoff_seconds: int = Field(default=5, ge=0, le=3600)
 
+    browser_navigation_timeout_ms: int = Field(default=30_000, ge=1_000, le=120_000)
+    browser_stabilization_ms: int = Field(default=1_000, ge=0, le=10_000)
+    browser_overall_timeout_seconds: int = Field(default=60, ge=5, le=300)
+    browser_max_requests: int = Field(default=500, ge=10, le=5_000)
+    browser_viewport_width: int = Field(default=1440, ge=320, le=3840)
+    browser_viewport_height: int = Field(default=900, ge=320, le=2160)
+    browser_locale: str = "en-US"
+    browser_timezone: str = "UTC"
+    browser_allow_private_networks: bool = False
+
     @model_validator(mode="after")
     def reject_local_defaults_in_production(self) -> "Settings":
         if self.environment != "production":
@@ -50,6 +60,8 @@ class Settings(BaseSettings):
             local_fields.append("s3_access_key_id")
         if self.s3_secret_access_key.get_secret_value() == LOCAL_S3_SECRET_ACCESS_KEY:
             local_fields.append("s3_secret_access_key")
+        if self.browser_allow_private_networks:
+            local_fields.append("browser_allow_private_networks")
         if local_fields:
             fields = ", ".join(local_fields)
             raise ValueError(f"production configuration requires explicit values for: {fields}")
@@ -69,6 +81,15 @@ class Settings(BaseSettings):
             "job_poll_interval_seconds": self.job_poll_interval_seconds,
             "job_lease_seconds": self.job_lease_seconds,
             "job_reclaim_backoff_seconds": self.job_reclaim_backoff_seconds,
+            "browser_navigation_timeout_ms": self.browser_navigation_timeout_ms,
+            "browser_stabilization_ms": self.browser_stabilization_ms,
+            "browser_overall_timeout_seconds": self.browser_overall_timeout_seconds,
+            "browser_max_requests": self.browser_max_requests,
+            "browser_viewport_width": self.browser_viewport_width,
+            "browser_viewport_height": self.browser_viewport_height,
+            "browser_locale": self.browser_locale,
+            "browser_timezone": self.browser_timezone,
+            "browser_allow_private_networks": self.browser_allow_private_networks,
         }
 
 

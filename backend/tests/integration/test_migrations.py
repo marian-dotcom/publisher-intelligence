@@ -28,7 +28,21 @@ async def test_schema_is_minimal_and_rejects_cancelled_status() -> None:
                 )
             ).scalars()
         )
-        assert tables == {"alembic_version", "jobs", "tenants"}
+        assert tables == {
+            "alembic_version",
+            "artifacts",
+            "browser_scenarios",
+            "checkpoint_attempts",
+            "checkpoint_runs",
+            "checkpoint_windows",
+            "collector_runs",
+            "jobs",
+            "monitored_urls",
+            "publishers",
+            "sites",
+            "templates",
+            "tenants",
+        }
         constraints = (
             (
                 await connection.execute(

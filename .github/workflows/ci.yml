@@ -33,6 +33,7 @@ jobs:
       S3_ACCESS_KEY_ID: publisher-local
       S3_SECRET_ACCESS_KEY: replace-with-local-only-secret
       S3_USE_SSL: "false"
+      BROWSER_ALLOW_PRIVATE_NETWORKS: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -42,6 +43,7 @@ jobs:
         with:
           enable-cache: true
       - run: uv --directory backend sync --all-groups --locked
+      - run: uv --directory backend run playwright install --with-deps chromium
       - run: uv --directory backend run ruff format --check .
       - run: uv --directory backend run ruff check .
       - run: uv --directory backend run mypy app tests scripts migrations/env.py

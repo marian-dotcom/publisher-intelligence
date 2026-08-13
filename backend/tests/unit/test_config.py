@@ -30,3 +30,18 @@ def test_production_rejects_local_defaults_without_exposing_them() -> None:
     assert "s3_secret_access_key" in message
     assert "publisher-local" not in message
     assert "replace-with-local-only-secret" not in message
+
+
+def test_production_rejects_private_network_browser_opt_in() -> None:
+    with pytest.raises(ValidationError) as caught:
+        Settings(
+            environment="production",
+            database_url="postgresql+psycopg://service:secret@database.internal/app",
+            s3_endpoint_url="https://objects.example.com",
+            s3_access_key_id="explicit-key",
+            s3_secret_access_key="explicit-secret",
+            s3_use_ssl=True,
+            browser_allow_private_networks=True,
+        )
+
+    assert "browser_allow_private_networks" in str(caught.value)

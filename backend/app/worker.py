@@ -54,7 +54,11 @@ async def run(*, once: bool) -> None:
         )
         if reclaimed:
             logger.warning("expired jobs reclaimed", extra={"context": {"count": reclaimed}})
-        lease = await queue.claim(worker_id=worker_id, lease_seconds=settings.job_lease_seconds)
+        lease = await queue.claim(
+            worker_id=worker_id,
+            lease_seconds=settings.job_lease_seconds,
+            excluded_job_type="BROWSER_CHECKPOINT",
+        )
         if lease is not None:
             await handle_job(queue, lease, settings.job_reclaim_backoff_seconds)
         if once:
