@@ -664,6 +664,7 @@ If implementation reveals a choice with material business or security impact, st
 - The implementation runtime provides Python 3.12, `uv`, Node.js 24, and `pnpm`, but not Docker or `psql`.
 - `pnpm` 11 requires dependency build permissions in `pnpm-workspace.yaml`; only `esbuild` and `unrs-resolver` are allowed.
 - Python and pnpm cache roots are read-only in this hosted runtime, so local validation used temporary cache directories without changing repository commands.
+- GitHub Dependency Review is unavailable until the repository Dependency Graph is enabled; the optional job was removed after its explicit unsupported-repository error, while locked installs and the repository secret scan remain enforced.
 
 ## 20. Progress Log
 
@@ -691,6 +692,7 @@ Local implementation validation on 2026-08-13:
 - repository secret scan — passed;
 - `git diff --check` — passed;
 - Docker, migrations, PostgreSQL queue integration, MinIO round trip, and real readiness — not run locally because Docker is unavailable; CI workflow added to execute them.
+- GitHub Actions run 31733563563 — backend, PostgreSQL migrations/queue integration, MinIO storage/readiness, frontend, and repository safety passed; only the optional Dependency Review job failed because the repository Dependency Graph is disabled.
 
 ## 22. Next Step
 
