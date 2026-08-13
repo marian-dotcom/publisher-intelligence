@@ -1,8 +1,11 @@
-.PHONY: install check test test-integration secret-scan infra-up infra-down migrate api worker scheduler browser-worker frontend
+.PHONY: install browser-install check test test-integration secret-scan infra-up infra-down migrate api worker scheduler browser-worker frontend
 
 install:
 	uv --directory backend sync --all-groups --locked
 	pnpm --dir frontend install --frozen-lockfile
+
+browser-install:
+	uv --directory backend run playwright install --with-deps chromium
 
 check:
 	uv --directory backend run ruff check .
