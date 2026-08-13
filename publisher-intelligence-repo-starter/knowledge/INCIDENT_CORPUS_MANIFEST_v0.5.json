@@ -1,0 +1,44 @@
+{
+  "version": "0.5",
+  "record_count": 343,
+  "distinct_domain_mappings": 83,
+  "families": {
+    "gam_adserving": 146,
+    "video": 18,
+    "consent_cmp": 23,
+    "search_discover": 80,
+    "prebid_header_bidding": 24,
+    "programmatic_market": 4,
+    "reporting_discrepancy": 5,
+    "policy_compliance": 9,
+    "analytics_measurement": 8,
+    "browser_performance": 12,
+    "external_infrastructure": 14
+  },
+  "source_tiers": {
+    "A": 248,
+    "C": 47,
+    "B": 46,
+    "D": 2
+  },
+  "root_cause_status": {
+    "unresolved": 182,
+    "confirmed": 77,
+    "not_applicable": 47,
+    "probable": 37
+  },
+  "record_types": {
+    "external_platform_incident": 139,
+    "platform_incident_case": 14,
+    "external_search_event": 40,
+    "technical_bug": 53,
+    "publisher_field_case": 55,
+    "analytics_measurement_case": 8,
+    "publisher_performance_case": 12,
+    "research_evidence": 4,
+    "external_infrastructure_incident": 13,
+    "adtech_vendor_incident": 2,
+    "cmp_vendor_incident": 3
+  },
+  "generated_at": "2026-08-12T19:22:05"
+}

@@ -1,0 +1,67 @@
+version: '0.1'
+max_score: 24
+dimensions:
+- code: symptom_verification
+  max: 2
+  description: Distinguishes reported symptom from observed/corroborated evidence.
+- code: localization
+  max: 2
+  description: Uses affected and unaffected scope correctly; does not over-broaden.
+- code: temporal_reasoning
+  max: 3
+  description: Handles onset, candidate timing, temporal windows and recovery latency correctly.
+- code: mechanism_fit
+  max: 3
+  description: Top hypothesis has a concrete DOMAIN-supported mechanism and expected intermediate signals.
+- code: evidence_grounding
+  max: 3
+  description: Claims are traceable to supplied evidence; dependent evidence is not double-counted.
+- code: contradiction_search
+  max: 3
+  description: Actively tests timing, controls, expected signals, and removal/recovery evidence.
+- code: epistemic_restraint
+  max: 3
+  description: Uses qualitative confidence correctly and preserves UNRESOLVED when warranted.
+- code: external_context_discipline
+  max: 1
+  description: External update/outage remains context unless local evidence matches.
+- code: next_test_quality
+  max: 2
+  description: Next test is discriminating, bounded, low-risk, and states predicted outcomes.
+- code: explanation_quality
+  max: 2
+  description: Clear causal chain, source-aware language and explicit observability gaps.
+hard_fail_conditions:
+- Invents a material fact, metric movement, timestamp, rollback result, or external incident.
+- Claims a hidden SSP/DSP/Google internal mechanism as observed fact.
+- Treats an external event as publisher-specific cause without local matching evidence.
+- Ignores explicit evidence that the symptom predates the suspected cause.
+- Converts missing/stale data to zero.
+- Uses an exact numeric causal probability as user-facing confidence.
+- Claims site-wide scope from evidence limited to one URL/segment.
+- Uses public incident frequency as prevalence or prior probability.
+- Recommends an unsafe broad production change as the default diagnostic when a narrow test is available.
+pass_thresholds:
+  overall_pass: 18
+  strong_pass: 21
+  epistemic_restraint_min: 2
+  evidence_grounding_min: 2
+  contradiction_search_min: 2
+grader_strategy:
+  deterministic:
+  - expected outcome label where gold is definitive
+  - required/forbidden failure-mode presence
+  - evidence ID validity
+  - no numeric-probability pattern
+  - scope constraints
+  - external-event attribution constraints
+  model_grader:
+  - mechanism quality
+  - contradiction interpretation
+  - next-test information gain
+  - clarity of causal chain
+  human_audit:
+  - all hard fails during v0.1
+  - all disagreements between deterministic and model graders
+  - random sample of passes
+  - all new failure modes before promotion into DOMAIN

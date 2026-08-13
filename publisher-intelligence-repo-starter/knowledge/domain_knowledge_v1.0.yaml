@@ -1,0 +1,607 @@
+version: '1.0'
+researched_at: '2026-08-12'
+scope:
+  publisher_count: one_to_few_initially
+  page_checkpoint_hours: 6
+  primary_sources:
+  - browser
+  - GA4
+  - Google Search Console
+  - Google Ad Manager
+  financial_gam_metrics: optional_and_contextual
+  write_access_mvp: false
+knowledge_classes:
+- CANONICAL_CURRENT
+- CANONICAL_DURABLE
+- DERIVED
+- OPERATIONAL
+- INCIDENT_BACKED
+- OBSERVED
+- UNKNOWN_CONTESTED
+evidence_rules:
+  baseline_first: true
+  segment_before_cause: true
+  mechanism_required: true
+  search_contradictions: true
+  rollback_recovery_high_weight: true
+  failed_rollback_reduces_confidence: true
+  allow_unresolved: true
+  avoid_double_counting_metric_descendants: true
+confidence_labels:
+- CONFIRMED
+- PROBABLE
+- POSSIBLE_CONTRIBUTOR
+- UNRESOLVED
+core_entities:
+- publisher
+- domain
+- site
+- page
+- template
+- category
+- checkpoint
+- script_dependency
+- network_dependency
+- cmp
+- video_player
+- gpt_slot
+- gam_ad_unit
+- gam_order
+- gam_line_item
+- creative
+- demand_channel
+- yield_partner
+- prebid_ad_unit
+- bidder
+- deal
+- pricing_rule
+- ads_txt_record
+- search_page_query
+- external_event
+- operational_change
+- incident
+- hypothesis
+- evidence
+- last_known_good
+metric_chain:
+- traffic
+- pageviews
+- eligible_slot_opportunities
+- ad_requests
+- consent_demand_eligibility
+- auction_selection
+- served_rendered_impressions
+- viewability_quality
+- realized_value_mix
+- programmatic_revenue
+modifiers:
+- direct_campaigns
+- lazy_loading
+- refresh
+- ad_blocking
+- format
+- geography
+- device
+- floors
+- deals
+- identity
+- policy
+- market_demand
+event_edge_types:
+- precedes
+- coincides_with
+- same_segment_as
+- mechanistically_can_affect
+- metric_parent_of
+- metric_descendant_of
+- supports
+- contradicts
+- introduced_by
+- resolved_after
+- persisted_after_removal
+- external_context_for
+- unknown_relation
+failure_modes:
+  analytics_traffic:
+  - F-AN-001 analytics_tag_missing
+  - F-AN-002 duplicate_or_suppressed_page_view
+  - F-AN-003 spa_measurement_change
+  - F-AN-004 consent_changes_analytics_collection
+  - F-AN-005 attribution_change
+  - F-TR-001 site_availability
+  - F-TR-002 content_consumption_change
+  search:
+  - F-SEO-001 robots_block
+  - F-SEO-002 noindex
+  - F-SEO-003 canonical_misconfiguration
+  - F-SEO-004 status_redirect_availability
+  - F-SEO-005 js_rendering
+  - F-SEO-006 migration_architecture
+  - F-SEO-007 google_external_event
+  - F-SEO-008 search_demand
+  - F-SEO-009 serp_ctr_shift
+  - F-SEO-010 editorial_content_factor
+  gam_gpt:
+  - F-GAM-001 slot_removed
+  - F-GAM-002 request_targeting_config
+  - F-GAM-003 direct_displacement
+  - F-GAM-004 pricing_floor
+  - F-GAM-005 external_demand_platform
+  - F-GAM-006 broad_market_demand
+  - F-GAM-007 reporting_freshness
+  - F-GPT-001 slot_absent
+  - F-GPT-002 defined_not_requested
+  - F-GPT-003 response_missing
+  - F-GPT-004 render_load_failure
+  - F-GPT-005 visibility_viewability
+  header_bidding:
+  - F-HB-001 bidder_adapter
+  - F-HB-002 timeout_spike
+  - F-HB-003 timeout_too_short
+  - F-HB-004 delay_too_long
+  - F-HB-005 targeting_state
+  - F-HB-006 currency_floor
+  - F-HB-007 identity_sync
+  - F-HB-008 race_condition
+  - F-HB-009 server_side_hidden
+  - F-HB-010 video_cache_render
+  consent:
+  - F-CMP-001 unavailable
+  - F-CMP-002 readiness_slow
+  - F-CMP-003 invalid_missing_tcf
+  - F-CMP-004 vendor_mapping
+  - F-CMP-005 accept_reject_behavior
+  - F-CMP-006 geo_specific
+  - F-CMP-007 ui_only_change
+  video:
+  - F-VID-001 player_runtime
+  - F-VID-002 vast_cache_render
+  - F-VID-003 autoplay_mute_controls_sticky
+  - F-VID-004 placement_declaration
+  - F-VID-005 performance
+  - F-VID-006 reporting_render_discrepancy
+  - F-VID-007 policy
+  - F-VID-008 gam_prebid_cache_key
+  supply_policy:
+  - F-SUP-001 ads_txt_missing
+  - F-SUP-002 empty_success
+  - F-SUP-003 account_id
+  - F-SUP-004 relationship
+  - F-SUP-005 sellers_mismatch
+  - F-SUP-006 reseller_path_removed
+  - F-POL-001 serving_restriction
+  - F-POL-002 ad_obscures_content
+  - F-POL-003 disruptive_ad_experience
+  - F-POL-004 serving_limit
+  browser:
+  - F-BR-001 dependency_unavailable
+  - F-BR-002 js_exception
+  - F-BR-003 layout
+  - F-BR-004 security_block
+  - F-BR-005 browser_privacy_population
+  - F-BR-006 resource_latency
+  - F-BR-007 external_outage
+  - F-BR-008 control_plane_only
+default_alert_policy:
+  immediate_candidates:
+  - site_unavailable
+  - broad_robots_or_noindex
+  - widespread_expected_slot_loss
+  - severe_persistent_request_delivery_collapse
+  - cmp_runtime_unavailable
+  - explicit_severe_serving_policy_issue
+  - severe_persistent_performance_regression
+  weekly_default: true
+  do_not_alert_solely_on:
+  - raw_total_gam_revenue_change
+  - routine_ads_txt_diff
+  - single_js_error
+  - short_ecpm_move
+  - normal_content_change
+prohibited_inferences:
+- revenue_down_means_ssp_problem
+- ecpm_down_means_bad_integration
+- deploy_before_traffic_drop_means_deploy_caused_it
+- google_update_plus_drop_means_google_caused_it
+- ads_txt_change_means_revenue_impact
+- cmp_update_means_consent_broke
+- more_bidders_means_more_revenue
+- more_slots_means_more_revenue
+- worse_cwv_means_google_penalty
+- gam_total_revenue_equals_invoiced_revenue
+- synthetic_state_equals_all_users
+- bid_response_equals_impression
+- dashboard_outage_equals_serving_outage
+source_freshness_classes:
+  durable:
+  - causal_logic
+  - network_fundamentals
+  - rate_semantics
+  - event_history
+  versioned_standard:
+  - ads.txt
+  - sellers.json
+  - OpenRTB
+  - VAST
+  - TCF
+  - OM SDK
+  platform_current:
+  - GAM
+  - GPT
+  - GA4
+  - Google Search
+  - Search Console
+  - Prebid
+  empirical:
+  - incident_corpus
+  - vendor_outages
+  - publisher_cases
+concepts:
+  traffic.active_users:
+    kind: metric
+    source: GA4
+    class: CANONICAL_CURRENT
+  traffic.sessions:
+    kind: metric
+    source: GA4
+    class: CANONICAL_CURRENT
+  traffic.views:
+    kind: metric
+    source: GA4
+    class: CANONICAL_CURRENT
+  traffic.views_per_user:
+    kind: derived_metric
+    class: DERIVED
+  search.clicks:
+    kind: metric
+    source: Search Console
+    class: CANONICAL_CURRENT
+  search.impressions:
+    kind: metric
+    source: Search Console
+    class: CANONICAL_CURRENT
+  search.ctr:
+    kind: rate
+    source: Search Console
+    class: CANONICAL_CURRENT
+    requires_components: true
+  search.position:
+    kind: metric
+    source: Search Console
+    class: CANONICAL_CURRENT
+  ads.ad_request:
+    kind: metric_event
+    source: GAM/GPT
+    class: CANONICAL_CURRENT
+  ads.impression:
+    kind: metric_event
+    source: GAM
+    class: CANONICAL_CURRENT
+  ads.fill:
+    kind: rate
+    source: GAM
+    class: CANONICAL_CURRENT
+    requires_exact_source_definition: true
+  ads.ecpm:
+    kind: derived_metric
+    source: GAM
+    class: CANONICAL_CURRENT
+    requires_volume_context: true
+  ads.revenue:
+    kind: metric
+    source: GAM
+    class: CANONICAL_CURRENT
+    mvp_role: contextual_optional
+  browser.slot:
+    kind: entity
+    source: GPT/DOM
+    class: CANONICAL_CURRENT
+  browser.script_dependency:
+    kind: entity
+    source: browser_checkpoint
+    class: OBSERVED
+  browser.network_dependency:
+    kind: entity
+    source: browser_checkpoint
+    class: OBSERVED
+  consent.tc_string:
+    kind: signal
+    source: TCF/CMP
+    class: CANONICAL_CURRENT
+  video.vast_response:
+    kind: signal
+    source: VAST/player
+    class: CANONICAL_CURRENT
+  ops.checkpoint:
+    kind: immutable_state_evidence
+    class: PRODUCT_DOMAIN
+  ops.event:
+    kind: fact_or_semantic_change
+    class: PRODUCT_DOMAIN
+  ops.incident:
+    kind: investigation_object
+    class: PRODUCT_DOMAIN
+  ops.last_known_good:
+    kind: derived_reference_state
+    class: PRODUCT_DOMAIN
+relationships:
+- from: traffic.views
+  to: ads.ad_request
+  type: can_influence
+  class: DERIVED
+  confounders:
+  - slot_count
+  - lazy_loading
+  - refresh
+  - scroll_depth
+  - consent
+- from: ads.ad_request
+  to: ads.impression
+  type: upstream_of
+  class: DERIVED
+  confounders:
+  - eligibility
+  - targeting
+  - demand
+  - floors
+  - direct_displacement
+  - policy
+- from: ads.impression
+  to: ads.revenue
+  type: can_influence
+  class: DERIVED
+  confounders:
+  - ecpm
+  - demand_mix
+  - direct_commercial_semantics
+- from: consent.tc_string
+  to: ads.ad_request
+  type: can_affect_eligibility
+  class: INCIDENT_BACKED
+- from: browser.script_dependency
+  to: ads.ad_request
+  type: can_affect_runtime
+  class: DERIVED
+- from: search.impressions
+  to: search.clicks
+  type: upstream_of
+  class: DERIVED
+  confounders:
+  - ctr
+- from: ops.event
+  to: ops.incident
+  type: candidate_context_for
+  class: PRODUCT_DOMAIN
+- from: ops.checkpoint
+  to: ops.event
+  type: evidence_for
+  class: PRODUCT_DOMAIN
+diagnostic_patterns:
+  traffic_google_only:
+    if:
+    - ga4_google_source_down
+    - direct_stable
+    - social_stable
+    prioritize:
+    - search_technical
+    - google_external
+    - content_search_demand
+    avoid:
+    - generic_sitewide_cause_without_evidence
+  ga4_measurement_incident:
+    if:
+    - ga4_metric_down
+    - independent_signal_stable
+    - measurement_or_consent_change
+    prioritize:
+    - analytics_measurement
+  gam_request_generation:
+    if:
+    - traffic_stable
+    - views_stable
+    - gam_requests_down
+    prioritize:
+    - slot
+    - gpt
+    - lazy_loading
+    - cmp
+    - javascript
+    - template
+    - refresh
+  gam_delivery_fill:
+    if:
+    - requests_stable
+    - impressions_down
+    - fill_down
+    prioritize:
+    - eligibility
+    - targeting
+    - pricing
+    - demand
+    - consent
+    - policy
+    - direct_displacement
+  gam_value:
+    if:
+    - requests_stable
+    - impressions_stable
+    - ecpm_down
+    prioritize:
+    - demand_mix
+    - floor
+    - geo_device_mix
+    - seasonality
+    - market_demand
+  direct_displacement:
+    if:
+    - programmatic_down
+    - direct_delivery_up
+    - total_inventory_stable
+    interpretation: possible intentional inventory displacement, not automatic monetization failure
+  gpt_runtime:
+    stages:
+    - expected_slot
+    - defined
+    - requested
+    - response
+    - creative_injected
+    - iframe_loaded
+    - viewable
+    rule: Do not label a later-stage failure before confirming earlier stages.
+  search_ctr:
+    if:
+    - search_impressions_stable
+    - position_stable
+    - clicks_down
+    - ctr_down
+    prioritize:
+    - serp_ctr
+    - query_mix
+    - search_demand_context
+observability_matrix:
+  site_availability:
+    observable: strong
+    via:
+    - browser
+    - http
+  dom_structure:
+    observable: strong
+    via:
+    - browser
+    limits:
+    - variant_exposure
+    - geo
+  javascript_errors:
+    observable: strong
+    via:
+    - browser
+    limits:
+    - synthetic_only
+  gpt_lifecycle:
+    observable: strong
+    via:
+    - GPT events
+    - network
+  prebid_client:
+    observable: moderate_to_strong
+    via:
+    - pbjs events
+    - network
+    limits:
+    - custom wrappers
+    - version
+  prebid_server:
+    observable: partial
+    via:
+    - browser endpoint
+    - publisher reports
+    limits:
+    - hidden bidders
+  cmp_runtime:
+    observable: moderate
+    via:
+    - CMP API
+    - TCF
+    - network
+    limits:
+    - iframe
+    - geo
+    - vendor internals
+  gam_delivery:
+    observable: strong_if_access_granted
+    via:
+    - GAM API
+    limits:
+    - freshness
+    - metric compatibility
+  real_traffic:
+    observable: strong_measurement
+    via:
+    - GA4
+    limits:
+    - measurement implementation
+    - consent
+    - reporting semantics
+  google_visibility:
+    observable: strong_aggregate
+    via:
+    - Search Console
+    limits:
+    - latency
+    - aggregation
+    - row limits
+  hidden_google_ranking_logic:
+    observable: none
+    limits:
+    - not exposed
+  ssp_server_side_logic:
+    observable: weak_without_vendor_data
+    limits:
+    - proprietary
+  advertiser_budget_intent:
+    observable: none_or_indirect
+gpt_lifecycle:
+- stage: 1
+  name: expected_slot_present
+- stage: 2
+  name: slot_defined
+- stage: 3
+  name: slot_requested
+- stage: 4
+  name: slot_response_received
+- stage: 5
+  name: creative_code_injected
+- stage: 6
+  name: creative_iframe_loaded
+- stage: 7
+  name: impression_viewable
+required_source_metadata:
+  GA4:
+  - property
+  - query
+  - dimensions
+  - metrics
+  - retrieved_at
+  - response_metadata
+  GSC:
+  - property
+  - search_type
+  - dimensions
+  - date_range
+  - retrieved_at
+  GAM:
+  - network
+  - report_type
+  - dimensions
+  - metrics
+  - currency
+  - time_zone
+  - period
+  - retrieved_at
+  - api_report_version
+  browser:
+  - browser_version
+  - viewport
+  - user_agent
+  - region
+  - consent_scenario
+  - cache_state
+  - interaction_script
+  - timestamp
+counterfactual_tests:
+- affected_vs_unaffected_template
+- mobile_vs_desktop
+- consent_accept_vs_reject
+- one_ad_unit_isolation
+- one_bidder_isolation
+- limited_traffic_cohort
+- staging_vs_production
+- targeted_rollback
+weekly_ranking_factors:
+- severity
+- persistence
+- blast_radius
+- confidence
+- actionability
+- novelty
+- business_relevance

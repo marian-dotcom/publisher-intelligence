@@ -1,0 +1,3364 @@
+version: '0.1'
+created_for: Publisher Incident Intelligence Platform
+purpose: Initial product-level incident reasoning evaluation set.
+leakage_policy: The harness passes only visible_case and task to the system under test. gold and grading are withheld.
+notes:
+- Public-corpus coverage is not real-world prevalence.
+- External events test context discipline unless publisher-specific evidence is supplied.
+- Private/internal cases are user-reported and are not public confirmed ground truth.
+evals:
+- id: EVAL-PUB-001
+  source_incident_id: CASE-GAM-0008
+  eval_type: diagnostic_ranking
+  family: gam_adserving
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 100
+    source_name: Google Ads Status Dashboard — Publisher products
+    source_url: https://ads.google.com/status/publisher/
+  visible_case:
+    reported_symptom: Subset of EMEA publishers experienced a decline in Ad Exchange match rates and revenue.
+    affected_scope: Google publisher product / subset as described.
+    date_start: '2026-04-01'
+    source_class: official_status
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-GAM-005
+    root_cause_status: confirmed
+    root_cause: Google-side systemic match/delivery incident.
+    resolution: Resolved by Google
+    recovery: null
+    lesson: External platform incidents are strong evidence only when affected product/format/geo/metric matches the publisher
+      symptom.
+    domain_mappings:
+    - F-GAM-005
+    - google_external_event
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-002
+  source_incident_id: CASE-GAM-0010
+  eval_type: diagnostic_ranking
+  family: gam_adserving
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 100
+    source_name: Google Ads Status Dashboard — Publisher products
+    source_url: https://ads.google.com/status/publisher/
+  visible_case:
+    reported_symptom: Ad Exchange total requests were incorrect; match rate and request eCPM derived from them were wrong
+      while legacy reporting was unaffected.
+    affected_scope: Google publisher product / subset as described.
+    date_start: '2026-03-04'
+    source_class: official_status
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-GAM-007
+    root_cause_status: confirmed
+    root_cause: Reporting calculation/data defect.
+    resolution: Resolved
+    recovery: null
+    lesson: External platform incidents are strong evidence only when affected product/format/geo/metric matches the publisher
+      symptom.
+    domain_mappings:
+    - F-GAM-007
+    - rate_denominator_discipline
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-003
+  source_incident_id: CASE-GAM-0011
+  eval_type: diagnostic_ranking
+  family: gam_adserving
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 100
+    source_name: Google Ads Status Dashboard — Publisher products
+    source_url: https://ads.google.com/status/publisher/
+  visible_case:
+    reported_symptom: Systemic decline in AdX match rates/delivery concentrated on Web/mobile-web display and affecting Google
+      Ads/DV360 demand.
+    affected_scope: Google publisher product / subset as described.
+    date_start: '2026-01-13'
+    source_class: official_status
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-GAM-005
+    root_cause_status: confirmed
+    root_cause: Google-side systemic incident.
+    resolution: Resolved; match rates recovered
+    recovery: null
+    lesson: External platform incidents are strong evidence only when affected product/format/geo/metric matches the publisher
+      symptom.
+    domain_mappings:
+    - F-GAM-005
+    - google_external_event
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-004
+  source_incident_id: CASE-GAM-0007
+  eval_type: diagnostic_ranking
+  family: gam_adserving
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 98
+    source_name: Google Ads Status Dashboard — Publisher products
+    source_url: https://ads.google.com/status/publisher/
+  visible_case:
+    reported_symptom: Scheduled reports intermittently failed to deliver while frontend said processed.
+    affected_scope: Google publisher product / subset as described.
+    date_start: '2026-04-02'
+    source_class: official_status
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-GAM-007
+    root_cause_status: confirmed
+    root_cause: Platform-side report-delivery issue.
+    resolution: Resolved by Google
+    recovery: null
+    lesson: External platform incidents are strong evidence only when affected product/format/geo/metric matches the publisher
+      symptom.
+    domain_mappings:
+    - F-GAM-007
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-005
+  source_incident_id: CASE-GAM-0001
+  eval_type: diagnostic_ranking
+  family: gam_adserving
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 96
+    source_name: Google Ads Status Dashboard — Publisher products
+    source_url: https://ads.google.com/status/publisher/
+  visible_case:
+    reported_symptom: Extreme UI slowness plus reporting delays, forecasting failures and SOAP API failures.
+    affected_scope: Google publisher product / subset as described.
+    date_start: '2026-08-04'
+    source_class: official_status
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-GAM-007
+    root_cause_status: confirmed
+    root_cause: Internal root cause identified by Google; public status did not expose full RCA.
+    resolution: Traffic was routed away from affected area and service recovered
+    recovery: null
+    lesson: External platform incidents are strong evidence only when affected product/format/geo/metric matches the publisher
+      symptom.
+    domain_mappings:
+    - F-GAM-007
+    - google_external_event
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-006
+  source_incident_id: FIELD-ADS-0011
+  eval_type: diagnostic_ranking
+  family: gam_adserving
+  difficulty: hard
+  provenance:
+    type: public_incident_corpus
+    source_tier: B
+    evidence_score: 93
+    source_name: r/adops publisher incident — AMP declining ad impressions/page impression
+    source_url: https://www.reddit.com/r/adops/comments/qvtu8a/amp_declining_ad_impressions_page_impression/
+  visible_case:
+    reported_symptom: Large AMP publisher (~5M pageviews/day) saw ad impressions per pageview decline 15–20% over several
+      weeks. GAM received fewer ad requests while SSP/Prebid Server incoming request volume remained comparatively stable.
+    affected_scope: AMP inventory / Google ad-request path.
+    source_class: community_thread_with_reported_resolution
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-CMP-003
+    - F-CMP-004
+    - F-GAM-002
+    root_cause_status: confirmed
+    root_cause: 'Publisher later reported the issue solved: outdated TCF consent strings were causing Google to drop ad requests;
+      GAM''s TCF error reporting showed error 3.3.'
+    resolution: Publisher reported the problem solved after identifying outdated TCF strings. The public thread does not provide
+      enough detail to assert the exact deployment/fix steps, so they are intentionally not invented.
+    recovery: null
+    lesson: 'Excellent cross-layer pattern: pageviews stable + upstream SSP request volume stable + GAM requests fall -> inspect
+      consent/TCF eligibility before blaming traffic or SSP demand.'
+    domain_mappings:
+    - M-004
+    - F-CMP-003
+    - F-CMP-004
+    - F-GAM-002
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-007
+  source_incident_id: FIELD-ADS-0002
+  eval_type: diagnostic_ranking
+  family: gam_adserving
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: B
+    evidence_score: 85
+    source_name: Public AdOps/operator report
+    source_url: https://www.reddit.com/r/adops/
+  visible_case:
+    reported_symptom: Publisher reported sudden Google demand/fill issue; peers linked it to Google official Jan 2026 systemic
+      AdX match-rate incident and later recovery.
+    affected_scope: Publisher-specific self-report.
+    source_class: community_thread
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: PROBABLE
+    accepted_failure_modes:
+    - F-GAM-005
+    root_cause_status: probable
+    root_cause: Strong external corroboration with official Google incident.
+    resolution: null
+    recovery: null
+    lesson: Use community evidence for pattern discovery and counterexamples, not as canonical truth.
+    domain_mappings:
+    - F-GAM-005
+    - google_external_event
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-008
+  source_incident_id: FIELD-ADS-0001
+  eval_type: epistemic_restraint
+  family: programmatic_market
+  difficulty: hard
+  provenance:
+    type: public_incident_corpus
+    source_tier: C
+    evidence_score: 58
+    source_name: Public AdOps/operator report
+    source_url: https://www.reddit.com/r/adops/
+  visible_case:
+    reported_symptom: Publisher reported AdX fill falling from ~90% to ~10%; peers saw international/video demand hit harder
+      than US in a market-stress period.
+    affected_scope: Publisher-specific self-report.
+    source_class: community_thread
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: UNRESOLVED
+    accepted_failure_modes:
+    - F-GAM-006
+    root_cause_status: unresolved
+    root_cause: External demand/geo mix plausible; no single technical root cause proven.
+    resolution: null
+    recovery: null
+    lesson: Use community evidence for pattern discovery and counterexamples, not as canonical truth.
+    domain_mappings:
+    - F-GAM-006
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+    - Do not force a root cause; UNRESOLVED must remain available.
+- id: EVAL-PUB-009
+  source_incident_id: CASE-ADSENSE-0001
+  eval_type: diagnostic_ranking
+  family: consent_cmp
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 100
+    source_name: Google Ads Status Dashboard — Publisher products
+    source_url: https://ads.google.com/status/publisher/
+  visible_case:
+    reported_symptom: Some newly created TC consent strings from Google Privacy & Messaging incorrectly prevented users from
+      eligibility for any ad serving.
+    affected_scope: Google publisher product / subset as described.
+    date_start: '2023-11-08'
+    source_class: official_status
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-CMP-003
+    - F-CMP-004
+    root_cause_status: confirmed
+    root_cause: Google-side consent-string generation/interpretation defect.
+    resolution: Resolved by Google
+    recovery: null
+    lesson: External platform incidents are strong evidence only when affected product/format/geo/metric matches the publisher
+      symptom.
+    domain_mappings:
+    - F-CMP-003
+    - F-CMP-004
+    - google_external_event
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-010
+  source_incident_id: CASE-PREBID-0019
+  eval_type: diagnostic_ranking
+  family: consent_cmp
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 99
+    source_name: 'Prebid.js GitHub issue #5462'
+    source_url: https://github.com/prebid/Prebid.js/issues/5462
+  visible_case:
+    reported_symptom: Initial consent state allowed first bids with undefined consent before useractioncomplete.
+    affected_scope: Prebid.js publisher integration; depends on version/modules/config.
+    known_change_or_trigger: Issue-specific implementation/version context.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-CMP-002
+    - F-CMP-003
+    root_cause_status: confirmed
+    root_cause: TCF/CMP readiness race.
+    resolution: fixed/closed
+    recovery: null
+    lesson: Localize to auction lifecycle, consent, bidder response, targeting propagation and GAM request timing before blaming
+      demand.
+    domain_mappings:
+    - F-CMP-002
+    - F-CMP-003
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-011
+  source_incident_id: CASE-PREBID-ADD-0004
+  eval_type: diagnostic_ranking
+  family: consent_cmp
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 98
+    source_name: 'Prebid.js GitHub issue #6325'
+    source_url: https://github.com/prebid/Prebid.js/issues/6325
+  visible_case:
+    reported_symptom: With Prebid Server plus gdprEnforcement, server-side bidders emitted 'User sync not allowed for null'
+      and user sync appeared broken while client-side bidders worked.
+    affected_scope: Prebid.js publisher integration; version/configuration specific.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-CMP-004
+    - F-HB-007
+    root_cause_status: confirmed
+    root_cause: Prebid Server adapter called sync registration without bidder/consent context needed by GDPR enforcement.
+    resolution: Issue was publicly tracked in Prebid.js; inspect issue/linked PR for version-specific fix status.
+    recovery: null
+    lesson: Use lifecycle/module evidence and affected scope; do not collapse this into a generic demand problem.
+    domain_mappings:
+    - F-CMP-004
+    - F-HB-007
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-012
+  source_incident_id: CASE-PREBID-0012
+  eval_type: diagnostic_ranking
+  family: consent_cmp
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 97
+    source_name: 'Prebid.js GitHub issue #7156'
+    source_url: https://github.com/prebid/Prebid.js/issues/7156
+  visible_case:
+    reported_symptom: Consent flow could time out/cancel auction while CMP remained open despite configuration intended to
+      allow basic ads.
+    affected_scope: Prebid.js publisher integration; depends on version/modules/config.
+    known_change_or_trigger: Issue-specific implementation/version context.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-CMP-002
+    - F-CMP-005
+    root_cause_status: confirmed
+    root_cause: Consent/auction enforcement defect/behavior.
+    resolution: fixed/closed
+    recovery: null
+    lesson: Localize to auction lifecycle, consent, bidder response, targeting propagation and GAM request timing before blaming
+      demand.
+    domain_mappings:
+    - F-CMP-002
+    - F-CMP-005
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-013
+  source_incident_id: CASE-PREBID-0025
+  eval_type: diagnostic_ranking
+  family: consent_cmp
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 97
+    source_name: 'Prebid.js GitHub issue #5447'
+    source_url: https://github.com/prebid/Prebid.js/issues/5447
+  visible_case:
+    reported_symptom: ID5/user ID received empty consent while bidder adapters later received valid consent.
+    affected_scope: Prebid.js publisher integration; depends on version/modules/config.
+    known_change_or_trigger: Issue-specific implementation/version context.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-CMP-002
+    - F-HB-007
+    root_cause_status: confirmed
+    root_cause: Timing/race inconsistency among consent consumers.
+    resolution: fixed/closed
+    recovery: null
+    lesson: Localize to auction lifecycle, consent, bidder response, targeting propagation and GAM request timing before blaming
+      demand.
+    domain_mappings:
+    - F-CMP-002
+    - F-HB-007
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-014
+  source_incident_id: CASE-PREBID-0020
+  eval_type: diagnostic_ranking
+  family: consent_cmp
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 96
+    source_name: 'Prebid.js GitHub issue #14881'
+    source_url: https://github.com/prebid/Prebid.js/issues/14881
+  visible_case:
+    reported_symptom: Prebid called TCF API before CMP ready; userId modules initialized without consent and were not retriggered
+      after user accepted.
+    affected_scope: Prebid.js publisher integration; depends on version/modules/config.
+    known_change_or_trigger: Issue-specific implementation/version context.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-CMP-002
+    - F-HB-007
+    root_cause_status: confirmed
+    root_cause: Identified 2026 readiness race; proposed poller.
+    resolution: open
+    recovery: null
+    lesson: Localize to auction lifecycle, consent, bidder response, targeting propagation and GAM request timing before blaming
+      demand.
+    domain_mappings:
+    - F-CMP-002
+    - F-HB-007
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-015
+  source_incident_id: CASE-PREBID-0028
+  eval_type: diagnostic_ranking
+  family: consent_cmp
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 96
+    source_name: 'Prebid.js GitHub issue #5232'
+    source_url: https://github.com/prebid/Prebid.js/issues/5232
+  visible_case:
+    reported_symptom: Initial event undefined; timeout resumed auction without usable consent string.
+    affected_scope: Prebid.js publisher integration; depends on version/modules/config.
+    known_change_or_trigger: Issue-specific implementation/version context.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-CMP-002
+    - F-CMP-003
+    root_cause_status: confirmed
+    root_cause: CMP readiness race.
+    resolution: fixed/closed
+    recovery: null
+    lesson: Localize to auction lifecycle, consent, bidder response, targeting propagation and GAM request timing before blaming
+      demand.
+    domain_mappings:
+    - F-CMP-002
+    - F-CMP-003
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-016
+  source_incident_id: CASE-PREBID-0015
+  eval_type: diagnostic_ranking
+  family: consent_cmp
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 95
+    source_name: 'Prebid.js GitHub issue #5572'
+    source_url: https://github.com/prebid/Prebid.js/issues/5572
+  visible_case:
+    reported_symptom: Publisher expected auction to proceed but Prebid exited.
+    affected_scope: Prebid.js publisher integration; depends on version/modules/config.
+    known_change_or_trigger: Issue-specific implementation/version context.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-CMP-001
+    - F-CMP-005
+    root_cause_status: confirmed
+    root_cause: Consent module defect/behavior.
+    resolution: fixed/closed
+    recovery: null
+    lesson: Localize to auction lifecycle, consent, bidder response, targeting propagation and GAM request timing before blaming
+      demand.
+    domain_mappings:
+    - F-CMP-001
+    - F-CMP-005
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-017
+  source_incident_id: CASE-PREBID-0026
+  eval_type: diagnostic_ranking
+  family: consent_cmp
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: B
+    evidence_score: 92
+    source_name: 'Prebid.js GitHub issue #8161'
+    source_url: https://github.com/prebid/Prebid.js/issues/8161
+  visible_case:
+    reported_symptom: Purpose/vendor enforcement mapping blocked storage/ID behavior.
+    affected_scope: Prebid.js publisher integration; depends on version/modules/config.
+    known_change_or_trigger: Issue-specific implementation/version context.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: PROBABLE
+    accepted_failure_modes:
+    - F-CMP-004
+    - F-HB-007
+    root_cause_status: probable
+    root_cause: Consent-enforcement mapping defect/behavior.
+    resolution: fixed/closed
+    recovery: null
+    lesson: Localize to auction lifecycle, consent, bidder response, targeting propagation and GAM request timing before blaming
+      demand.
+    domain_mappings:
+    - F-CMP-004
+    - F-HB-007
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-018
+  source_incident_id: CASE-PREBID-0029
+  eval_type: diagnostic_ranking
+  family: consent_cmp
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: B
+    evidence_score: 92
+    source_name: 'Prebid.js GitHub issue #5241'
+    source_url: https://github.com/prebid/Prebid.js/issues/5241
+  visible_case:
+    reported_symptom: Unexpected CMP API state caused auction cancellation.
+    affected_scope: Prebid.js publisher integration; depends on version/modules/config.
+    known_change_or_trigger: Issue-specific implementation/version context.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: PROBABLE
+    accepted_failure_modes:
+    - F-CMP-003
+    - F-CMP-005
+    root_cause_status: probable
+    root_cause: Consent API edge-case defect.
+    resolution: fixed/closed
+    recovery: null
+    lesson: Localize to auction lifecycle, consent, bidder response, targeting propagation and GAM request timing before blaming
+      demand.
+    domain_mappings:
+    - F-CMP-003
+    - F-CMP-005
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-019
+  source_incident_id: CASE-PREBID-0001
+  eval_type: diagnostic_ranking
+  family: prebid_header_bidding
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 98
+    source_name: 'Prebid.js GitHub issue #8139'
+    source_url: https://github.com/prebid/Prebid.js/issues/8139
+  visible_case:
+    reported_symptom: Provider returned in ~150ms but RTD logic continued waiting for configured ~50s auctionDelay; bidder
+      timeout was 10s, so auction timed out.
+    affected_scope: Prebid.js publisher integration; depends on version/modules/config.
+    known_change_or_trigger: Issue-specific implementation/version context.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-HB-002
+    - F-HB-004
+    root_cause_status: confirmed
+    root_cause: Confirmed RTD auction-delay behavior defect.
+    resolution: fixed/closed
+    recovery: null
+    lesson: Localize to auction lifecycle, consent, bidder response, targeting propagation and GAM request timing before blaming
+      demand.
+    domain_mappings:
+    - F-HB-002
+    - F-HB-004
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-020
+  source_incident_id: CASE-PREBID-0013
+  eval_type: diagnostic_ranking
+  family: prebid_header_bidding
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 98
+    source_name: 'Prebid.js GitHub issue #8565'
+    source_url: https://github.com/prebid/Prebid.js/issues/8565
+  visible_case:
+    reported_symptom: Converted EUR bid appeared above configured floor but was rejected.
+    affected_scope: Prebid.js publisher integration; depends on version/modules/config.
+    known_change_or_trigger: Issue-specific implementation/version context.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-HB-006
+    root_cause_status: confirmed
+    root_cause: Currency/floor handling defect.
+    resolution: fixed/closed
+    recovery: null
+    lesson: Localize to auction lifecycle, consent, bidder response, targeting propagation and GAM request timing before blaming
+      demand.
+    domain_mappings:
+    - F-HB-006
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-021
+  source_incident_id: CASE-PREBID-0002
+  eval_type: measurement_integrity
+  family: prebid_header_bidding
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 97
+    source_name: 'Prebid.js GitHub issue #3583'
+    source_url: https://github.com/prebid/Prebid.js/issues/3583
+  visible_case:
+    reported_symptom: Analytics timeout event could include bidders that actually responded within timeout.
+    affected_scope: Prebid.js publisher integration; depends on version/modules/config.
+    known_change_or_trigger: Issue-specific implementation/version context.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-HB-002
+    root_cause_status: confirmed
+    root_cause: Prebid event/analytics telemetry defect.
+    resolution: fixed/closed
+    recovery: null
+    lesson: Localize to auction lifecycle, consent, bidder response, targeting propagation and GAM request timing before blaming
+      demand.
+    domain_mappings:
+    - observability_error
+    - F-HB-002
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-022
+  source_incident_id: CASE-PREBID-0021
+  eval_type: diagnostic_ranking
+  family: prebid_header_bidding
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 97
+    source_name: 'Prebid.js GitHub issue #8566'
+    source_url: https://github.com/prebid/Prebid.js/issues/8566
+  visible_case:
+    reported_symptom: Enabling currency/adServerCurrency made Adform bidder return no bids.
+    affected_scope: Prebid.js publisher integration; depends on version/modules/config.
+    known_change_or_trigger: Issue-specific implementation/version context.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-HB-006
+    root_cause_status: confirmed
+    root_cause: Currency-module/bidder compatibility defect.
+    resolution: fixed/closed
+    recovery: null
+    lesson: Localize to auction lifecycle, consent, bidder response, targeting propagation and GAM request timing before blaming
+      demand.
+    domain_mappings:
+    - F-HB-006
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-023
+  source_incident_id: CASE-PREBID-0008
+  eval_type: diagnostic_ranking
+  family: prebid_header_bidding
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 96
+    source_name: 'Prebid.js GitHub issue #2677'
+    source_url: https://github.com/prebid/Prebid.js/issues/2677
+  visible_case:
+    reported_symptom: Invalid bidder could hold auction until timeout and delay/prevent timely GAM targeting.
+    affected_scope: Prebid.js publisher integration; depends on version/modules/config.
+    known_change_or_trigger: Issue-specific implementation/version context.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-HB-002
+    - F-HB-004
+    root_cause_status: confirmed
+    root_cause: Auction control bug around invalid bidder handling.
+    resolution: fixed/closed
+    recovery: null
+    lesson: Localize to auction lifecycle, consent, bidder response, targeting propagation and GAM request timing before blaming
+      demand.
+    domain_mappings:
+    - F-HB-002
+    - F-HB-004
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-024
+  source_incident_id: CASE-PREBID-0009
+  eval_type: diagnostic_ranking
+  family: prebid_header_bidding
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 96
+    source_name: 'Prebid.js GitHub issue #11937'
+    source_url: https://github.com/prebid/Prebid.js/issues/11937
+  visible_case:
+    reported_symptom: Some ad units lacked expected imp.bidfloor/bidfloorcur values due request-order logic.
+    affected_scope: Prebid.js publisher integration; depends on version/modules/config.
+    known_change_or_trigger: Issue-specific implementation/version context.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-HB-006
+    root_cause_status: confirmed
+    root_cause: Floor propagation bug.
+    resolution: closed
+    recovery: null
+    lesson: Localize to auction lifecycle, consent, bidder response, targeting propagation and GAM request timing before blaming
+      demand.
+    domain_mappings:
+    - F-HB-006
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-025
+  source_incident_id: CASE-PREBID-0011
+  eval_type: diagnostic_ranking
+  family: prebid_header_bidding
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 96
+    source_name: 'Prebid.js GitHub issue #7117'
+    source_url: https://github.com/prebid/Prebid.js/issues/7117
+  visible_case:
+    reported_symptom: Multi-provider RTD flow could resume auction before all providers ran.
+    affected_scope: Prebid.js publisher integration; depends on version/modules/config.
+    known_change_or_trigger: Issue-specific implementation/version context.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-HB-004
+    root_cause_status: confirmed
+    root_cause: Confirmed ordering/race defect.
+    resolution: fixed/closed
+    recovery: null
+    lesson: Localize to auction lifecycle, consent, bidder response, targeting propagation and GAM request timing before blaming
+      demand.
+    domain_mappings:
+    - race_condition
+    - F-HB-004
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-026
+  source_incident_id: CASE-PREBID-0018
+  eval_type: diagnostic_ranking
+  family: prebid_header_bidding
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 96
+    source_name: 'Prebid.js GitHub issue #8307'
+    source_url: https://github.com/prebid/Prebid.js/issues/8307
+  visible_case:
+    reported_symptom: Regression caused floor fields to be missing on some ad units.
+    affected_scope: Prebid.js publisher integration; depends on version/modules/config.
+    known_change_or_trigger: Issue-specific implementation/version context.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-HB-006
+    root_cause_status: confirmed
+    root_cause: Floor propagation regression.
+    resolution: fixed/closed
+    recovery: null
+    lesson: Localize to auction lifecycle, consent, bidder response, targeting propagation and GAM request timing before blaming
+      demand.
+    domain_mappings:
+    - F-HB-006
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-027
+  source_incident_id: CASE-PREBID-ADD-0001
+  eval_type: diagnostic_ranking
+  family: prebid_header_bidding
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 96
+    source_name: 'Prebid.js GitHub issue #12238'
+    source_url: https://github.com/prebid/Prebid.js/issues/12238
+  visible_case:
+    reported_symptom: Bidder failures occurred when an ad-server currency value was propagated into requests for bidders that
+      did not support the currency.
+    affected_scope: Prebid.js integration; version/configuration-specific.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-HB-006
+    root_cause_status: confirmed
+    root_cause: Bidder/currency-module compatibility issue; unsupported currency caused no-bid/error behavior.
+    resolution: null
+    recovery: null
+    lesson: Map failures to module/lifecycle scope rather than assuming demand weakness.
+    domain_mappings:
+    - F-HB-006
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-028
+  source_incident_id: CASE-PREBID-ADD-0005
+  eval_type: diagnostic_ranking
+  family: prebid_header_bidding
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 96
+    source_name: 'Prebid.js GitHub issue #13060'
+    source_url: https://github.com/prebid/Prebid.js/issues/13060
+  visible_case:
+    reported_symptom: Closely spaced or parallel auctions with bid caching could reuse a still-unmarked bid for another GPT
+      targeting/refresh cycle.
+    affected_scope: Prebid.js publisher integration; version/configuration specific.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes: []
+    root_cause_status: confirmed
+    root_cause: Auction/bid-cache state race before the first ad request marked the bid rendered.
+    resolution: Issue was publicly tracked in Prebid.js; inspect issue/linked PR for version-specific fix status.
+    recovery: null
+    lesson: Use lifecycle/module evidence and affected scope; do not collapse this into a generic demand problem.
+    domain_mappings:
+    - race_condition
+    - gpt_refresh_state
+    - duplicate_delivery_risk
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-029
+  source_incident_id: CASE-PREBID-0023
+  eval_type: diagnostic_ranking
+  family: prebid_header_bidding
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 95
+    source_name: 'Prebid.js GitHub issue #8956'
+    source_url: https://github.com/prebid/Prebid.js/issues/8956
+  visible_case:
+    reported_symptom: Rejected bid state was not consistently excluded, risking stale/invalid targeting.
+    affected_scope: Prebid.js publisher integration; depends on version/modules/config.
+    known_change_or_trigger: Issue-specific implementation/version context.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-HB-005
+    - F-HB-006
+    root_cause_status: confirmed
+    root_cause: Bid-state validation defect.
+    resolution: fixed/closed
+    recovery: null
+    lesson: Localize to auction lifecycle, consent, bidder response, targeting propagation and GAM request timing before blaming
+      demand.
+    domain_mappings:
+    - F-HB-005
+    - F-HB-006
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-030
+  source_incident_id: CASE-PREBID-0005
+  eval_type: diagnostic_ranking
+  family: prebid_header_bidding
+  difficulty: hard
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 94
+    source_name: 'Prebid.js GitHub issue #8770'
+    source_url: https://github.com/prebid/Prebid.js/issues/8770
+  visible_case:
+    reported_symptom: Publisher reproduced timeout increase after enabling userId modules, including Criteo/ID5.
+    affected_scope: Prebid.js publisher integration; depends on version/modules/config.
+    known_change_or_trigger: Issue-specific implementation/version context.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-HB-002
+    - F-HB-007
+    root_cause_status: confirmed
+    root_cause: Regression/interaction involving user ID modules and timing.
+    resolution: fixed/closed
+    recovery: null
+    lesson: Localize to auction lifecycle, consent, bidder response, targeting propagation and GAM request timing before blaming
+      demand.
+    domain_mappings:
+    - F-HB-002
+    - F-HB-007
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-031
+  source_incident_id: CASE-GAM-0006
+  eval_type: diagnostic_ranking
+  family: video
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 98
+    source_name: Google Ads Status Dashboard — Publisher products
+    source_url: https://ads.google.com/status/publisher/
+  visible_case:
+    reported_symptom: Line items targeting YouTube inventory generated VAST 401 errors.
+    affected_scope: Google publisher product / subset as described.
+    date_start: '2026-04-03'
+    source_class: official_status
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-VID-002
+    root_cause_status: confirmed
+    root_cause: Platform-side video-serving issue.
+    resolution: Resolved by Google
+    recovery: null
+    lesson: External platform incidents are strong evidence only when affected product/format/geo/metric matches the publisher
+      symptom.
+    domain_mappings:
+    - F-VID-002
+    - google_external_event
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-032
+  source_incident_id: CASE-GAM-VIDEO-0001
+  eval_type: diagnostic_ranking
+  family: video
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 97
+    source_name: Google Ads Status Dashboard — Publisher products
+    source_url: https://ads.google.com/status/publisher/
+  visible_case:
+    reported_symptom: AdSense line-item creatives in DAI VOD/Live pre-rolls lacked audio.
+    affected_scope: Google publisher product / subset as described.
+    date_start: '2025-05-05'
+    source_class: official_status
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-VID-001
+    root_cause_status: confirmed
+    root_cause: Google-side DAI/video defect.
+    resolution: Resolved by Google
+    recovery: null
+    lesson: External platform incidents are strong evidence only when affected product/format/geo/metric matches the publisher
+      symptom.
+    domain_mappings:
+    - F-VID-001
+    - google_external_event
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-033
+  source_incident_id: CASE-VIDEO-PB-0001
+  eval_type: diagnostic_ranking
+  family: video
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 96
+    source_name: 'Prebid.js GitHub issue #14509'
+    source_url: https://github.com/prebid/Prebid.js/issues/14509
+  visible_case:
+    reported_symptom: Prebid core check required video bids containing VAST XML to use cache even though many players can
+      render VAST XML directly.
+    affected_scope: Prebid.js video publisher integration.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-VID-002
+    root_cause_status: confirmed
+    root_cause: Video bid setup/cache requirement was identified as unnecessary for some renderer paths; issue closed via
+      follow-up change.
+    resolution: null
+    recovery: null
+    lesson: Video requires separate request, VAST, renderer, player and measurement lifecycle diagnosis.
+    domain_mappings:
+    - F-VID-002
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-034
+  source_incident_id: CASE-VIDEO-PB-0009
+  eval_type: diagnostic_ranking
+  family: video
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 96
+    source_name: 'Prebid.js GitHub issue #1390'
+    source_url: https://github.com/prebid/Prebid.js/issues/1390
+  visible_case:
+    reported_symptom: Outstream video ad unit using AppNexus AST failed under the documented setup.
+    affected_scope: Prebid.js publisher integration; version/configuration specific.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-VID-002
+    root_cause_status: confirmed
+    root_cause: Prebid core/bidder compatibility bug for video-outstream.
+    resolution: Issue was publicly tracked in Prebid.js; inspect issue/linked PR for version-specific fix status.
+    recovery: null
+    lesson: Use lifecycle/module evidence and affected scope; do not collapse this into a generic demand problem.
+    domain_mappings:
+    - F-VID-002
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-035
+  source_incident_id: CASE-VIDEO-PB-0003
+  eval_type: diagnostic_ranking
+  family: video
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 95
+    source_name: 'Prebid.js GitHub issue #2957'
+    source_url: https://github.com/prebid/Prebid.js/issues/2957
+  visible_case:
+    reported_symptom: Publisher configured outstream Rubicon; bid was ignored with “Video bid does not have required vastUrl
+      or renderer property.”
+    affected_scope: Prebid.js video publisher integration.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-VID-002
+    root_cause_status: confirmed
+    root_cause: Video response/renderer configuration mismatch.
+    resolution: null
+    recovery: null
+    lesson: Video requires separate request, VAST, renderer, player and measurement lifecycle diagnosis.
+    domain_mappings:
+    - F-VID-002
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-036
+  source_incident_id: CASE-VIDEO-PB-0010
+  eval_type: diagnostic_ranking
+  family: video
+  difficulty: hard
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 94
+    source_name: 'Prebid.js GitHub issue #2449'
+    source_url: https://github.com/prebid/Prebid.js/issues/2449
+  visible_case:
+    reported_symptom: Bid response contained apparent VAST content but Prebid did not use it because expected renderer metadata
+      was missing.
+    affected_scope: Prebid.js publisher integration; version/configuration specific.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-VID-002
+    root_cause_status: confirmed
+    root_cause: Video response validation/renderer metadata mismatch.
+    resolution: Issue was publicly tracked in Prebid.js; inspect issue/linked PR for version-specific fix status.
+    recovery: null
+    lesson: Use lifecycle/module evidence and affected scope; do not collapse this into a generic demand problem.
+    domain_mappings:
+    - F-VID-002
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-037
+  source_incident_id: CASE-VIDEO-PB-0004
+  eval_type: diagnostic_ranking
+  family: video
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: B
+    evidence_score: 91
+    source_name: 'Prebid.js GitHub issue #4910'
+    source_url: https://github.com/prebid/Prebid.js/issues/4910
+  visible_case:
+    reported_symptom: Issue discussed VAST XML vs VAST URL priority and rejection when the bid payload did not match renderer/cache
+      expectations.
+    affected_scope: Prebid.js video publisher integration.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: PROBABLE
+    accepted_failure_modes:
+    - F-VID-002
+    root_cause_status: probable
+    root_cause: Video bid validation/render-path mismatch.
+    resolution: null
+    recovery: null
+    lesson: Video requires separate request, VAST, renderer, player and measurement lifecycle diagnosis.
+    domain_mappings:
+    - F-VID-002
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-038
+  source_incident_id: CASE-VIDEO-PB-0007
+  eval_type: diagnostic_ranking
+  family: video
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: B
+    evidence_score: 90
+    source_name: 'Prebid.js GitHub issue #5188'
+    source_url: https://github.com/prebid/Prebid.js/issues/5188
+  visible_case:
+    reported_symptom: Bid response stored HTML/player script markup in vastXml; renderAd failed with an ad-render error.
+    affected_scope: Prebid.js video publisher integration.
+    source_class: primary_technical_issue
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: PROBABLE
+    accepted_failure_modes:
+    - F-VID-001
+    - F-VID-002
+    root_cause_status: probable
+    root_cause: Creative payload/render-path incompatibility.
+    resolution: null
+    recovery: null
+    lesson: Video requires separate request, VAST, renderer, player and measurement lifecycle diagnosis.
+    domain_mappings:
+    - F-VID-001
+    - F-VID-002
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-039
+  source_incident_id: FIELD-SEARCH-0017
+  eval_type: diagnostic_ranking
+  family: search_discover
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: B
+    evidence_score: 92
+    source_name: Public publisher/Search case
+    source_url: https://searchengineland.com/soft-404s-indexing-issues-traffic-collapse-477116
+  visible_case:
+    reported_symptom: 'Multinational media/crypto publisher Brazilian migration: old domain ~15k–25k clicks/day, new structure
+      ~2k–4k; improper consolidation and soft-404/indexing issues identified.'
+    affected_scope: Publisher/site-specific.
+    source_class: community_or_case_study
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: PROBABLE
+    accepted_failure_modes:
+    - F-SEO-006
+    - F-SEO-004
+    root_cause_status: probable
+    root_cause: Technical migration/indexing failure with corrective work/recovery evidence.
+    resolution: null
+    recovery: null
+    lesson: Preserve chronology; distinguish technical proof from correlation with Google updates.
+    domain_mappings:
+    - F-SEO-006
+    - F-SEO-004
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-040
+  source_incident_id: FIELD-SEARCH-0023
+  eval_type: diagnostic_ranking
+  family: search_discover
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: B
+    evidence_score: 90
+    source_name: Public publisher/Search case
+    source_url: https://www.reddit.com/r/TechSEO/comments/h01l2x/indexed_though_blocked_by_robotstxt_in_google/
+  visible_case:
+    reported_symptom: TechSEO case with >3k URLs “indexed though blocked by robots.txt”; Google representative confirmed blocked
+      crawling prevents seeing noindex.
+    affected_scope: Publisher/site-specific.
+    source_class: community_or_case_study
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: PROBABLE
+    accepted_failure_modes:
+    - F-SEO-001
+    - F-SEO-002
+    root_cause_status: probable
+    root_cause: Confirmed mechanism, though not a traffic-collapse case.
+    resolution: null
+    recovery: null
+    lesson: Preserve chronology; distinguish technical proof from correlation with Google updates.
+    domain_mappings:
+    - F-SEO-001
+    - F-SEO-002
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-041
+  source_incident_id: FIELD-SEARCH-0013
+  eval_type: counterexample
+  family: search_discover
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: B
+    evidence_score: 88
+    source_name: Public publisher/Search case
+    source_url: https://support.google.com/webmasters/
+  visible_case:
+    reported_symptom: Publisher said decline began Jan 19; official Discover update started later; no manual action.
+    affected_scope: Publisher/site-specific.
+    source_class: community_or_case_study
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: PROBABLE
+    accepted_failure_modes:
+    - F-SEO-007
+    root_cause_status: probable
+    root_cause: Timing contradicts simplistic attribution to later update.
+    resolution: null
+    recovery: null
+    lesson: Preserve chronology; distinguish technical proof from correlation with Google updates.
+    domain_mappings:
+    - IR-003
+    - IR-007
+    - F-SEO-007
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-042
+  source_incident_id: FIELD-SEARCH-0018
+  eval_type: diagnostic_ranking
+  family: search_discover
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: B
+    evidence_score: 88
+    source_name: Public publisher/Search case
+    source_url: https://searchengineland.com/how-to-spin-a-bad-site-migration-into-higher-traffic-and-conversions-318791
+  visible_case:
+    reported_symptom: Electronics manufacturer lost nearly half organic traffic after migration; technical recovery later
+      exceeded prior performance.
+    affected_scope: Publisher/site-specific.
+    source_class: community_or_case_study
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: PROBABLE
+    accepted_failure_modes:
+    - F-SEO-006
+    root_cause_status: probable
+    root_cause: Botched replatforming/migration.
+    resolution: null
+    recovery: null
+    lesson: Preserve chronology; distinguish technical proof from correlation with Google updates.
+    domain_mappings:
+    - F-SEO-006
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-043
+  source_incident_id: FIELD-SEARCH-0021
+  eval_type: epistemic_restraint
+  family: search_discover
+  difficulty: hard
+  provenance:
+    type: public_incident_corpus
+    source_tier: B
+    evidence_score: 82
+    source_name: Public publisher/Search case
+    source_url: https://support.google.com/webmasters/thread/6199860/my-website-has-suddenly-disappeared-from-google?hl=en
+  visible_case:
+    reported_symptom: Site owner reported accidentally adding noindex/noarchive to main page and subsequent disappearance.
+    affected_scope: Publisher/site-specific.
+    source_class: community_or_case_study
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: UNRESOLVED
+    accepted_failure_modes:
+    - F-SEO-002
+    root_cause_status: unresolved
+    root_cause: Direct indexability misconfiguration.
+    resolution: null
+    recovery: null
+    lesson: Preserve chronology; distinguish technical proof from correlation with Google updates.
+    domain_mappings:
+    - F-SEO-002
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+    - Do not force a root cause; UNRESOLVED must remain available.
+- id: EVAL-PUB-044
+  source_incident_id: FIELD-SEARCH-0020
+  eval_type: epistemic_restraint
+  family: search_discover
+  difficulty: hard
+  provenance:
+    type: public_incident_corpus
+    source_tier: B
+    evidence_score: 75
+    source_name: Public publisher/Search case
+    source_url: https://www.reddit.com/r/TechSEO/
+  visible_case:
+    reported_symptom: Brief outage preceded Google-only ranking loss by 4–5 days; robots/indexability checks reportedly clean.
+    affected_scope: Publisher/site-specific.
+    source_class: community_or_case_study
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: UNRESOLVED
+    accepted_failure_modes:
+    - F-SEO-004
+    root_cause_status: unresolved
+    root_cause: Outage relationship plausible but unconfirmed; Bing/ChatGPT provide useful control.
+    resolution: null
+    recovery: null
+    lesson: Preserve chronology; distinguish technical proof from correlation with Google updates.
+    domain_mappings:
+    - F-SEO-004
+    - IR-005
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+    - Do not force a root cause; UNRESOLVED must remain available.
+- id: EVAL-PUB-045
+  source_incident_id: FIELD-SEARCH-0019
+  eval_type: epistemic_restraint
+  family: search_discover
+  difficulty: hard
+  provenance:
+    type: public_incident_corpus
+    source_tier: C
+    evidence_score: 72
+    source_name: Public publisher/Search case
+    source_url: https://www.reddit.com/r/TechSEO/
+  visible_case:
+    reported_symptom: 15+ year domain migrated without proper redirects and old server went offline; ~700k impressions fell
+      to ~14k.
+    affected_scope: Publisher/site-specific.
+    source_class: community_or_case_study
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: UNRESOLVED
+    accepted_failure_modes:
+    - F-SEO-006
+    - F-SEO-004
+    root_cause_status: unresolved
+    root_cause: Self-reported migration failure; recovery in progress.
+    resolution: null
+    recovery: null
+    lesson: Preserve chronology; distinguish technical proof from correlation with Google updates.
+    domain_mappings:
+    - F-SEO-006
+    - F-SEO-004
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+    - Do not force a root cause; UNRESOLVED must remain available.
+- id: EVAL-PUB-046
+  source_incident_id: FIELD-SEARCH-0005
+  eval_type: epistemic_restraint
+  family: search_discover
+  difficulty: hard
+  provenance:
+    type: public_incident_corpus
+    source_tier: B
+    evidence_score: 84
+    source_name: Public publisher/Search case
+    source_url: https://support.google.com/webmasters/
+  visible_case:
+    reported_symptom: Similar decline across three publications with no major technical/editorial changes.
+    affected_scope: Publisher/site-specific.
+    source_class: community_or_case_study
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: UNRESOLVED
+    accepted_failure_modes:
+    - F-SEO-007
+    root_cause_status: unresolved
+    root_cause: Cross-site cohort strengthens external-event relevance.
+    resolution: null
+    recovery: null
+    lesson: Preserve chronology; distinguish technical proof from correlation with Google updates.
+    domain_mappings:
+    - F-SEO-007
+    - google_external_event
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+    - Do not force a root cause; UNRESOLVED must remain available.
+- id: EVAL-PUB-047
+  source_incident_id: FIELD-SEARCH-0009
+  eval_type: epistemic_restraint
+  family: search_discover
+  difficulty: hard
+  provenance:
+    type: public_incident_corpus
+    source_tier: B
+    evidence_score: 80
+    source_name: Public publisher/Search case
+    source_url: https://support.google.com/webmasters/
+  visible_case:
+    reported_symptom: Extreme temporary spike during update without content changes.
+    affected_scope: Publisher/site-specific.
+    source_class: community_or_case_study
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: UNRESOLVED
+    accepted_failure_modes:
+    - F-SEO-007
+    root_cause_status: unresolved
+    root_cause: Strong external distribution volatility signal.
+    resolution: null
+    recovery: null
+    lesson: Preserve chronology; distinguish technical proof from correlation with Google updates.
+    domain_mappings:
+    - F-SEO-007
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+    - Do not force a root cause; UNRESOLVED must remain available.
+- id: EVAL-PUB-048
+  source_incident_id: EXT-SEARCH-IDX-001
+  eval_type: external_context
+  family: search_discover
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 100
+    source_name: Google Search Status Dashboard
+    source_url: https://status.search.google.com/
+  visible_case:
+    reported_symptom: fresh-content indexing issue
+    affected_scope: Google Search indexing/fresh content/News as specified.
+    date_start: '2025-06-12'
+    source_class: official_status
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-SEO-007
+    root_cause_status: confirmed
+    root_cause: Google-side indexing incident.
+    resolution: Marked resolved by Google.
+    recovery: null
+    lesson: Strong external context when affected content/time matches.
+    domain_mappings:
+    - google_external_event
+    - F-SEO-007
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+    - Do not attribute the external event as the publisher-specific cause without matching local evidence.
+- id: EVAL-PUB-049
+  source_incident_id: EXT-SEARCH-SERVE-001
+  eval_type: external_context
+  family: search_discover
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 100
+    source_name: Google Search Status Dashboard
+    source_url: https://status.search.google.com/
+  visible_case:
+    reported_symptom: Search serving issue
+    affected_scope: Google Search serving/features as specified.
+    date_start: '2026-02-24'
+    source_class: official_status
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-SEO-007
+    root_cause_status: confirmed
+    root_cause: Google-side serving incident.
+    resolution: Marked resolved by Google.
+    recovery: null
+    lesson: Can create traffic loss without local publisher changes; match product and time.
+    domain_mappings:
+    - google_external_event
+    - F-SEO-007
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+    - Do not attribute the external event as the publisher-specific cause without matching local evidence.
+- id: EVAL-PUB-050
+  source_incident_id: CASE-PERF-0002
+  eval_type: diagnostic_ranking
+  family: browser_performance
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 100
+    source_name: web.dev / Chrome case study
+    source_url: https://web.dev/case-studies/netzwelt
+  visible_case:
+    reported_symptom: Scroll-lock moved article content while consent was displayed, causing CLS; publisher fixed it.
+    affected_scope: Publisher/site or GPT-using origins as stated.
+    source_class: official_case_study
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-BR-003
+    - F-CMP-005
+    root_cause_status: confirmed
+    root_cause: Confirmed CMP/UX implementation failure.
+    resolution: See documented fix/optimization.
+    recovery: null
+    lesson: Performance diagnosis requires field-vs-lab provenance and component-level evidence.
+    domain_mappings:
+    - F-BR-003
+    - F-CMP-005
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-051
+  source_incident_id: CASE-PERF-0003
+  eval_type: measurement_integrity
+  family: browser_performance
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 100
+    source_name: web.dev / Chrome case study
+    source_url: https://web.dev/case-studies/netzwelt
+  visible_case:
+    reported_symptom: Field data captured shifts in consent iframe that lab checks missed, explaining lab/field discrepancy.
+    affected_scope: Publisher/site or GPT-using origins as stated.
+    source_class: official_case_study
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-CMP-005
+    root_cause_status: confirmed
+    root_cause: Confirmed observability limitation.
+    resolution: See documented fix/optimization.
+    recovery: null
+    lesson: Performance diagnosis requires field-vs-lab provenance and component-level evidence.
+    domain_mappings:
+    - observability_error
+    - F-CMP-005
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-052
+  source_incident_id: CASE-PERF-0004
+  eval_type: diagnostic_ranking
+  family: browser_performance
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 100
+    source_name: web.dev / Chrome case study
+    source_url: https://web.dev/case-studies/mailru-cwv
+  visible_case:
+    reported_symptom: Delayed client insertion of news section moved ad skeleton and worsened CLS; fixing painting delay improved
+      stability.
+    affected_scope: Publisher/site or GPT-using origins as stated.
+    source_class: official_case_study
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-BR-003
+    root_cause_status: confirmed
+    root_cause: Confirmed rendering timing root cause.
+    resolution: See documented fix/optimization.
+    recovery: null
+    lesson: Performance diagnosis requires field-vs-lab provenance and component-level evidence.
+    domain_mappings:
+    - F-BR-003
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-053
+  source_incident_id: CASE-PERF-0001
+  eval_type: diagnostic_ranking
+  family: browser_performance
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 98
+    source_name: web.dev / Chrome case study
+    source_url: https://web.dev/case-studies/netzwelt
+  visible_case:
+    reported_symptom: 'News publisher documented high CLS from multisize/top ads, LCP pressure from ads/bandwidth, FID pressure
+      from third-party JS/header bidding, and CMP layout effects. After optimization: pageviews +27%, viewability >75%, revenue
+      +18%, CPM +20–30%.'
+    affected_scope: Publisher/site or GPT-using origins as stated.
+    source_class: official_case_study
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-BR-003
+    - F-CMP-002
+    root_cause_status: confirmed
+    root_cause: Documented performance/ad-stack problems with fixes and measured outcomes.
+    resolution: See documented fix/optimization.
+    recovery: null
+    lesson: Performance diagnosis requires field-vs-lab provenance and component-level evidence.
+    domain_mappings:
+    - cwv_regression
+    - F-BR-003
+    - F-CMP-002
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-054
+  source_incident_id: CASE-PERF-0011
+  eval_type: diagnostic_ranking
+  family: browser_performance
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 94
+    source_name: web.dev case study
+    source_url: https://web.dev/case-studies/ndtv
+  visible_case:
+    reported_symptom: Large news site had LCP around 3.0s at p75 and sought better UX/retention; ads and third-party requests
+      were part of the critical-path optimization.
+    affected_scope: NDTV, large news publisher.
+    known_change_or_trigger: Performance optimization delayed below-the-fold ad calls/social embeds, improved caching, lazy-loaded
+      noncritical JS/CSS and preconnected critical origins.
+    available_investigation_context: Used PageSpeed Insights, web.dev tooling and WebPageTest.
+    source_class: official_case_study
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: PROBABLE
+    accepted_failure_modes:
+    - F-HB-004
+    root_cause_status: probable
+    root_cause: Multiple critical-path and third-party loading contributors; no single cause was claimed.
+    resolution: LCP improved to ~1.6s (55%); CLS to ~0.05; bounce rate also fell, though other product changes confounded
+      causality.
+    recovery: Measured after optimization.
+    lesson: News-publisher performance is multi-causal. Third-party/ad calls can be intentionally deprioritized without assuming
+      ad stack removal is required.
+    domain_mappings:
+    - cwv_regression
+    - third_party_dependency
+    - F-HB-004
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-055
+  source_incident_id: CASE-PERF-0005
+  eval_type: diagnostic_ranking
+  family: browser_performance
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 95
+    source_name: web.dev / Chrome case study
+    source_url: https://web.dev/case-studies/vitals-business-impact
+  visible_case:
+    reported_symptom: CLS improved ~15% and ad revenue ~10% after reducing ad-unit size variability, preallocating slots and
+      prioritizing ad scripts.
+    affected_scope: Publisher/site or GPT-using origins as stated.
+    source_class: official_case_study
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: PROBABLE
+    accepted_failure_modes:
+    - F-BR-003
+    root_cause_status: probable
+    root_cause: Optimization case demonstrating UX/revenue trade-off.
+    resolution: See documented fix/optimization.
+    recovery: null
+    lesson: Performance diagnosis requires field-vs-lab provenance and component-level evidence.
+    domain_mappings:
+    - F-BR-003
+    - ad_slot_layout
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-056
+  source_incident_id: CASE-INFRA-0001
+  eval_type: diagnostic_ranking
+  family: external_infrastructure
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 100
+    source_name: Vendor official postmortem
+    source_url: https://blog.cloudflare.com/18-november-2025-outage/
+  visible_case:
+    reported_symptom: Core traffic delivery failures and Cloudflare-generated error pages.
+    affected_scope: Broad Cloudflare network impact.
+    date_start: '2025-11-18'
+    source_class: official_postmortem
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes: []
+    root_cause_status: confirmed
+    root_cause: Database permission change generated duplicate Bot Management feature entries; the feature file doubled in
+      size, exceeded software limits, and propagated network-wide.
+    resolution: Cloudflare stopped propagation and restored a correct/earlier feature file.
+    recovery: null
+    lesson: External infrastructure can create traffic, availability, performance or observability anomalies without any publisher-side
+      change. Match actual dependency use and affected scope before attribution.
+    domain_mappings:
+    - site_availability
+    - external_dependency_failure
+    - configuration_change
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+    - Do not attribute the external event as the publisher-specific cause without matching local evidence.
+- id: EVAL-PUB-057
+  source_incident_id: CASE-INFRA-0002
+  eval_type: diagnostic_ranking
+  family: external_infrastructure
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 100
+    source_name: Vendor official postmortem
+    source_url: https://blog.cloudflare.com/5-december-2025-outage/
+  visible_case:
+    reported_symptom: Subset of customers returned HTTP 500 errors; about 28% of Cloudflare-served HTTP traffic was in the
+      affected cohort.
+    affected_scope: Subset of Cloudflare HTTP traffic.
+    date_start: '2025-12-05'
+    source_class: official_postmortem
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes: []
+    root_cause_status: confirmed
+    root_cause: Body-parsing buffer change exposed a rules-module bug during mitigation work for a React Server Components
+      vulnerability.
+    resolution: Cloudflare reverted the change; service restored after about 25 minutes.
+    recovery: null
+    lesson: External infrastructure can create traffic, availability, performance or observability anomalies without any publisher-side
+      change. Match actual dependency use and affected scope before attribution.
+    domain_mappings:
+    - site_availability
+    - external_dependency_failure
+    - configuration_change
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+    - Do not attribute the external event as the publisher-specific cause without matching local evidence.
+- id: EVAL-PUB-058
+  source_incident_id: CASE-INFRA-0009
+  eval_type: measurement_integrity
+  family: external_infrastructure
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 100
+    source_name: Vendor official postmortem
+    source_url: https://blog.cloudflare.com/post-mortem-on-cloudflare-control-plane-and-analytics-outage/
+  visible_case:
+    reported_symptom: Dashboard, APIs, logging and analytics were unavailable/degraded while core network traffic mostly continued.
+    affected_scope: Cloudflare control plane and analytics/logging.
+    date_start: '2023-11-02'
+    source_class: official_postmortem
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes: []
+    root_cause_status: confirmed
+    root_cause: Data-center/provider failure exposed non-obvious dependencies and disaster-recovery weaknesses.
+    resolution: Control plane restored via disaster recovery; remaining services recovered later.
+    recovery: null
+    lesson: External infrastructure can create traffic, availability, performance or observability anomalies without any publisher-side
+      change. Match actual dependency use and affected scope before attribution.
+    domain_mappings:
+    - observability_error
+    - external_dependency_failure
+    - reporting_freshness
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+    - Do not attribute the external event as the publisher-specific cause without matching local evidence.
+- id: EVAL-PUB-059
+  source_incident_id: CASE-INFRA-0010
+  eval_type: measurement_integrity
+  family: external_infrastructure
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 100
+    source_name: Vendor official postmortem
+    source_url: https://blog.cloudflare.com/cloudflare-incident-on-november-14-2024-resulting-in-lost-logs/
+  visible_case:
+    reported_symptom: Around 55% of logs normally delivered during the roughly 3.5-hour affected window were not sent and
+      were lost.
+    affected_scope: Majority of Cloudflare Logs customers.
+    date_start: '2024-11-14'
+    source_class: official_postmortem
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes: []
+    root_cause_status: confirmed
+    root_cause: Cloudflare platform incident affecting log delivery.
+    resolution: Log service restored; lost logs could not be recreated.
+    recovery: null
+    lesson: External infrastructure can create traffic, availability, performance or observability anomalies without any publisher-side
+      change. Match actual dependency use and affected scope before attribution.
+    domain_mappings:
+    - observability_error
+    - external_dependency_failure
+    - data_loss
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+    - Do not attribute the external event as the publisher-specific cause without matching local evidence.
+- id: EVAL-PUB-060
+  source_incident_id: CASE-INFRA-0004
+  eval_type: diagnostic_ranking
+  family: external_infrastructure
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: A
+    evidence_score: 100
+    source_name: Vendor official postmortem
+    source_url: https://blog.cloudflare.com/cloudflare-incident-on-february-6-2025/
+  visible_case:
+    reported_symptom: R2 operations failed for 59 minutes; dependent services including Stream and Images suffered failures.
+    affected_scope: Cloudflare R2 and dependent products.
+    date_start: '2025-02-06'
+    source_class: official_postmortem
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes: []
+    root_cause_status: confirmed
+    root_cause: Human error and insufficient validation safeguards during abuse remediation disabled the production R2 Gateway.
+    resolution: Gateway/service restored and safeguards announced.
+    recovery: null
+    lesson: External infrastructure can create traffic, availability, performance or observability anomalies without any publisher-side
+      change. Match actual dependency use and affected scope before attribution.
+    domain_mappings:
+    - external_dependency_failure
+    - human_change
+    - video_dependency
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+    - Do not attribute the external event as the publisher-specific cause without matching local evidence.
+- id: EVAL-PUB-061
+  source_incident_id: FIELD-GA4-0001
+  eval_type: measurement_integrity
+  family: analytics_measurement
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: B
+    evidence_score: 90
+    source_name: Public analytics case
+    source_url: https://www.reddit.com/r/GoogleAnalytics/comments/1ffqqbe/traffic_drop_after_implementing_cookie_platform/
+  visible_case:
+    reported_symptom: After OneTrust implementation, operator measured ~48% of users not reaching GA because many ignored
+      banner/analytics did not fire.
+    affected_scope: GA4 measurement/reporting for site/property.
+    source_class: community_or_secondary
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: PROBABLE
+    accepted_failure_modes:
+    - F-AN-004
+    - F-CMP-005
+    root_cause_status: probable
+    root_cause: Measurement loss due consent/tracking configuration, not necessarily audience loss.
+    resolution: null
+    recovery: null
+    lesson: Cross-check independent signals and page_view/event behavior before interpreting GA4 anomaly as audience loss.
+    domain_mappings:
+    - F-AN-004
+    - F-CMP-005
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-062
+  source_incident_id: FIELD-GA4-0004
+  eval_type: epistemic_restraint
+  family: analytics_measurement
+  difficulty: hard
+  provenance:
+    type: public_incident_corpus
+    source_tier: C
+    evidence_score: 72
+    source_name: Public analytics case
+    source_url: https://www.reddit.com/r/GoogleAnalytics/comments/1i84odw/active_users_but_no_pageviews_in_real_time/
+  visible_case:
+    reported_symptom: Operator used history-change pageviews; Matomo event arrived while GA4 page_view did not.
+    affected_scope: GA4 measurement/reporting for site/property.
+    source_class: community_or_secondary
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: UNRESOLVED
+    accepted_failure_modes:
+    - F-AN-003
+    root_cause_status: unresolved
+    root_cause: Likely GA4/GTM virtual-pageview implementation/processing issue.
+    resolution: null
+    recovery: null
+    lesson: Cross-check independent signals and page_view/event behavior before interpreting GA4 anomaly as audience loss.
+    domain_mappings:
+    - F-AN-003
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+    - Do not force a root cause; UNRESOLVED must remain available.
+- id: EVAL-PUB-063
+  source_incident_id: FIELD-GA4-0003
+  eval_type: epistemic_restraint
+  family: analytics_measurement
+  difficulty: hard
+  provenance:
+    type: public_incident_corpus
+    source_tier: C
+    evidence_score: 70
+    source_name: Public analytics case
+    source_url: https://www.reddit.com/r/GoogleAnalytics/comments/1tgkco0/ga4_sudden_pageviews_views_drop_only_active_users/
+  visible_case:
+    reported_symptom: '2026 report: Views drop, Active Users stable; page_view/dedup/consent/virtual pageviews suspected.'
+    affected_scope: GA4 measurement/reporting for site/property.
+    source_class: community_or_secondary
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: UNRESOLVED
+    accepted_failure_modes:
+    - F-AN-002
+    - F-AN-003
+    - F-AN-004
+    root_cause_status: unresolved
+    root_cause: Unresolved, but signature suggests measurement issue.
+    resolution: null
+    recovery: null
+    lesson: Cross-check independent signals and page_view/event behavior before interpreting GA4 anomaly as audience loss.
+    domain_mappings:
+    - F-AN-002
+    - F-AN-003
+    - F-AN-004
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+    - Do not force a root cause; UNRESOLVED must remain available.
+- id: EVAL-PUB-064
+  source_incident_id: FIELD-GA4-0006
+  eval_type: epistemic_restraint
+  family: analytics_measurement
+  difficulty: hard
+  provenance:
+    type: public_incident_corpus
+    source_tier: C
+    evidence_score: 65
+    source_name: Public analytics case
+    source_url: https://www.reddit.com/r/GoogleAnalytics/comments/1bagu9u/big_google_analytics_drop_definitely_not_a_drop/
+  visible_case:
+    reported_symptom: Operator stated real traffic did not drop; discussion focused on Consent Mode.
+    affected_scope: GA4 measurement/reporting for site/property.
+    source_class: community_or_secondary
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: UNRESOLVED
+    accepted_failure_modes:
+    - F-AN-004
+    root_cause_status: unresolved
+    root_cause: Measurement-layer hypothesis strong but unconfirmed.
+    resolution: null
+    recovery: null
+    lesson: Cross-check independent signals and page_view/event behavior before interpreting GA4 anomaly as audience loss.
+    domain_mappings:
+    - F-AN-004
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+    - Do not force a root cause; UNRESOLVED must remain available.
+- id: EVAL-PUB-065
+  source_incident_id: FIELD-POLICY-0001
+  eval_type: epistemic_restraint
+  family: policy_compliance
+  difficulty: hard
+  provenance:
+    type: public_incident_corpus
+    source_tier: B
+    evidence_score: 78
+    source_name: Public AdOps/operator report
+    source_url: https://www.reddit.com/r/adops/comments/lxw8zj/solutions_for_ad_serving_limit_placed_on_your/
+  visible_case:
+    reported_symptom: Publisher received ad-serving limit while reporting >70% organic traffic and little social.
+    affected_scope: Publisher-specific self-report.
+    source_class: community_thread
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: UNRESOLVED
+    accepted_failure_modes: []
+    root_cause_status: unresolved
+    root_cause: Google traffic-quality enforcement confirmed; underlying trigger unknown.
+    resolution: null
+    recovery: null
+    lesson: Use community evidence for pattern discovery and counterexamples, not as canonical truth.
+    domain_mappings:
+    - policy_risk
+    - ad_serving_limit
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+    - Do not force a root cause; UNRESOLVED must remain available.
+- id: EVAL-PUB-066
+  source_incident_id: FIELD-POLICY-0002
+  eval_type: diagnostic_ranking
+  family: policy_compliance
+  difficulty: hard
+  provenance:
+    type: public_incident_corpus
+    source_tier: B
+    evidence_score: 78
+    source_name: Google publisher community
+    source_url: https://support.google.com/admanager/thread/178937091/policy-violations-in-gam?hl=en
+  visible_case:
+    reported_symptom: Publisher reported repeated GAM policy-violation messages, blocked serving and fill only ~40–45%, with
+      significant revenue loss.
+    affected_scope: Publisher/account-specific.
+    source_class: community_thread
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: PROBABLE
+    accepted_failure_modes: []
+    root_cause_status: probable
+    root_cause: Policy enforcement was clearly present; exact violations/root causal scope need account data.
+    resolution: null
+    recovery: null
+    lesson: Policy Center/ad-serving status is first-class evidence when fill/revenue collapses with stable traffic.
+    domain_mappings:
+    - policy_risk
+    - ad_serving_limit
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-067
+  source_incident_id: FIELD-ADSTXT-0006
+  eval_type: diagnostic_ranking
+  family: policy_compliance
+  difficulty: hard
+  provenance:
+    type: public_incident_corpus
+    source_tier: C
+    evidence_score: 68
+    source_name: r/adops historical implementation discussion
+    source_url: https://www.reddit.com/r/adops/comments/7i87zk/do_i_need_adstxt_if_im_a_small_publisher_using/
+  visible_case:
+    reported_symptom: AdOps practitioners described real publisher implementations where DFP/AdSense/AdX account IDs were
+      omitted or ads.txt was misconfigured so HTTPS/www returned an empty HTTP 200 file.
+    affected_scope: Authorized seller visibility for affected publisher demand paths.
+    known_change_or_trigger: Incorrect ads.txt implementation.
+    available_investigation_context: Practitioners highlighted account-ID completeness, host/path behavior and validation
+      as key checks.
+    source_class: community_thread
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: PROBABLE
+    accepted_failure_modes: []
+    root_cause_status: probable
+    root_cause: Malformed/incomplete publisher ads.txt can remove authorization for legitimate seller paths.
+    resolution: Correct publisher account records/path behavior and validate the served file; case is a practitioner pattern,
+      not one independently audited publisher RCA.
+    recovery: null
+    lesson: Monitor semantic ads.txt state, not only HTTP 200. An empty-but-successful response can be more dangerous than
+      a visible fetch failure.
+    domain_mappings:
+    - ads_txt_integrity
+    - supply_authorization_failure
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-068
+  source_incident_id: FIELD-ADSTXT-0007
+  eval_type: counterexample
+  family: policy_compliance
+  difficulty: hard
+  provenance:
+    type: public_incident_corpus
+    source_tier: C
+    evidence_score: 70
+    source_name: r/adops ads.txt cleanup discussion
+    source_url: https://www.reddit.com/r/adops/comments/1sujr0s/how_aggressive_are_you_all_with_adstxt_cleanup/
+  visible_case:
+    reported_symptom: 2026 AdOps discussion described wrong account IDs, incorrect DIRECT/RESELLER declarations and missing
+      seller-side entries as common leaks; participants also warned that some reseller paths carry real PMP or vendor-specific
+      demand.
+    affected_scope: Publisher supply authorization and reseller paths.
+    known_change_or_trigger: Aggressive ads.txt cleanup/pruning.
+    available_investigation_context: Suggested validating demand by reseller path rather than treating every reseller line
+      as redundant.
+    date_start: '2026'
+    source_class: community_thread
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: UNRESOLVED
+    accepted_failure_modes: []
+    root_cause_status: unresolved
+    root_cause: No single publisher incident RCA; this is a counterexample pattern against simplistic 'remove all reseller
+      lines' automation.
+    resolution: null
+    recovery: null
+    lesson: The product must not recommend deleting an ads.txt line solely because a direct line exists. Demand-path evidence
+      and commercial context are required.
+    domain_mappings:
+    - ads_txt_integrity
+    - counterexample
+    - supply_path_complexity
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+    - Do not force a root cause; UNRESOLVED must remain available.
+- id: EVAL-PUB-069
+  source_incident_id: FIELD-ADSTXT-0008
+  eval_type: external_or_context_discipline
+  family: policy_compliance
+  difficulty: medium
+  provenance:
+    type: public_incident_corpus
+    source_tier: C
+    evidence_score: 66
+    source_name: r/adops ads.txt operations discussion
+    source_url: https://www.reddit.com/r/adops/comments/y72k9m/adstxt_newbie_questions/
+  visible_case:
+    reported_symptom: Yield practitioners warned that after ads.txt changes a publisher may still see some revenue from an
+      SSP while a separate integration/demand path is silently unauthorized or missing.
+    affected_scope: Multi-path SSP integrations and ads.txt authorization.
+    known_change_or_trigger: ads.txt rebuild/update.
+    available_investigation_context: Recommended monitoring every demand path after updates instead of validating only total
+      SSP revenue.
+    source_class: community_thread
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONTEXT_ONLY
+    accepted_failure_modes: []
+    root_cause_status: not_applicable
+    root_cause: Operational counterexample/pattern rather than one specific RCA.
+    resolution: null
+    recovery: null
+    lesson: Partner-level revenue is too coarse to validate ads.txt. Path-level authorization and demand-channel observability
+      are needed.
+    domain_mappings:
+    - ads_txt_integrity
+    - supply_path_complexity
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-070
+  source_incident_id: CASE-SSP-0001
+  eval_type: diagnostic_ranking
+  family: programmatic_market
+  difficulty: hard
+  provenance:
+    type: public_incident_corpus
+    source_tier: B
+    evidence_score: 90
+    source_name: PubMatic statement reported by AdMonsters
+    source_url: https://www.admonsters.com/a-pubmatic-server-anomaly/
+  visible_case:
+    reported_symptom: Publisher ad servers received abnormally high CPMs, including extreme billion-dollar-scale values, for
+      a limited set of impressions.
+    affected_scope: Limited number of impressions through a PubMatic US data center.
+    date_start: '2024-03-15'
+    source_class: vendor_statement_secondary
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: CONFIRMED
+    accepted_failure_modes:
+    - F-GAM-007
+    root_cause_status: confirmed
+    root_cause: Brief server anomaly at one PubMatic US data center.
+    resolution: Resolved by PubMatic; reported duration about 40 seconds.
+    recovery: null
+    lesson: Extreme bid/eCPM outliers can be platform anomalies. Validate outliers before interpreting them as real demand.
+    domain_mappings:
+    - F-GAM-007
+    - reporting_or_bid_anomaly
+    - external_demand_event
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-071
+  source_incident_id: FIELD-PROG-0003
+  eval_type: epistemic_restraint
+  family: programmatic_market
+  difficulty: hard
+  provenance:
+    type: public_incident_corpus
+    source_tier: B
+    evidence_score: 82
+    source_name: r/adops Open Bidding deployment case
+    source_url: https://www.reddit.com/r/adops/comments/1cs209q/need_advise_why_open_bidding_revenues_are_dropping/
+  visible_case:
+    reported_symptom: 'Publisher replaced its Prebid wrapper with a managed solution. Programmatic revenue then dropped sharply:
+      AdX about half, Open Bidding about 90%, while Prebid bidder revenues and GAM request volume were described as stable;
+      ad latency increased.'
+    affected_scope: AdX/Open Bidding versus client-side Prebid after wrapper deployment.
+    known_change_or_trigger: Managed Prebid wrapper deployment.
+    available_investigation_context: Community recommended comparing total RPM, demand-path migration and GAM ad-speed/latency
+      rather than reading Open Bidding revenue alone.
+    source_class: community_thread
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: UNRESOLVED
+    accepted_failure_modes:
+    - F-HB-004
+    root_cause_status: unresolved
+    root_cause: No confirmed public RCA. Plausible candidates include demand-path redistribution and increased latency.
+    resolution: null
+    recovery: null
+    lesson: A demand-channel collapse can be redistribution rather than lost publisher revenue. Compare total normalized monetization
+      and latency before attributing failure to the declining channel.
+    domain_mappings:
+    - direct_or_channel_displacement
+    - F-HB-004
+    - M-002
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+    - Do not force a root cause; UNRESOLVED must remain available.
+- id: EVAL-PUB-072
+  source_incident_id: FIELD-PROG-0004
+  eval_type: counterexample
+  family: programmatic_market
+  difficulty: hard
+  provenance:
+    type: public_incident_corpus
+    source_tier: C
+    evidence_score: 70
+    source_name: r/adops PubMatic revenue discussion
+    source_url: https://www.reddit.com/r/adops/comments/1cu5yky/revenue_drop_from_pubmatic/
+  visible_case:
+    reported_symptom: A network of sites reported a six-month PubMatic display/video revenue decline; another publisher in
+      the same discussion reported materially higher PubMatic revenue since mid-April.
+    affected_scope: Publisher-specific PubMatic demand/performance.
+    known_change_or_trigger: Unknown.
+    available_investigation_context: Discussion raised inventory quality/MFA classification, reseller paths and publisher-specific
+      demand as possible factors.
+    source_class: community_thread
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: UNRESOLVED
+    accepted_failure_modes:
+    - F-GAM-006
+    root_cause_status: unresolved
+    root_cause: No shared vendor-wide cause established; contradictory publisher evidence argues against assuming a universal
+      PubMatic market event.
+    resolution: null
+    recovery: null
+    lesson: Cross-publisher controls matter. If the same SSP is stable/up elsewhere, local inventory, classification, supply
+      path or mix should rank above a generic 'SSP is down' hypothesis.
+    domain_mappings:
+    - IR-007
+    - F-GAM-006
+    - counterexample
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+    - Do not force a root cause; UNRESOLVED must remain available.
+- id: EVAL-PUB-073
+  source_incident_id: FIELD-DISC-0005
+  eval_type: measurement_integrity
+  family: reporting_discrepancy
+  difficulty: hard
+  provenance:
+    type: public_incident_corpus
+    source_tier: C
+    evidence_score: 72
+    source_name: r/adops viewability operations discussion
+    source_url: https://www.reddit.com/r/adops/comments/37csv3/anyone_running_100_viewability_campaigns/
+  visible_case:
+    reported_symptom: Operators reported very large viewability discrepancies between measurement vendors and emphasized that
+      one vendor may measure only a small subset of delivered impressions while another measures far more.
+    affected_scope: Publisher/advertiser viewability reporting and guaranteed-viewability campaigns.
+    known_change_or_trigger: Different verification vendors, measurement coverage and tag placement/timing.
+    available_investigation_context: Recommended comparing measurable-impression coverage and using consistent measurement
+      vendors where contractual viewability matters.
+    source_class: community_thread
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: PROBABLE
+    accepted_failure_modes: []
+    root_cause_status: probable
+    root_cause: Different measurement start points/coverage and technical loading behavior can create large reported viewability
+      gaps.
+    resolution: Reconcile measurable impressions and measurement vendor rather than comparing headline percentages alone.
+    recovery: null
+    lesson: A viewability rate without its measurable-impression denominator is unsafe evidence. The Incident Engine must
+      preserve numerator/denominator and vendor semantics.
+    domain_mappings:
+    - reporting_discrepancy
+    - observability_error
+    - rate_denominator_discipline
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+- id: EVAL-PUB-074
+  source_incident_id: FIELD-ADS-0003
+  eval_type: epistemic_restraint
+  family: reporting_discrepancy
+  difficulty: hard
+  provenance:
+    type: public_incident_corpus
+    source_tier: C
+    evidence_score: 60
+    source_name: Public AdOps/operator report
+    source_url: https://www.reddit.com/r/adops/
+  visible_case:
+    reported_symptom: Discrepancy normal-ish on most tags but extreme on one 300x250, suggesting placement-specific lifecycle/tracking
+      rather than global measurement.
+    affected_scope: Publisher-specific self-report.
+    source_class: community_thread
+  task:
+    instruction: Investigate the case using only visible_case and canonical DOMAIN rules. Rank hypotheses, state supporting
+      and contradicting evidence, state observability gaps, and recommend the next discriminating test if needed.
+    max_user_facing_hypotheses: 5
+  gold:
+    expected_outcome: UNRESOLVED
+    accepted_failure_modes: []
+    root_cause_status: unresolved
+    root_cause: Exact cause unresolved.
+    resolution: null
+    recovery: null
+    lesson: Use community evidence for pattern discovery and counterexamples, not as canonical truth.
+    domain_mappings:
+    - reporting_discrepancy
+  grading:
+    must_do:
+    - Separate observed facts from causal interpretation.
+    - Use timing and affected scope explicitly.
+    - Include at least one contradiction check or state that none can be evaluated from the supplied evidence.
+    - State missing/unobservable evidence when relevant.
+    must_not_do:
+    - Do not invent evidence that is not present in visible_case.
+    - Do not use corpus frequency as real-world prevalence.
+    - Do not expose a numeric causal probability.
+    - Do not broaden affected scope beyond the evidence.
+    - Do not force a root cause; UNRESOLVED must remain available.
+- id: EVAL-PUB-075
+  source_incident_id: INTERNAL-FANATIK-001
+  eval_type: counterexample
+  family: traffic_vendor_attribution
+  difficulty: hard
+  provenance:
+    type: internal_user_report
+    source_tier: PRIVATE_UNVERIFIED
+  visible_case:
+    reported_symptom: Publisher attributed a traffic decline to a newly introduced video/monetization integration.
+    affected_scope: Publisher-wide traffic complaint.
+    timeline_evidence:
+    - Traffic decline was already visible before the integration went live.
+    - The integration was later suspended.
+    - The traffic decline continued after suspension.
+  task:
+    instruction: Evaluate whether the integration can plausibly explain the onset of the decline and identify what can and
+      cannot be concluded.
+    max_user_facing_hypotheses: 3
+  gold:
+    expected_outcome: UNRESOLVED
+    accepted_failure_modes: []
+    expected_reasoning:
+    - The integration cannot explain the initial onset if the measurable decline predates it.
+    - Persistence after suspension further weakens it as the primary cause, subject to a plausible recovery-lag check.
+    - The case does not by itself reveal the true cause.
+    lesson: Predates-candidate and persists-after-removal are strong negative causal evidence.
+  grading:
+    must_do:
+    - Use onset-before-candidate as strong contradictory evidence.
+    - Use persistence-after-removal as additional contradictory evidence.
+    - Do not replace a rejected hypothesis with an invented alternative cause.
+    must_not_do:
+    - Do not conclude the integration caused the initial decline.
+    - Do not claim a different root cause without evidence.
+    - Do not expose numeric causal probability.
+- id: EVAL-PUB-076
+  source_incident_id: INTERNAL-GANDUL-001
+  eval_type: counterfactual_test_quality
+  family: traffic_programmatic_isolation
+  difficulty: hard
+  provenance:
+    type: internal_user_report
+    source_tier: PRIVATE_UNVERIFIED
+  visible_case:
+    reported_symptom: Publisher investigated a traffic decline by disabling almost all external programmatic solutions except
+      Google for roughly two weeks.
+    observed_context:
+    - The external monetization integrations dropped close to zero during the isolation window.
+    - The integrations later returned.
+    - The traffic root cause was still not established after the broad shutdown.
+    - The shutdown created measurable lost monetization opportunity.
+  task:
+    instruction: Assess the diagnostic quality of the isolation strategy and recommend a better next-step testing design.
+    max_user_facing_hypotheses: 3
+  gold:
+    expected_outcome: UNRESOLVED
+    accepted_failure_modes: []
+    expected_reasoning:
+    - Changing many variables simultaneously reduces causal attribution quality.
+    - A broad shutdown can create business cost without identifying the responsible component.
+    - Prefer narrow counterfactuals with one variable, control cohorts, explicit prediction, and bounded duration.
+    lesson: Maximum information gain with minimum blast radius is preferable to broad shutdowns.
+  grading:
+    must_do:
+    - Identify the multi-variable attribution problem.
+    - Recommend a narrower controlled test.
+    - State the expected result under the leading hypothesis before the test.
+    must_not_do:
+    - Do not claim the removed programmatic vendors caused the original traffic decline.
+    - Do not recommend another broad shutdown as the default test.

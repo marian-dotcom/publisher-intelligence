@@ -1,0 +1,971 @@
+version: '0.5'
+patterns:
+- id: PAT-001
+  domain_mapping: google_external_event
+  incident_count: 192
+  high_evidence_count: 68
+  confirmed_root_cause_count: 26
+  status: well_supported
+  example_incident_ids:
+  - CASE-GAM-0008
+  - CASE-GAM-0011
+  - CASE-ADSENSE-0001
+  - EXT-SEARCH-RANK-0001
+  - EXT-SEARCH-RANK-0002
+  - EXT-SEARCH-RANK-0003
+  - EXT-SEARCH-RANK-0004
+  - EXT-SEARCH-RANK-0005
+  - EXT-SEARCH-RANK-0006
+  - EXT-SEARCH-RANK-0007
+  note: Coverage count, not real-world prevalence.
+- id: PAT-002
+  domain_mapping: F-GAM-005
+  incident_count: 122
+  high_evidence_count: 3
+  confirmed_root_cause_count: 2
+  status: well_supported
+  example_incident_ids:
+  - CASE-GAM-0008
+  - CASE-GAM-0011
+  - FIELD-ADS-0002
+  - EXT-GAM-0001
+  - EXT-GAM-0002
+  - EXT-GAM-0003
+  - EXT-GAM-0004
+  - EXT-GAM-0005
+  - EXT-GAM-0006
+  - EXT-GAM-0007
+  note: Coverage count, not real-world prevalence.
+- id: PAT-003
+  domain_mapping: reporting_freshness_or_platform_incident
+  incident_count: 117
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: supported
+  example_incident_ids:
+  - EXT-GAM-0001
+  - EXT-GAM-0002
+  - EXT-GAM-0003
+  - EXT-GAM-0004
+  - EXT-GAM-0005
+  - EXT-GAM-0006
+  - EXT-GAM-0007
+  - EXT-GAM-0008
+  - EXT-GAM-0009
+  - EXT-GAM-0010
+  note: Coverage count, not real-world prevalence.
+- id: PAT-004
+  domain_mapping: F-SEO-007
+  incident_count: 71
+  high_evidence_count: 57
+  confirmed_root_cause_count: 16
+  status: well_supported
+  example_incident_ids:
+  - EXT-SEARCH-RANK-0001
+  - EXT-SEARCH-RANK-0002
+  - EXT-SEARCH-RANK-0003
+  - EXT-SEARCH-RANK-0004
+  - EXT-SEARCH-RANK-0005
+  - EXT-SEARCH-RANK-0006
+  - EXT-SEARCH-RANK-0007
+  - EXT-SEARCH-RANK-0008
+  - EXT-SEARCH-RANK-0009
+  - EXT-SEARCH-RANK-0010
+  note: Coverage count, not real-world prevalence.
+- id: PAT-005
+  domain_mapping: external_dependency_failure
+  incident_count: 14
+  high_evidence_count: 13
+  confirmed_root_cause_count: 13
+  status: well_supported
+  example_incident_ids:
+  - CASE-INFRA-0001
+  - CASE-INFRA-0002
+  - CASE-INFRA-0003
+  - CASE-INFRA-0004
+  - CASE-INFRA-0006
+  - CASE-INFRA-0007
+  - CASE-INFRA-0008
+  - CASE-INFRA-0009
+  - CASE-INFRA-0010
+  - CASE-INFRA-0011
+  note: Coverage count, not real-world prevalence.
+- id: PAT-006
+  domain_mapping: F-VID-002
+  incident_count: 12
+  high_evidence_count: 11
+  confirmed_root_cause_count: 6
+  status: well_supported
+  example_incident_ids:
+  - CASE-GAM-0006
+  - CASE-VIDEO-PB-0001
+  - CASE-VIDEO-PB-0009
+  - CASE-VIDEO-PB-0003
+  - CASE-VIDEO-PB-0006
+  - CASE-VIDEO-PB-0010
+  - CASE-VIDEO-PB-0004
+  - CASE-VIDEO-PB-0002
+  - CASE-VIDEO-PB-0007
+  - CASE-VIDEO-PB-0011
+  note: Coverage count, not real-world prevalence.
+- id: PAT-007
+  domain_mapping: F-CMP-003
+  incident_count: 10
+  high_evidence_count: 10
+  confirmed_root_cause_count: 5
+  status: well_supported
+  example_incident_ids:
+  - CASE-ADSENSE-0001
+  - CASE-PREBID-0019
+  - CASE-PREBID-0028
+  - EVID-RESEARCH-0004
+  - CASE-PREBID-ADD-0007
+  - FIELD-ADS-0011
+  - CASE-PREBID-0029
+  - CASE-PREBID-0022
+  - CASE-PREBID-0027
+  - CASE-PREBID-ADD-0002
+  note: Coverage count, not real-world prevalence.
+- id: PAT-008
+  domain_mapping: cwv_regression
+  incident_count: 9
+  high_evidence_count: 8
+  confirmed_root_cause_count: 2
+  status: well_supported
+  example_incident_ids:
+  - CASE-PERF-0001
+  - CASE-PERF-0007
+  - CASE-PERF-0010
+  - CASE-PERF-0011
+  - CASE-PERF-0006
+  - CASE-PERF-0008
+  - CASE-PERF-0009
+  - CASE-PERF-0012
+  - FIELD-SEARCH-0006
+  note: Coverage count, not real-world prevalence.
+- id: PAT-009
+  domain_mapping: observability_error
+  incident_count: 9
+  high_evidence_count: 6
+  confirmed_root_cause_count: 4
+  status: well_supported
+  example_incident_ids:
+  - CASE-PERF-0003
+  - CASE-INFRA-0009
+  - CASE-INFRA-0010
+  - CASE-PREBID-0002
+  - CASE-PREBID-0006
+  - CASE-PREBID-ADD-0002
+  - CASE-PREBID-0010
+  - FIELD-DISC-0005
+  - CASE-CMP-VENDOR-0003
+  note: Coverage count, not real-world prevalence.
+- id: PAT-010
+  domain_mapping: reporting_discrepancy
+  incident_count: 9
+  high_evidence_count: 3
+  confirmed_root_cause_count: 1
+  status: well_supported
+  example_incident_ids:
+  - CASE-VIDEO-PB-0006
+  - CASE-VIDEO-PB-0012
+  - CASE-VIDEO-PB-0008
+  - CASE-PREBID-0010
+  - FIELD-DISC-0005
+  - FIELD-ADS-0003
+  - FIELD-ADS-0006
+  - FIELD-ADS-0008
+  - FIELD-ADS-0009
+  note: Coverage count, not real-world prevalence.
+- id: PAT-011
+  domain_mapping: F-CMP-004
+  incident_count: 8
+  high_evidence_count: 8
+  confirmed_root_cause_count: 4
+  status: well_supported
+  example_incident_ids:
+  - CASE-ADSENSE-0001
+  - CASE-PREBID-ADD-0004
+  - EVID-RESEARCH-0004
+  - CASE-PREBID-ADD-0007
+  - FIELD-ADS-0011
+  - CASE-PREBID-0026
+  - CASE-PREBID-ADD-0003
+  - CASE-PREBID-0024
+  note: Coverage count, not real-world prevalence.
+- id: PAT-012
+  domain_mapping: F-CMP-005
+  incident_count: 8
+  high_evidence_count: 7
+  confirmed_root_cause_count: 4
+  status: well_supported
+  example_incident_ids:
+  - CASE-PERF-0002
+  - CASE-PERF-0003
+  - CASE-PREBID-0012
+  - CASE-PREBID-0015
+  - EVID-RESEARCH-0002
+  - CASE-PREBID-0029
+  - FIELD-GA4-0001
+  - CASE-PREBID-0017
+  note: Coverage count, not real-world prevalence.
+- id: PAT-013
+  domain_mapping: F-HB-004
+  incident_count: 8
+  high_evidence_count: 7
+  confirmed_root_cause_count: 3
+  status: well_supported
+  example_incident_ids:
+  - EVID-RESEARCH-0003
+  - CASE-PREBID-0001
+  - CASE-PREBID-0008
+  - CASE-PREBID-0011
+  - CASE-PERF-0010
+  - CASE-PERF-0011
+  - CASE-VIDEO-PB-0002
+  - FIELD-PROG-0003
+  note: Coverage count, not real-world prevalence.
+- id: PAT-014
+  domain_mapping: ads_txt_integrity
+  incident_count: 8
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: supported
+  example_incident_ids:
+  - FIELD-ADSTXT-0007
+  - FIELD-ADSTXT-0006
+  - FIELD-ADSTXT-0008
+  - FIELD-ADSTXT-0002
+  - FIELD-ADSTXT-0004
+  - FIELD-ADS-0014
+  - FIELD-ADSTXT-0001
+  - FIELD-ADSTXT-0003
+  note: Coverage count, not real-world prevalence.
+- id: PAT-015
+  domain_mapping: site_availability
+  incident_count: 8
+  high_evidence_count: 8
+  confirmed_root_cause_count: 8
+  status: well_supported
+  example_incident_ids:
+  - CASE-INFRA-0001
+  - CASE-INFRA-0002
+  - CASE-INFRA-0006
+  - CASE-INFRA-0007
+  - CASE-INFRA-0008
+  - CASE-INFRA-0011
+  - CASE-INFRA-0005
+  - CASE-INFRA-0012
+  note: Coverage count, not real-world prevalence.
+- id: PAT-016
+  domain_mapping: F-CMP-002
+  incident_count: 7
+  high_evidence_count: 6
+  confirmed_root_cause_count: 6
+  status: well_supported
+  example_incident_ids:
+  - CASE-PREBID-0019
+  - CASE-PERF-0001
+  - CASE-PREBID-0012
+  - CASE-PREBID-0025
+  - CASE-PREBID-0020
+  - CASE-PREBID-0028
+  - CASE-PREBID-0014
+  note: Coverage count, not real-world prevalence.
+- id: PAT-017
+  domain_mapping: F-HB-006
+  incident_count: 7
+  high_evidence_count: 7
+  confirmed_root_cause_count: 6
+  status: well_supported
+  example_incident_ids:
+  - CASE-PREBID-0013
+  - CASE-PREBID-0021
+  - CASE-PREBID-0009
+  - CASE-PREBID-0018
+  - CASE-PREBID-ADD-0001
+  - CASE-PREBID-0023
+  - CASE-PREBID-0016
+  note: Coverage count, not real-world prevalence.
+- id: PAT-018
+  domain_mapping: F-HB-007
+  incident_count: 7
+  high_evidence_count: 7
+  confirmed_root_cause_count: 4
+  status: well_supported
+  example_incident_ids:
+  - CASE-PREBID-ADD-0004
+  - CASE-PREBID-0025
+  - CASE-PREBID-0020
+  - CASE-PREBID-0005
+  - CASE-PREBID-0026
+  - CASE-PREBID-ADD-0003
+  - CASE-PREBID-0024
+  note: Coverage count, not real-world prevalence.
+- id: PAT-019
+  domain_mapping: F-VID-001
+  incident_count: 7
+  high_evidence_count: 6
+  confirmed_root_cause_count: 2
+  status: well_supported
+  example_incident_ids:
+  - CASE-GAM-VIDEO-0001
+  - CASE-GAM-0002
+  - CASE-VIDEO-PB-0007
+  - CASE-VIDEO-PB-0005
+  - CASE-VIDEO-PB-0008
+  - CASE-VIDEO-PB-0011
+  - FIELD-VIDEO-0002
+  note: Coverage count, not real-world prevalence.
+- id: PAT-020
+  domain_mapping: policy_risk
+  incident_count: 7
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: supported
+  example_incident_ids:
+  - FIELD-POLICY-0001
+  - FIELD-POLICY-0002
+  - FIELD-VIDEO-0001
+  - FIELD-POLICY-0006
+  - FIELD-POLICY-0003
+  - FIELD-POLICY-0005
+  - FIELD-POLICY-0004
+  note: Coverage count, not real-world prevalence.
+- id: PAT-021
+  domain_mapping: F-GAM-007
+  incident_count: 6
+  high_evidence_count: 6
+  confirmed_root_cause_count: 6
+  status: well_supported
+  example_incident_ids:
+  - CASE-GAM-0010
+  - CASE-GAM-0007
+  - CASE-GAM-0009
+  - CASE-GAM-0001
+  - CASE-GAM-0005
+  - CASE-SSP-0001
+  note: Coverage count, not real-world prevalence.
+- id: PAT-022
+  domain_mapping: F-HB-002
+  incident_count: 6
+  high_evidence_count: 6
+  confirmed_root_cause_count: 4
+  status: well_supported
+  example_incident_ids:
+  - EVID-RESEARCH-0003
+  - CASE-PREBID-0001
+  - CASE-PREBID-0002
+  - CASE-PREBID-0008
+  - CASE-PREBID-0005
+  - CASE-PREBID-0006
+  note: Coverage count, not real-world prevalence.
+- id: PAT-023
+  domain_mapping: F-HB-005
+  incident_count: 6
+  high_evidence_count: 5
+  confirmed_root_cause_count: 1
+  status: well_supported
+  example_incident_ids:
+  - CASE-PREBID-0023
+  - CASE-PREBID-0032
+  - CASE-PREBID-ADD-0006
+  - CASE-PREBID-0004
+  - CASE-VIDEO-PB-0012
+  - CASE-PREBID-0003
+  note: Coverage count, not real-world prevalence.
+- id: PAT-024
+  domain_mapping: ad_serving_limit
+  incident_count: 6
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: supported
+  example_incident_ids:
+  - FIELD-POLICY-0001
+  - FIELD-POLICY-0002
+  - FIELD-POLICY-0006
+  - FIELD-POLICY-0003
+  - FIELD-POLICY-0005
+  - FIELD-POLICY-0004
+  note: Coverage count, not real-world prevalence.
+- id: PAT-025
+  domain_mapping: F-AN-004
+  incident_count: 5
+  high_evidence_count: 1
+  confirmed_root_cause_count: 0
+  status: supported
+  example_incident_ids:
+  - FIELD-GA4-0001
+  - FIELD-GA4-0003
+  - FIELD-GA4-0006
+  - FIELD-GA4-0002
+  - FIELD-GA4-0005
+  note: Coverage count, not real-world prevalence.
+- id: PAT-026
+  domain_mapping: F-BR-003
+  incident_count: 5
+  high_evidence_count: 5
+  confirmed_root_cause_count: 3
+  status: well_supported
+  example_incident_ids:
+  - CASE-PERF-0002
+  - CASE-PERF-0004
+  - CASE-PERF-0001
+  - CASE-PERF-0005
+  - CASE-VIDEO-PB-0005
+  note: Coverage count, not real-world prevalence.
+- id: PAT-027
+  domain_mapping: F-GAM-002
+  incident_count: 5
+  high_evidence_count: 3
+  confirmed_root_cause_count: 3
+  status: well_supported
+  example_incident_ids:
+  - CASE-GAM-0004
+  - CASE-GAM-0012
+  - FIELD-ADS-0011
+  - FIELD-ADS-0012
+  - CASE-PREBID-0003
+  note: Coverage count, not real-world prevalence.
+- id: PAT-028
+  domain_mapping: gpt_refresh_state
+  incident_count: 5
+  high_evidence_count: 5
+  confirmed_root_cause_count: 2
+  status: well_supported
+  example_incident_ids:
+  - CASE-PREBID-ADD-0005
+  - CASE-PREBID-0007
+  - CASE-PREBID-0032
+  - CASE-PREBID-0030
+  - CASE-PREBID-0004
+  note: Coverage count, not real-world prevalence.
+- id: PAT-029
+  domain_mapping: F-GAM-004
+  incident_count: 4
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: supported
+  example_incident_ids:
+  - FIELD-ADS-0007
+  - FIELD-ADS-0005
+  - FIELD-ADS-0014
+  - FIELD-ADS-0004
+  note: Coverage count, not real-world prevalence.
+- id: PAT-030
+  domain_mapping: F-SEO-006
+  incident_count: 4
+  high_evidence_count: 2
+  confirmed_root_cause_count: 0
+  status: supported
+  example_incident_ids:
+  - FIELD-SEARCH-0017
+  - FIELD-SEARCH-0018
+  - FIELD-SEARCH-0019
+  - FIELD-SEARCH-0003
+  note: Coverage count, not real-world prevalence.
+- id: PAT-031
+  domain_mapping: race_condition
+  incident_count: 4
+  high_evidence_count: 3
+  confirmed_root_cause_count: 2
+  status: well_supported
+  example_incident_ids:
+  - CASE-PREBID-0011
+  - CASE-PREBID-ADD-0005
+  - CASE-PREBID-0030
+  - CASE-PREBID-0031
+  note: Coverage count, not real-world prevalence.
+- id: PAT-032
+  domain_mapping: F-GAM-006
+  incident_count: 3
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: supported
+  example_incident_ids:
+  - FIELD-PROG-0004
+  - FIELD-ADS-0001
+  - FIELD-ADS-0004
+  note: Coverage count, not real-world prevalence.
+- id: PAT-033
+  domain_mapping: F-SEO-004
+  incident_count: 3
+  high_evidence_count: 1
+  confirmed_root_cause_count: 0
+  status: supported
+  example_incident_ids:
+  - FIELD-SEARCH-0017
+  - FIELD-SEARCH-0020
+  - FIELD-SEARCH-0019
+  note: Coverage count, not real-world prevalence.
+- id: PAT-034
+  domain_mapping: cmp_vendor_incident
+  incident_count: 3
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: supported
+  example_incident_ids:
+  - CASE-CMP-VENDOR-0002
+  - CASE-CMP-VENDOR-0001
+  - CASE-CMP-VENDOR-0003
+  note: Coverage count, not real-world prevalence.
+- id: PAT-035
+  domain_mapping: configuration_change
+  incident_count: 3
+  high_evidence_count: 3
+  confirmed_root_cause_count: 3
+  status: well_supported
+  example_incident_ids:
+  - CASE-INFRA-0001
+  - CASE-INFRA-0002
+  - CASE-INFRA-0008
+  note: Coverage count, not real-world prevalence.
+- id: PAT-036
+  domain_mapping: rate_denominator_discipline
+  incident_count: 3
+  high_evidence_count: 1
+  confirmed_root_cause_count: 1
+  status: supported
+  example_incident_ids:
+  - CASE-GAM-0010
+  - FIELD-ADS-0013
+  - FIELD-DISC-0005
+  note: Coverage count, not real-world prevalence.
+- id: PAT-037
+  domain_mapping: third_party_dependency
+  incident_count: 3
+  high_evidence_count: 3
+  confirmed_root_cause_count: 1
+  status: well_supported
+  example_incident_ids:
+  - CASE-INFRA-0003
+  - CASE-PERF-0011
+  - CASE-PERF-0012
+  note: Coverage count, not real-world prevalence.
+- id: PAT-038
+  domain_mapping: F-AN-003
+  incident_count: 2
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: supported
+  example_incident_ids:
+  - FIELD-GA4-0004
+  - FIELD-GA4-0003
+  note: Coverage count, not real-world prevalence.
+- id: PAT-039
+  domain_mapping: F-CMP-001
+  incident_count: 2
+  high_evidence_count: 2
+  confirmed_root_cause_count: 1
+  status: supported
+  example_incident_ids:
+  - CASE-PREBID-0015
+  - CASE-PREBID-0022
+  note: Coverage count, not real-world prevalence.
+- id: PAT-040
+  domain_mapping: F-GAM-003
+  incident_count: 2
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: supported
+  example_incident_ids:
+  - FIELD-ADS-0012
+  - FIELD-ADS-0005
+  note: Coverage count, not real-world prevalence.
+- id: PAT-041
+  domain_mapping: F-SEO-002
+  incident_count: 2
+  high_evidence_count: 1
+  confirmed_root_cause_count: 0
+  status: supported
+  example_incident_ids:
+  - FIELD-SEARCH-0023
+  - FIELD-SEARCH-0021
+  note: Coverage count, not real-world prevalence.
+- id: PAT-042
+  domain_mapping: F-SEO-010
+  incident_count: 2
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: supported
+  example_incident_ids:
+  - FIELD-SEARCH-0014
+  - FIELD-SEARCH-0022
+  note: Coverage count, not real-world prevalence.
+- id: PAT-043
+  domain_mapping: IR-007
+  incident_count: 2
+  high_evidence_count: 1
+  confirmed_root_cause_count: 0
+  status: supported
+  example_incident_ids:
+  - FIELD-SEARCH-0013
+  - FIELD-PROG-0004
+  note: Coverage count, not real-world prevalence.
+- id: PAT-044
+  domain_mapping: M-002
+  incident_count: 2
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: supported
+  example_incident_ids:
+  - FIELD-PROG-0003
+  - FIELD-ADS-0010
+  note: Coverage count, not real-world prevalence.
+- id: PAT-045
+  domain_mapping: ad_refresh
+  incident_count: 2
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: supported
+  example_incident_ids:
+  - FIELD-ADS-0010
+  - FIELD-ADS-0014
+  note: Coverage count, not real-world prevalence.
+- id: PAT-046
+  domain_mapping: counterexample
+  incident_count: 2
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: supported
+  example_incident_ids:
+  - FIELD-ADSTXT-0007
+  - FIELD-PROG-0004
+  note: Coverage count, not real-world prevalence.
+- id: PAT-047
+  domain_mapping: duplicate_delivery_risk
+  incident_count: 2
+  high_evidence_count: 2
+  confirmed_root_cause_count: 2
+  status: supported
+  example_incident_ids:
+  - CASE-PREBID-ADD-0005
+  - CASE-PREBID-0007
+  note: Coverage count, not real-world prevalence.
+- id: PAT-048
+  domain_mapping: network_configuration
+  incident_count: 2
+  high_evidence_count: 2
+  confirmed_root_cause_count: 2
+  status: supported
+  example_incident_ids:
+  - CASE-INFRA-0007
+  - CASE-INFRA-0011
+  note: Coverage count, not real-world prevalence.
+- id: PAT-049
+  domain_mapping: reporting_freshness
+  incident_count: 2
+  high_evidence_count: 1
+  confirmed_root_cause_count: 1
+  status: supported
+  example_incident_ids:
+  - CASE-INFRA-0009
+  - FIELD-GA4-0008
+  note: Coverage count, not real-world prevalence.
+- id: PAT-050
+  domain_mapping: supply_path_complexity
+  incident_count: 2
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: supported
+  example_incident_ids:
+  - FIELD-ADSTXT-0007
+  - FIELD-ADSTXT-0008
+  note: Coverage count, not real-world prevalence.
+- id: PAT-051
+  domain_mapping: F-AN-002
+  incident_count: 1
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: thin
+  example_incident_ids:
+  - FIELD-GA4-0003
+  note: Coverage count, not real-world prevalence.
+- id: PAT-052
+  domain_mapping: F-GAM-001
+  incident_count: 1
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: thin
+  example_incident_ids:
+  - FIELD-VIDEO-0002
+  note: Coverage count, not real-world prevalence.
+- id: PAT-053
+  domain_mapping: F-SEO-001
+  incident_count: 1
+  high_evidence_count: 1
+  confirmed_root_cause_count: 0
+  status: thin
+  example_incident_ids:
+  - FIELD-SEARCH-0023
+  note: Coverage count, not real-world prevalence.
+- id: PAT-054
+  domain_mapping: F-SEO-005
+  incident_count: 1
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: thin
+  example_incident_ids:
+  - FIELD-SEARCH-0003
+  note: Coverage count, not real-world prevalence.
+- id: PAT-055
+  domain_mapping: F-VID-003
+  incident_count: 1
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: thin
+  example_incident_ids:
+  - FIELD-VIDEO-0001
+  note: Coverage count, not real-world prevalence.
+- id: PAT-056
+  domain_mapping: IR-003
+  incident_count: 1
+  high_evidence_count: 1
+  confirmed_root_cause_count: 0
+  status: thin
+  example_incident_ids:
+  - FIELD-SEARCH-0013
+  note: Coverage count, not real-world prevalence.
+- id: PAT-057
+  domain_mapping: IR-005
+  incident_count: 1
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: thin
+  example_incident_ids:
+  - FIELD-SEARCH-0020
+  note: Coverage count, not real-world prevalence.
+- id: PAT-058
+  domain_mapping: M-001
+  incident_count: 1
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: thin
+  example_incident_ids:
+  - FIELD-ADS-0010
+  note: Coverage count, not real-world prevalence.
+- id: PAT-059
+  domain_mapping: M-004
+  incident_count: 1
+  high_evidence_count: 1
+  confirmed_root_cause_count: 1
+  status: thin
+  example_incident_ids:
+  - FIELD-ADS-0011
+  note: Coverage count, not real-world prevalence.
+- id: PAT-060
+  domain_mapping: ad_server_outage
+  incident_count: 1
+  high_evidence_count: 1
+  confirmed_root_cause_count: 1
+  status: thin
+  example_incident_ids:
+  - CASE-ADSERVER-0001
+  note: Coverage count, not real-world prevalence.
+- id: PAT-061
+  domain_mapping: ad_slot_layout
+  incident_count: 1
+  high_evidence_count: 1
+  confirmed_root_cause_count: 0
+  status: thin
+  example_incident_ids:
+  - CASE-PERF-0005
+  note: Coverage count, not real-world prevalence.
+- id: PAT-062
+  domain_mapping: cache_configuration
+  incident_count: 1
+  high_evidence_count: 1
+  confirmed_root_cause_count: 1
+  status: thin
+  example_incident_ids:
+  - CASE-INFRA-0006
+  note: Coverage count, not real-world prevalence.
+- id: PAT-063
+  domain_mapping: cascading_failure
+  incident_count: 1
+  high_evidence_count: 1
+  confirmed_root_cause_count: 1
+  status: thin
+  example_incident_ids:
+  - CASE-INFRA-0005
+  note: Coverage count, not real-world prevalence.
+- id: PAT-064
+  domain_mapping: control_plane
+  incident_count: 1
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: thin
+  example_incident_ids:
+  - CASE-CMP-VENDOR-0002
+  note: Coverage count, not real-world prevalence.
+- id: PAT-065
+  domain_mapping: data_loss
+  incident_count: 1
+  high_evidence_count: 1
+  confirmed_root_cause_count: 1
+  status: thin
+  example_incident_ids:
+  - CASE-INFRA-0010
+  note: Coverage count, not real-world prevalence.
+- id: PAT-066
+  domain_mapping: direct_or_channel_displacement
+  incident_count: 1
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: thin
+  example_incident_ids:
+  - FIELD-PROG-0003
+  note: Coverage count, not real-world prevalence.
+- id: PAT-067
+  domain_mapping: dns_dependency
+  incident_count: 1
+  high_evidence_count: 1
+  confirmed_root_cause_count: 1
+  status: thin
+  example_incident_ids:
+  - CASE-INFRA-0013
+  note: Coverage count, not real-world prevalence.
+- id: PAT-068
+  domain_mapping: external_demand_event
+  incident_count: 1
+  high_evidence_count: 1
+  confirmed_root_cause_count: 1
+  status: thin
+  example_incident_ids:
+  - CASE-SSP-0001
+  note: Coverage count, not real-world prevalence.
+- id: PAT-069
+  domain_mapping: external_network_event
+  incident_count: 1
+  high_evidence_count: 1
+  confirmed_root_cause_count: 1
+  status: thin
+  example_incident_ids:
+  - CASE-INFRA-0013
+  note: Coverage count, not real-world prevalence.
+- id: PAT-070
+  domain_mapping: gam_video_configuration
+  incident_count: 1
+  high_evidence_count: 1
+  confirmed_root_cause_count: 0
+  status: thin
+  example_incident_ids:
+  - CASE-VIDEO-PB-0013
+  note: Coverage count, not real-world prevalence.
+- id: PAT-071
+  domain_mapping: human_change
+  incident_count: 1
+  high_evidence_count: 1
+  confirmed_root_cause_count: 1
+  status: thin
+  example_incident_ids:
+  - CASE-INFRA-0004
+  note: Coverage count, not real-world prevalence.
+- id: PAT-072
+  domain_mapping: implementation_error
+  incident_count: 1
+  high_evidence_count: 1
+  confirmed_root_cause_count: 0
+  status: thin
+  example_incident_ids:
+  - CASE-PREBID-ADD-0006
+  note: Coverage count, not real-world prevalence.
+- id: PAT-073
+  domain_mapping: measurement_change
+  incident_count: 1
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: thin
+  example_incident_ids:
+  - FIELD-GA4-0007
+  note: Coverage count, not real-world prevalence.
+- id: PAT-074
+  domain_mapping: network_congestion
+  incident_count: 1
+  high_evidence_count: 1
+  confirmed_root_cause_count: 1
+  status: thin
+  example_incident_ids:
+  - CASE-INFRA-0012
+  note: Coverage count, not real-world prevalence.
+- id: PAT-075
+  domain_mapping: passback_failure
+  incident_count: 1
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: thin
+  example_incident_ids:
+  - CASE-PREBID-0033
+  note: Coverage count, not real-world prevalence.
+- id: PAT-076
+  domain_mapping: reporting_or_bid_anomaly
+  incident_count: 1
+  high_evidence_count: 1
+  confirmed_root_cause_count: 1
+  status: thin
+  example_incident_ids:
+  - CASE-SSP-0001
+  note: Coverage count, not real-world prevalence.
+- id: PAT-077
+  domain_mapping: reporting_or_state_anomaly
+  incident_count: 1
+  high_evidence_count: 1
+  confirmed_root_cause_count: 1
+  status: thin
+  example_incident_ids:
+  - CASE-GAM-0003
+  note: Coverage count, not real-world prevalence.
+- id: PAT-078
+  domain_mapping: security_incident
+  incident_count: 1
+  high_evidence_count: 1
+  confirmed_root_cause_count: 1
+  status: thin
+  example_incident_ids:
+  - CASE-ADSERVER-0001
+  note: Coverage count, not real-world prevalence.
+- id: PAT-079
+  domain_mapping: site_feature_failure
+  incident_count: 1
+  high_evidence_count: 1
+  confirmed_root_cause_count: 1
+  status: thin
+  example_incident_ids:
+  - CASE-INFRA-0003
+  note: Coverage count, not real-world prevalence.
+- id: PAT-080
+  domain_mapping: supply_authorization_failure
+  incident_count: 1
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: thin
+  example_incident_ids:
+  - FIELD-ADSTXT-0006
+  note: Coverage count, not real-world prevalence.
+- id: PAT-081
+  domain_mapping: traffic_confounder
+  incident_count: 1
+  high_evidence_count: 1
+  confirmed_root_cause_count: 1
+  status: thin
+  example_incident_ids:
+  - CASE-INFRA-0013
+  note: Coverage count, not real-world prevalence.
+- id: PAT-082
+  domain_mapping: video_dependency
+  incident_count: 1
+  high_evidence_count: 1
+  confirmed_root_cause_count: 1
+  status: thin
+  example_incident_ids:
+  - CASE-INFRA-0004
+  note: Coverage count, not real-world prevalence.
+- id: PAT-083
+  domain_mapping: viewability_tradeoff
+  incident_count: 1
+  high_evidence_count: 0
+  confirmed_root_cause_count: 0
+  status: thin
+  example_incident_ids:
+  - FIELD-ADS-0013
+  note: Coverage count, not real-world prevalence.
