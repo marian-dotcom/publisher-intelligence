@@ -1,13 +1,15 @@
 import asyncio
 import json
 import uuid
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
 
 from sqlalchemy import or_, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.browser.comparison import compare_normalized_state
 from app.browser.contracts import (
     BrowserEvidence,
     BrowserTarget,
@@ -22,7 +24,10 @@ from app.browser.models import (
     CheckpointRun,
     CheckpointWindow,
     CollectorRun,
+    DomainEntity,
+    EntityObservation,
     InteractionProfile,
+    JavaScriptErrorObservation,
     MonitoredUrl,
     Site,
     Template,
@@ -32,6 +37,12 @@ from app.storage.s3 import S3Storage
 
 class CheckpointStateError(RuntimeError):
     pass
+
+
+@dataclass(frozen=True, slots=True)
+class ComparableCheckpoint:
+    run: CheckpointRun
+    selection_scope: str
 
 
 class CheckpointRepository:
@@ -46,9 +57,10 @@ class CheckpointRepository:
             Site,
             BrowserScenario,
             InteractionProfile | None,
+            Template,
         ],
     ) -> BrowserTarget:
-        run, monitored_url, site, scenario, interaction_profile = row
+        run, monitored_url, site, scenario, interaction_profile, template = row
         viewport = scenario.device_profile.get("viewport", {})
         steps = (
             parse_interaction_steps(interaction_profile.steps)
@@ -84,12 +96,24 @@ class CheckpointRepository:
                 interaction_profile.version if interaction_profile is not None else None
             ),
             interaction_steps=steps,
+            template_id=template.id,
+            template_code=template.code,
+            template_family=template.template_family,
+            template_fingerprint_version=template.fingerprint_version,
+            template_expected_features=template.expected_features,
         )
 
     @staticmethod
     def _target_statement(tenant_id: uuid.UUID, checkpoint_run_id: uuid.UUID) -> Any:
         return (
-            select(CheckpointRun, MonitoredUrl, Site, BrowserScenario, InteractionProfile)
+            select(
+                CheckpointRun,
+                MonitoredUrl,
+                Site,
+                BrowserScenario,
+                InteractionProfile,
+                Template,
+            )
             .join(MonitoredUrl, MonitoredUrl.id == CheckpointRun.monitored_url_id)
             .join(Site, Site.id == CheckpointRun.site_id)
             .join(BrowserScenario, BrowserScenario.id == CheckpointRun.scenario_id)
@@ -134,6 +158,7 @@ class CheckpointRepository:
                             Site,
                             BrowserScenario,
                             InteractionProfile | None,
+                            Template,
                         ],
                         row._tuple(),
                     )
@@ -199,6 +224,7 @@ class CheckpointRepository:
                         Site,
                         BrowserScenario,
                         InteractionProfile | None,
+                        Template,
                     ],
                     row._tuple(),
                 )
@@ -308,6 +334,7 @@ class CheckpointRepository:
                         summary=collector.summary,
                     )
                 )
+            await self._persist_normalized_observations(session, target, evidence)
             attempt.status = evidence.status
             attempt.completed_at = evidence.completed_at
             attempt.failure_class = evidence.failure_class
@@ -324,6 +351,91 @@ class CheckpointRepository:
             run.manifest = manifest
             await self._refresh_window_status(
                 session, run.checkpoint_window_id, evidence.completed_at
+            )
+
+    @staticmethod
+    async def _persist_normalized_observations(
+        session: AsyncSession,
+        target: BrowserTarget,
+        evidence: BrowserEvidence,
+    ) -> None:
+        for observation in evidence.normalized_entities:
+            entity_id = (
+                await session.execute(
+                    insert(DomainEntity)
+                    .values(
+                        id=uuid.uuid4(),
+                        tenant_id=target.tenant_id,
+                        site_id=target.site_id,
+                        entity_kind=observation.entity_kind,
+                        stable_key=observation.stable_key,
+                        first_seen_at=evidence.completed_at,
+                        last_seen_at=evidence.completed_at,
+                        identity_metadata={},
+                    )
+                    .on_conflict_do_update(
+                        index_elements=["site_id", "entity_kind", "stable_key"],
+                        set_={"last_seen_at": evidence.completed_at},
+                    )
+                    .returning(DomainEntity.id)
+                )
+            ).scalar_one()
+            await session.execute(
+                insert(EntityObservation)
+                .values(
+                    id=uuid.uuid4(),
+                    tenant_id=target.tenant_id,
+                    site_id=target.site_id,
+                    checkpoint_run_id=target.checkpoint_run_id,
+                    entity_id=entity_id,
+                    observation_type="PRESENCE_STATE",
+                    observed_at=evidence.completed_at,
+                    state_hash=observation.state_hash,
+                    state=observation.state,
+                    collector_version="b3-v1",
+                )
+                .on_conflict_do_nothing(
+                    index_elements=[
+                        "checkpoint_run_id",
+                        "entity_id",
+                        "observation_type",
+                    ]
+                )
+            )
+
+        error_state = evidence.normalized_state.get("javascript_errors")
+        if not isinstance(error_state, dict):
+            return
+        normalizer_version = str(error_state.get("normalizer_version", "unknown"))[:50]
+        errors = error_state.get("errors")
+        if not isinstance(errors, list):
+            return
+        for item in errors:
+            if not isinstance(item, dict) or not isinstance(item.get("fingerprint"), str):
+                continue
+            await session.execute(
+                insert(JavaScriptErrorObservation)
+                .values(
+                    id=uuid.uuid4(),
+                    tenant_id=target.tenant_id,
+                    site_id=target.site_id,
+                    checkpoint_run_id=target.checkpoint_run_id,
+                    fingerprint=str(item["fingerprint"])[:64],
+                    normalized_message=str(item.get("normalized_message", ""))[:1_000],
+                    source_host=(
+                        str(item["source_host"])[:253]
+                        if item.get("source_host") is not None
+                        else None
+                    ),
+                    source_path=(
+                        str(item["source_path"])[:1_000]
+                        if item.get("source_path") is not None
+                        else None
+                    ),
+                    count=max(1, int(item.get("count", 1))),
+                    collector_version=normalizer_version,
+                )
+                .on_conflict_do_nothing(index_elements=["checkpoint_run_id", "fingerprint"])
             )
 
     @staticmethod
@@ -425,12 +537,58 @@ class CheckpointRepository:
                 ).all()
             )
 
+    async def entity_observations_for_tenant(
+        self, *, tenant_id: uuid.UUID, checkpoint_run_id: uuid.UUID
+    ) -> list[EntityObservation]:
+        async with self._session_factory() as session:
+            return list(
+                (
+                    await session.scalars(
+                        select(EntityObservation)
+                        .join(DomainEntity, DomainEntity.id == EntityObservation.entity_id)
+                        .where(
+                            EntityObservation.tenant_id == tenant_id,
+                            EntityObservation.checkpoint_run_id == checkpoint_run_id,
+                            DomainEntity.tenant_id == tenant_id,
+                            DomainEntity.site_id == EntityObservation.site_id,
+                        )
+                    )
+                ).all()
+            )
+
+    async def javascript_errors_for_tenant(
+        self, *, tenant_id: uuid.UUID, checkpoint_run_id: uuid.UUID
+    ) -> list[JavaScriptErrorObservation]:
+        async with self._session_factory() as session:
+            return list(
+                (
+                    await session.scalars(
+                        select(JavaScriptErrorObservation).where(
+                            JavaScriptErrorObservation.tenant_id == tenant_id,
+                            JavaScriptErrorObservation.checkpoint_run_id == checkpoint_run_id,
+                        )
+                    )
+                ).all()
+            )
+
     async def previous_comparable(
         self,
         *,
         tenant_id: uuid.UUID,
         checkpoint_run_id: uuid.UUID,
     ) -> CheckpointRun | None:
+        selection = await self.previous_comparable_selection(
+            tenant_id=tenant_id,
+            checkpoint_run_id=checkpoint_run_id,
+        )
+        return selection.run if selection is not None else None
+
+    async def previous_comparable_selection(
+        self,
+        *,
+        tenant_id: uuid.UUID,
+        checkpoint_run_id: uuid.UUID,
+    ) -> ComparableCheckpoint | None:
         async with self._session_factory() as session:
             current = await session.scalar(
                 select(CheckpointRun).where(
@@ -440,25 +598,44 @@ class CheckpointRepository:
             )
             if current is None:
                 return None
-            return cast(
+            base = (
+                select(CheckpointRun)
+                .where(
+                    CheckpointRun.tenant_id == tenant_id,
+                    CheckpointRun.site_id == current.site_id,
+                    CheckpointRun.scenario_id == current.scenario_id,
+                    CheckpointRun.id != current.id,
+                    CheckpointRun.status.in_(FINAL_CHECKPOINT_STATUSES),
+                    CheckpointRun.scheduled_for < current.scheduled_for,
+                )
+                .order_by(
+                    CheckpointRun.scheduled_for.desc(),
+                    CheckpointRun.completed_at.desc(),
+                    CheckpointRun.id.desc(),
+                )
+                .limit(1)
+            )
+            same_url = cast(
                 CheckpointRun | None,
                 await session.scalar(
-                    select(CheckpointRun)
-                    .where(
-                        CheckpointRun.tenant_id == tenant_id,
-                        CheckpointRun.monitored_url_id == current.monitored_url_id,
-                        CheckpointRun.scenario_id == current.scenario_id,
-                        CheckpointRun.id != current.id,
-                        CheckpointRun.status.in_(FINAL_CHECKPOINT_STATUSES),
-                        CheckpointRun.scheduled_for < current.scheduled_for,
-                    )
-                    .order_by(
-                        CheckpointRun.scheduled_for.desc(),
-                        CheckpointRun.completed_at.desc(),
-                        CheckpointRun.id.desc(),
-                    )
-                    .limit(1)
+                    base.where(CheckpointRun.monitored_url_id == current.monitored_url_id)
                 ),
+            )
+            if same_url is not None:
+                return ComparableCheckpoint(same_url, "EXACT_MONITORED_URL")
+            same_template = cast(
+                CheckpointRun | None,
+                await session.scalar(
+                    base.where(
+                        CheckpointRun.template_id == current.template_id,
+                        CheckpointRun.monitored_url_id != current.monitored_url_id,
+                    )
+                ),
+            )
+            return (
+                ComparableCheckpoint(same_template, "SAME_TEMPLATE_URL_ROTATION")
+                if same_template is not None
+                else None
             )
 
 
@@ -492,7 +669,7 @@ class EvidencePersister:
                     retention_class=artifact.retention_class,
                 )
             )
-        previous = await self._repository.previous_comparable(
+        previous = await self._repository.previous_comparable_selection(
             tenant_id=target.tenant_id,
             checkpoint_run_id=target.checkpoint_run_id,
         )
@@ -500,7 +677,9 @@ class EvidencePersister:
             target,
             evidence,
             stored,
-            previous_checkpoint_run_id=previous.id if previous is not None else None,
+            previous_checkpoint_run_id=previous.run.id if previous is not None else None,
+            previous_manifest=previous.run.manifest if previous is not None else None,
+            comparison_scope=previous.selection_scope if previous is not None else None,
         )
         manifest_bytes = json.dumps(
             manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=True
@@ -537,13 +716,23 @@ class EvidencePersister:
         artifacts: list[StoredArtifactRecord],
         *,
         previous_checkpoint_run_id: uuid.UUID | None,
+        previous_manifest: dict[str, Any] | None,
+        comparison_scope: str | None,
     ) -> dict[str, Any]:
+        comparison = compare_normalized_state(evidence.normalized_state, previous_manifest)
         return {
-            "schema": "browser-checkpoint-manifest/v2",
+            "schema": "browser-checkpoint-manifest/v3",
             "checkpoint_run_id": str(target.checkpoint_run_id),
             "tenant_id": str(target.tenant_id),
             "site_id": str(target.site_id),
             "monitored_url_id": str(target.monitored_url_id),
+            "template": {
+                "id": str(target.template_id) if target.template_id is not None else None,
+                "code": target.template_code,
+                "family": target.template_family,
+                "fingerprint_version": target.template_fingerprint_version,
+                "expected_features": target.template_expected_features,
+            },
             "scenario_id": str(target.scenario_id),
             "scheduled_for": (
                 target.scheduled_for.isoformat() if target.scheduled_for is not None else None
@@ -565,8 +754,17 @@ class EvidencePersister:
                     if previous_checkpoint_run_id is not None
                     else None
                 ),
-                "identity": "tenant+monitored_url+exact_scenario_id",
+                "selection_scope": comparison_scope,
+                "identity": (
+                    "tenant+site+monitored_url+exact_scenario_id"
+                    if comparison_scope == "EXACT_MONITORED_URL"
+                    else "tenant+site+template+exact_scenario_id"
+                    if comparison_scope == "SAME_TEMPLATE_URL_ROTATION"
+                    else None
+                ),
             },
+            "normalized_state": evidence.normalized_state,
+            "comparison": comparison,
             "started_at": evidence.started_at.isoformat(),
             "completed_at": evidence.completed_at.isoformat(),
             "status": evidence.status,

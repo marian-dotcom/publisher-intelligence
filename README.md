@@ -33,7 +33,7 @@ make scheduler
 make frontend
 ```
 
-## Repeatable browser checkpoints (B2)
+## Template-aware browser checkpoints (B3)
 
 Register one explicit public pilot URL. The command also enqueues one immediate legacy B1
 diagnostic run so an operator can verify the configuration without waiting for the next window:
@@ -61,17 +61,27 @@ inside the window. Repeated scheduler ticks do not create duplicate windows, run
 Each scheduled run uses a fresh non-persistent Chromium context and a frozen, versioned device and
 interaction profile. B2 waits and scrolls deterministically to 25%, 50%, and 75% of the available
 document range, records requested/actual positions, and captures the full-page screenshot last.
-The versioned manifest preserves complete observer/action provenance plus the previous comparable
-run ID for the same URL and exact scenario. It does not compute a semantic diff yet.
+The versioned manifest preserves complete observer/action provenance and template identity. B3
+derives a deterministic structural DOM artifact, stable script/network dependency identities, and
+normalized JavaScript-error fingerprints. Article copy, timestamps, random IDs, auction IDs,
+cache-busters, and URL query values are excluded from the normalized comparison state.
+
+Comparison prefers the previous run for the same URL and exact scenario. When an operator retires
+one representative URL and creates another under the same template, lineage may fall back to the
+same tenant/site/template and exact scenario. The manifest records whether comparison used the
+exact URL or template rotation and emits only bounded additions, removals, or structural changes.
+These differences are evidence: they are not events, alerts, severity, or causal conclusions.
 
 PostgreSQL stores authoritative metadata; private S3-compatible storage holds viewport/full-page
-screenshots, rendered DOM, manifests, and their hashes. No public artifact URLs are created.
+screenshots, raw DOM, long-lived normalized structural DOM, manifests, and their hashes. Stable
+script/network entities and append-only observations live in PostgreSQL. No public artifact URLs
+are created, and historical raw checkpoints are never rewritten when a normalizer changes.
 
 `BROWSER_ALLOW_PRIVATE_NETWORKS` defaults to `false` and must remain false outside controlled
 tests. The application validates DNS destinations and intercepts browser requests, but production
 deployment still requires network-level egress enforcement to cover DNS rebinding and browser
-runtime failures. B2 does not perform consent actions, authenticate, bypass paywalls, click ads,
-submit forms, run stealth, or make diff/event/incident/AI judgments.
+runtime failures. B3 does not perform consent actions, authenticate, bypass paywalls, click ads,
+submit forms, run stealth, discover templates automatically, or make event/incident/AI judgments.
 
 Apply or inspect migrations independently:
 
@@ -105,6 +115,6 @@ If Docker is unavailable, run the local unit/lint/build checks and rely on GitHu
 
 ## Repository boundaries
 
-EP-003 adds repeatable six-hour-compatible desktop/mobile checkpoints and deterministic scroll
-interactions. No provider connector, semantic diff, event, incident, LLM, consent action, or
-production authentication behavior is implemented here.
+EP-004 adds template-aware, versioned normalized browser evidence and bounded explainable
+comparison output. No provider connector, event promotion, alert, incident, LLM, consent action,
+GPT lifecycle, or production authentication behavior is implemented here.

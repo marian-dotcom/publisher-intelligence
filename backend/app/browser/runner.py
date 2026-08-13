@@ -14,12 +14,21 @@ from app.browser.contracts import (
     CheckpointStatus,
     CollectorResult,
     CollectorStatus,
+    NormalizedEntityObservation,
 )
 from app.browser.interactions import execute_interaction_steps
+from app.browser.normalization import (
+    normalize_dom,
+    normalize_javascript_errors,
+    normalize_network,
+    normalize_scripts,
+    normalized_dom_artifact,
+    state_hash,
+)
 from app.browser.security import BrowserBlockedError, BrowserNetworkGuard, sanitize_url
 from app.config.settings import Settings
 
-COLLECTOR_BUNDLE_VERSION = "b2-v1"
+COLLECTOR_BUNDLE_VERSION = "b3-v1"
 
 
 class BrowserRunner:
@@ -48,7 +57,7 @@ class BrowserRunner:
                 failure_message="Browser checkpoint exceeded its overall time budget",
                 collectors=[
                     CollectorResult(
-                        collector_type="B1_OBSERVATION",
+                        collector_type="BROWSER_OBSERVATION",
                         collector_version=COLLECTOR_BUNDLE_VERSION,
                         status="TIMEOUT",
                         started_at=started_at,
@@ -164,6 +173,43 @@ class BrowserRunner:
                         content=raw_dom,
                     )
                 )
+                normalization_started = datetime.now(UTC)
+                normalization_failed = False
+                normalized_dom: dict[str, object] = {}
+                try:
+                    normalized_dom = normalize_dom(raw_dom.decode("utf-8"))
+                    artifacts.append(
+                        ArtifactContent(
+                            artifact_type="NORMALIZED_DOM",
+                            filename="dom/normalized.json",
+                            content_type="application/json",
+                            retention_class="CORE_LONG",
+                            content=normalized_dom_artifact(normalized_dom),
+                        )
+                    )
+                    dom_status: CollectorStatus = "OK"
+                    dom_error_code = None
+                    dom_error_message = None
+                except (UnicodeError, ValueError):
+                    normalization_failed = True
+                    dom_status = "ERROR"
+                    dom_error_code = "NORMALIZATION_ERROR"
+                    dom_error_message = "Structural DOM normalization failed"
+                collector_results.append(
+                    CollectorResult(
+                        collector_type="DOM_NORMALIZATION",
+                        collector_version=COLLECTOR_BUNDLE_VERSION,
+                        status=dom_status,
+                        started_at=normalization_started,
+                        completed_at=datetime.now(UTC),
+                        summary={
+                            "normalizer_version": normalized_dom.get("normalizer_version"),
+                            "node_count": normalized_dom.get("node_count", 0),
+                        },
+                        error_code=dom_error_code,
+                        error_message=dom_error_message,
+                    )
+                )
                 scripts: list[str] = []
                 script_collector_started = datetime.now(UTC)
                 script_inventory_failed = False
@@ -189,6 +235,53 @@ class BrowserRunner:
                         error_message=script_error_message,
                     )
                 )
+                dependency_started = datetime.now(UTC)
+                normalized_scripts = normalize_scripts(scripts)
+                normalized_network = normalize_network(collector.network_observations)
+                normalized_errors = normalize_javascript_errors(
+                    [*collector.javascript_errors, *collector.console_errors]
+                )
+                normalized_dom_summary = {
+                    key: value for key, value in normalized_dom.items() if key != "structure"
+                }
+                normalized_state: dict[str, object] = {
+                    "schema": "browser-normalized-state/v1",
+                    "dom": normalized_dom_summary,
+                    "scripts": normalized_scripts,
+                    "network": normalized_network,
+                    "javascript_errors": normalized_errors,
+                    "template_expectation": {
+                        "fingerprint_version": target.template_fingerprint_version,
+                        "expected_features": target.template_expected_features,
+                    },
+                }
+                normalized_entities = self._normalized_entities(
+                    normalized_scripts, normalized_network
+                )
+                collector_results.append(
+                    CollectorResult(
+                        collector_type="B3_NORMALIZED_EVIDENCE",
+                        collector_version=COLLECTOR_BUNDLE_VERSION,
+                        status="OK" if not normalization_failed else "ERROR",
+                        started_at=dependency_started,
+                        completed_at=datetime.now(UTC),
+                        summary={
+                            "script_identity_count": len(normalized_scripts.get("identities", [])),
+                            "network_dependency_count": len(
+                                normalized_network.get("dependencies", [])
+                            ),
+                            "javascript_error_fingerprint_count": len(
+                                normalized_errors.get("errors", [])
+                            ),
+                        },
+                        error_code=("DOM_NORMALIZATION_ERROR" if normalization_failed else None),
+                        error_message=(
+                            "One normalized evidence component failed"
+                            if normalization_failed
+                            else None
+                        ),
+                    )
+                )
                 artifacts.append(
                     ArtifactContent(
                         artifact_type="SCREENSHOT_FULL_PAGE",
@@ -201,7 +294,7 @@ class BrowserRunner:
                 actions.append({"type": "screenshot", "kind": "full_page", "order": "last"})
                 if http_status is not None and http_status >= 400:
                     status = "SITE_ERROR"
-                elif script_inventory_failed or interaction.failed:
+                elif script_inventory_failed or interaction.failed or normalization_failed:
                     status = "PARTIAL"
                 else:
                     status = "COMPLETE"
@@ -222,6 +315,8 @@ class BrowserRunner:
                     actions=actions,
                     artifacts=artifacts,
                     collectors=collector_results,
+                    normalized_state=normalized_state,
+                    normalized_entities=normalized_entities,
                 )
         except BrowserBlockedError as error:
             status = "BLOCKED"
@@ -258,7 +353,7 @@ class BrowserRunner:
         completed_at = datetime.now(UTC)
         collector_results.append(
             CollectorResult(
-                collector_type="B1_OBSERVATION",
+                collector_type="BROWSER_OBSERVATION",
                 collector_version=COLLECTOR_BUNDLE_VERSION,
                 status="ERROR"
                 if status == "BROWSER_ERROR"
@@ -311,6 +406,8 @@ class BrowserRunner:
         actions: list[dict[str, object]],
         artifacts: list[ArtifactContent],
         collectors: list[CollectorResult],
+        normalized_state: dict[str, object] | None = None,
+        normalized_entities: list[NormalizedEntityObservation] | None = None,
         failure_class: str | None = None,
         failure_message: str | None = None,
     ) -> BrowserEvidence:
@@ -336,6 +433,8 @@ class BrowserRunner:
             limitations=self._limitations(),
             artifacts=artifacts,
             collectors=collectors,
+            normalized_state=normalized_state or {},
+            normalized_entities=normalized_entities or [],
             failure_class=failure_class,
             failure_message=failure_message,
         )
@@ -375,3 +474,28 @@ class BrowserRunner:
             "application_ssrf_guard_requires_network_egress_enforcement_in_production",
             "no_consent_action_in_b2",
         ]
+
+    @staticmethod
+    def _normalized_entities(
+        scripts: dict[str, object], network: dict[str, object]
+    ) -> list[NormalizedEntityObservation]:
+        result: list[NormalizedEntityObservation] = []
+        for entity_kind, values in (
+            ("SCRIPT_DEPENDENCY", scripts.get("identities", [])),
+            ("NETWORK_DEPENDENCY", network.get("dependencies", [])),
+        ):
+            if not isinstance(values, list):
+                continue
+            for value in values:
+                if not isinstance(value, dict) or not isinstance(value.get("stable_key"), str):
+                    continue
+                state = {str(key): item for key, item in value.items()}
+                result.append(
+                    NormalizedEntityObservation(
+                        entity_kind=entity_kind,
+                        stable_key=str(value["stable_key"]),
+                        state_hash=state_hash(state),
+                        state=state,
+                    )
+                )
+        return result

@@ -2,12 +2,17 @@ from datetime import UTC, datetime
 from typing import Any, cast
 from urllib.parse import urlsplit
 
-from playwright.async_api import ConsoleMessage, Error, Page, Request
+from playwright.async_api import ConsoleMessage, Error, Page, Request, Response
 
-from app.browser.contracts import CollectorResult, JavaScriptError, RequestFailure
+from app.browser.contracts import (
+    CollectorResult,
+    JavaScriptError,
+    NetworkObservation,
+    RequestFailure,
+)
 from app.browser.security import canonical_hostname, sanitize_url
 
-COLLECTOR_VERSION = "b1-v1"
+COLLECTOR_VERSION = "b3-v1"
 
 
 def _bounded(value: str, limit: int = 1_000) -> str:
@@ -23,10 +28,12 @@ class BrowserObservationCollector:
         self.javascript_errors: list[JavaScriptError] = []
         self.console_errors: list[JavaScriptError] = []
         self.redirect_chain: list[str] = []
+        self.network_observations: list[NetworkObservation] = []
 
     def attach(self, page: Page) -> None:
         page.on("request", self._on_request)
         page.on("requestfailed", self._on_request_failed)
+        page.on("response", self._on_response)
         page.on("pageerror", self._on_page_error)
         page.on("console", self._on_console)
         page.on("framenavigated", self._on_frame_navigated)
@@ -40,11 +47,31 @@ class BrowserObservationCollector:
                 return
 
     def _on_request_failed(self, request: Request) -> None:
+        error_text = _bounded(request.failure or "UNKNOWN_NETWORK_FAILURE")
         self.request_failures.append(
             RequestFailure(
                 url=sanitize_url(request.url),
                 resource_type=request.resource_type,
-                error_text=_bounded(request.failure or "UNKNOWN_NETWORK_FAILURE"),
+                error_text=error_text,
+            )
+        )
+        self.network_observations.append(
+            NetworkObservation(
+                url=sanitize_url(request.url),
+                method=request.method[:20],
+                resource_type=request.resource_type[:50],
+                error_text=error_text,
+            )
+        )
+
+    def _on_response(self, response: Response) -> None:
+        request = response.request
+        self.network_observations.append(
+            NetworkObservation(
+                url=sanitize_url(request.url),
+                method=request.method[:20],
+                resource_type=request.resource_type[:50],
+                status=response.status,
             )
         )
 
@@ -87,7 +114,7 @@ class BrowserObservationCollector:
 
     def result(self, completed_at: datetime) -> CollectorResult:
         return CollectorResult(
-            collector_type="B1_OBSERVATION",
+            collector_type="BROWSER_OBSERVATION",
             collector_version=COLLECTOR_VERSION,
             status="OK",
             started_at=self.started_at,
@@ -97,5 +124,6 @@ class BrowserObservationCollector:
                 "request_failure_count": len(self.request_failures),
                 "javascript_error_count": len(self.javascript_errors),
                 "console_error_count": len(self.console_errors),
+                "network_observation_count": len(self.network_observations),
             },
         )

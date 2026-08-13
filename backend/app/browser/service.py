@@ -133,7 +133,7 @@ class CheckpointService:
                 scheduled_for=now,
                 status="PENDING",
                 attempt_count=0,
-                collector_bundle_version="b1-v1",
+                collector_bundle_version="b3-v1",
                 environment={},
                 limitations=[],
                 manifest={},
@@ -229,10 +229,16 @@ class CheckpointService:
                 site_id=site_id,
                 code="pilot",
                 display_name="Pilot URL",
+                template_family="ARTICLE",
+                fingerprint_version="template-config-v1",
+                expected_features={},
                 status="ACTIVE",
             )
             session.add(template)
             await session.flush()
+        elif template.fingerprint_version is None:
+            template.template_family = "ARTICLE"
+            template.fingerprint_version = "template-config-v1"
         return template
 
     async def _monitored_url(

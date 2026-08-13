@@ -47,6 +47,11 @@ class BrowserTarget:
     interaction_profile_code: str | None = None
     interaction_profile_version: int | None = None
     interaction_steps: tuple[InteractionStep, ...] = ()
+    template_id: uuid.UUID | None = None
+    template_code: str = "pilot"
+    template_family: str = "CUSTOM"
+    template_fingerprint_version: str | None = None
+    template_expected_features: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,6 +67,23 @@ class JavaScriptError:
     source: str | None = None
     line: int | None = None
     column: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class NetworkObservation:
+    url: str
+    method: str
+    resource_type: str
+    status: int | None = None
+    error_text: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class NormalizedEntityObservation:
+    entity_kind: str
+    stable_key: str
+    state_hash: str
+    state: dict[str, object]
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,6 +130,8 @@ class BrowserEvidence:
     limitations: list[str] = field(default_factory=list)
     artifacts: list[ArtifactContent] = field(default_factory=list)
     collectors: list[CollectorResult] = field(default_factory=list)
+    normalized_state: dict[str, object] = field(default_factory=dict)
+    normalized_entities: list[NormalizedEntityObservation] = field(default_factory=list)
     failure_class: str | None = None
     failure_message: str | None = None
 
