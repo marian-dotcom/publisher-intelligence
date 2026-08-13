@@ -1,6 +1,6 @@
 # EP-001 — Repository Bootstrap and Local Development Environment
 
-**Status:** IN_PROGRESS
+**Status:** COMPLETE
 **Owner:** Codex / Engineering  
 **Created:** 2026-08-13  
 **Updated:** 2026-08-13  
@@ -12,11 +12,11 @@
 
 - [x] M0 — Inspect the documentation-only repository and close bootstrap decisions
 - [x] M1 — Create repository, backend, and frontend skeletons
-- [ ] M2 — Add local PostgreSQL and S3-compatible object storage (implemented; CI validation pending)
-- [ ] M3 — Add persistence and migration foundation (implemented; CI validation pending)
-- [ ] M4 — Add PostgreSQL job queue, worker, and scheduler skeletons (implemented; CI validation pending)
-- [ ] M5 — Add configuration, object-storage adapter, and health checks (implemented; CI validation pending)
-- [ ] M6 — Add CI, documentation, and final validation (in progress)
+- [x] M2 — Add local PostgreSQL and S3-compatible object storage
+- [x] M3 — Add persistence and migration foundation
+- [x] M4 — Add PostgreSQL job queue, worker, and scheduler skeletons
+- [x] M5 — Add configuration, object-storage adapter, and health checks
+- [x] M6 — Add CI, documentation, and final validation
 
 ## 1. Purpose and User Outcome
 
@@ -693,19 +693,18 @@ Local implementation validation on 2026-08-13:
 - `git diff --check` — passed;
 - Docker, migrations, PostgreSQL queue integration, MinIO round trip, and real readiness — not run locally because Docker is unavailable; CI workflow added to execute them.
 - GitHub Actions run 31733563563 — backend, PostgreSQL migrations/queue integration, MinIO storage/readiness, frontend, and repository safety passed; only the optional Dependency Review job failed because the repository Dependency Graph is disabled.
+- GitHub Actions run 31733763807 — all supported jobs passed: backend, PostgreSQL migrations and queue integration, MinIO storage/readiness, scheduler/worker smoke, frontend, Compose validation, secret scan, and diff hygiene.
 
 ## 22. Next Step
 
-Publish the implementation branch as a draft pull request, let GitHub Actions prove the PostgreSQL/MinIO path, correct any CI-only failure, then mark M2–M6 and the plan complete only after all checks pass.
+Review Draft PR #2 and merge when the implementation is accepted. Begin EP-002 only after this foundation is on `main`.
 
 ## 23. Final Outcome / Retrospective
 
-Pending implementation.
+EP-001 shipped a locked FastAPI/Next.js modular-monolith foundation, PostgreSQL and private S3-compatible local dependencies, reversible tenant/job schema, ADR-128 queue implementation, distinct runtime entry points, validated/redacted configuration, health endpoints, CI, tests, and developer documentation.
 
-When complete, record:
+The implementation stayed inside the planned infrastructure scope. The only operational deviation was replacing the unavailable GitHub Dependency Review job with supported locked-install, Compose, diff, and secret checks; enabling the repository Dependency Graph remains an optional GitHub settings action.
 
-- what shipped;
-- deviations from the original plan;
-- exact validation commands and results;
-- known limitations;
-- follow-up ExecPlan for Browser Checkpoint B1.
+Local checks and GitHub Actions run 31733763807 provide the final validation evidence. No Docker-backed integration result is claimed from the local runtime. A non-blocking FastAPI/Starlette deprecation warning notes that the current TestClient compatibility layer will eventually move from `httpx` to `httpx2`.
+
+The next planned deliverable is EP-002, Browser Checkpoint B1: one public publisher URL producing one reproducible Chromium checkpoint persisted to PostgreSQL and object storage.
