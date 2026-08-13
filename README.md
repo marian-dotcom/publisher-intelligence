@@ -33,7 +33,7 @@ make scheduler
 make frontend
 ```
 
-## GPT-aware browser checkpoints (B4)
+## Consent-aware browser checkpoints (B5)
 
 Register one explicit public pilot URL. The command also enqueues one immediate legacy B1
 diagnostic run so an operator can verify the configuration without waiting for the next window:
@@ -75,6 +75,20 @@ that is absent is stored with `present=false` and null lifecycle timestamps rath
 zeros. GPT absence and non-observability are explicit collector outcomes and do not erase B1–B3
 evidence.
 
+B5 adds a passive TCF observer using `ping`, `addEventListener`, and listener cleanup. Core
+desktop/mobile scenarios carry a `PRIMARY` consent path; a separate mobile `REJECT` canary remains
+outside the six-hour scheduler allowlist. A checkpoint clicks only an exact selector supplied in
+the template's versioned `expected_features.consent_adapter` configuration. It never guesses from
+button text or scans for a plausible action. If no CMP/API is present, the checkpoint may remain
+complete. If a CMP is present but its required configured action is unavailable or fails, the run
+is partial and preserves the evidence already collected.
+
+When a CMP is observed, B5 stores bounded API/UI readiness, action timing/status, safe CMP
+identifiers, and only a SHA-256 hash of the TC String. It captures pre/post viewport evidence and
+aggregates stable network dependencies into `PRE_CONSENT`, `POST_ACCEPT`, or `POST_REJECT` phases.
+Reject completion is valid evidence, not an operational failure or compliance conclusion. The
+manifest v5 records the frozen consent path and phase evidence alongside B1–B4 output.
+
 Comparison prefers the previous run for the same URL and exact scenario. When an operator retires
 one representative URL and creates another under the same template, lineage may fall back to the
 same tenant/site/template and exact scenario. The manifest records whether comparison used the
@@ -91,9 +105,9 @@ creative and line-item identifiers are observation details and never stable iden
 `BROWSER_ALLOW_PRIVATE_NETWORKS` defaults to `false` and must remain false outside controlled
 tests. The application validates DNS destinations and intercepts browser requests, but production
 deployment still requires network-level egress enforcement to cover DNS rebinding and browser
-runtime failures. B4 does not configure, display, refresh, or click ads; perform consent actions;
-collect targeting; authenticate; bypass paywalls; run stealth; discover templates automatically;
-or make event/incident/AI judgments.
+runtime failures. B5 does not configure, display, refresh, or click ads; infer CMP actions; decode
+or retain raw consent strings; collect targeting; authenticate; bypass paywalls; run stealth;
+discover templates automatically; or make compliance, event, incident, or AI judgments.
 
 Apply or inspect migrations independently:
 
@@ -127,7 +141,7 @@ If Docker is unavailable, run the local unit/lint/build checks and rely on GitHu
 
 ## Repository boundaries
 
-EP-005 adds passive GPT slot discovery, configured expectations, and versioned lifecycle evidence
-on top of the B1–B3 checkpoint pipeline. No provider connector, event promotion, alert, incident,
-LLM, consent action, Prebid/CMP/video collector, or production authentication behavior is
-implemented here.
+EP-006 adds configured consent scenarios, passive TCF observation, and versioned pre/post consent
+evidence on top of the B1–B4 checkpoint pipeline. No provider connector, event promotion, alert,
+incident, LLM, universal CMP discovery, Prebid-auction/video collector, legal-compliance judgment,
+or production authentication behavior is implemented here.

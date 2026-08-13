@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.browser.contracts import ArtifactContent, BrowserEvidence, BrowserTarget
-from app.browser.persistence import EvidencePersister
+from app.browser.persistence import CheckpointRepository, EvidencePersister
 from app.storage.s3 import StoredObject
 
 
@@ -32,6 +32,29 @@ class RecordingRepository:
     async def previous_comparable_selection(self, **kwargs: Any) -> None:
         del kwargs
         return None
+
+
+def test_consent_adapter_accepts_only_explicit_manual_configuration() -> None:
+    assert CheckpointRepository._consent_adapter({"accept_selector": "button"}) is None
+    assert CheckpointRepository._consent_adapter({"consent_adapter": {"type": "auto"}}) is None
+
+    adapter = CheckpointRepository._consent_adapter(
+        {
+            "consent_adapter": {
+                "type": "manual_config",
+                "vendor": " fixture ",
+                "accept_selector": " #accept ",
+                "reject_selector": " #reject ",
+                "ready_selector": " #ready ",
+            }
+        }
+    )
+
+    assert adapter is not None
+    assert adapter.vendor == "fixture"
+    assert adapter.accept_selector == "#accept"
+    assert adapter.reject_selector == "#reject"
+    assert adapter.ready_selector == "#ready"
 
 
 async def test_manifest_is_uploaded_last_and_finalized_after_objects() -> None:
@@ -83,7 +106,12 @@ async def test_manifest_is_uploaded_last_and_finalized_after_objects() -> None:
         "RAW_DOM",
         "MANIFEST",
     ]
-    assert manifest["schema"] == "browser-checkpoint-manifest/v4"
+    assert manifest["schema"] == "browser-checkpoint-manifest/v5"
     assert manifest["gpt"] == {"present": False, "version": None, "slots": []}
+    assert manifest["consent"] == {
+        "path": "NONE",
+        "observation": None,
+        "phase_dependencies": [],
+    }
     assert manifest["comparison"]["status"] == "NOT_COMPARABLE"
     assert "secret" not in str(manifest)

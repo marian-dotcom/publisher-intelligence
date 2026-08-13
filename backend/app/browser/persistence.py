@@ -13,6 +13,7 @@ from app.browser.comparison import compare_normalized_state
 from app.browser.contracts import (
     BrowserEvidence,
     BrowserTarget,
+    ConsentAdapterConfig,
     ExpectedGPTSlot,
     StoredArtifactRecord,
 )
@@ -34,6 +35,12 @@ from app.browser.models import (
     Site,
     Template,
     TemplateExpectedEntity,
+)
+from app.browser.models import (
+    CMPObservation as CMPObservationModel,
+)
+from app.browser.models import (
+    ConsentPhaseDependencyObservation as ConsentPhaseDependencyObservationModel,
 )
 from app.storage.s3 import S3Storage
 
@@ -106,6 +113,28 @@ class CheckpointRepository:
             template_fingerprint_version=template.fingerprint_version,
             template_expected_features=template.expected_features,
             expected_gpt_slots=expected_gpt_slots,
+            consent_path=scenario.consent_path,
+            consent_adapter=CheckpointRepository._consent_adapter(template.expected_features),
+        )
+
+    @staticmethod
+    def _consent_adapter(expected_features: dict[str, object]) -> ConsentAdapterConfig | None:
+        raw = expected_features.get("consent_adapter")
+        if not isinstance(raw, dict) or raw.get("type") != "manual_config":
+            return None
+
+        def value(name: str, limit: int) -> str | None:
+            item = raw.get(name)
+            if not isinstance(item, str):
+                return None
+            cleaned = item.strip()
+            return cleaned[:limit] if cleaned else None
+
+        return ConsentAdapterConfig(
+            vendor=value("vendor", 100),
+            accept_selector=value("accept_selector", 500),
+            reject_selector=value("reject_selector", 500),
+            ready_selector=value("ready_selector", 500),
         )
 
     @staticmethod
@@ -419,6 +448,7 @@ class CheckpointRepository:
                 )
             await self._persist_normalized_observations(session, target, evidence)
             await self._persist_gpt_observations(session, target, evidence)
+            await self._persist_cmp_observations(session, target, evidence)
             attempt.status = evidence.status
             attempt.completed_at = evidence.completed_at
             attempt.failure_class = evidence.failure_class
@@ -584,6 +614,120 @@ class CheckpointRepository:
             )
 
     @staticmethod
+    async def _persist_cmp_observations(
+        session: AsyncSession,
+        target: BrowserTarget,
+        evidence: BrowserEvidence,
+    ) -> None:
+        observation = evidence.cmp_observation
+        if observation is None:
+            return
+        cmp_entity_id = None
+        if observation.cmp_id is not None or observation.vendor is not None:
+            stable_key = (
+                f"cmp|iab|{observation.cmp_id}"
+                if observation.cmp_id is not None
+                else f"cmp|vendor|{observation.vendor}"
+            )
+            cmp_entity_id = (
+                await session.execute(
+                    insert(DomainEntity)
+                    .values(
+                        id=uuid.uuid4(),
+                        tenant_id=target.tenant_id,
+                        site_id=target.site_id,
+                        entity_kind="CMP",
+                        stable_key=stable_key,
+                        first_seen_at=evidence.completed_at,
+                        last_seen_at=evidence.completed_at,
+                        source_system="TCF",
+                        identity_metadata={
+                            "cmp_id": observation.cmp_id,
+                            "vendor": observation.vendor,
+                        },
+                    )
+                    .on_conflict_do_update(
+                        index_elements=["site_id", "entity_kind", "stable_key"],
+                        set_={"last_seen_at": evidence.completed_at},
+                    )
+                    .returning(DomainEntity.id)
+                )
+            ).scalar_one()
+        await session.execute(
+            insert(CMPObservationModel)
+            .values(
+                id=uuid.uuid4(),
+                tenant_id=target.tenant_id,
+                site_id=target.site_id,
+                checkpoint_run_id=target.checkpoint_run_id,
+                cmp_entity_id=cmp_entity_id,
+                cmp_detected=observation.cmp_detected,
+                tcf_api_detected=observation.tcf_api_detected,
+                ui_detected_at_ms=observation.ui_detected_at_ms,
+                api_ready_at_ms=observation.api_ready_at_ms,
+                consent_action=observation.consent_action,
+                consent_action_status=observation.consent_action_status,
+                action_started_at_ms=observation.action_started_at_ms,
+                action_completed_at_ms=observation.action_completed_at_ms,
+                tc_state_available_at_ms=observation.tc_state_available_at_ms,
+                gdpr_applies=observation.gdpr_applies,
+                tc_string_hash=observation.tc_string_hash,
+                tcf_error_codes=list(observation.tcf_error_codes),
+                collector_version="cmp-b5-v1",
+                metadata_json={
+                    "cmp_id": observation.cmp_id,
+                    "cmp_version": observation.cmp_version,
+                    "cmp_status": observation.cmp_status,
+                    "event_status": observation.event_status,
+                    "vendor": observation.vendor,
+                },
+            )
+            .on_conflict_do_nothing(index_elements=["checkpoint_run_id"])
+        )
+        for dependency in evidence.consent_phase_dependencies:
+            entity_id = (
+                await session.execute(
+                    insert(DomainEntity)
+                    .values(
+                        id=uuid.uuid4(),
+                        tenant_id=target.tenant_id,
+                        site_id=target.site_id,
+                        entity_kind="NETWORK_DEPENDENCY",
+                        stable_key=dependency.stable_key,
+                        first_seen_at=evidence.completed_at,
+                        last_seen_at=evidence.completed_at,
+                        identity_metadata={
+                            "host": dependency.host,
+                            "path_family": dependency.path_family,
+                            "resource_type": dependency.resource_type,
+                            "category": dependency.category,
+                        },
+                    )
+                    .on_conflict_do_update(
+                        index_elements=["site_id", "entity_kind", "stable_key"],
+                        set_={"last_seen_at": evidence.completed_at},
+                    )
+                    .returning(DomainEntity.id)
+                )
+            ).scalar_one()
+            await session.execute(
+                insert(ConsentPhaseDependencyObservationModel)
+                .values(
+                    id=uuid.uuid4(),
+                    tenant_id=target.tenant_id,
+                    checkpoint_run_id=target.checkpoint_run_id,
+                    phase=dependency.phase,
+                    dependency_entity_id=entity_id,
+                    request_count=dependency.request_count,
+                    error_count=dependency.error_count,
+                    first_request_at_ms=dependency.first_request_at_ms,
+                )
+                .on_conflict_do_nothing(
+                    index_elements=["checkpoint_run_id", "phase", "dependency_entity_id"]
+                )
+            )
+
+    @staticmethod
     async def _refresh_window_status(
         session: AsyncSession,
         checkpoint_window_id: uuid.UUID,
@@ -733,6 +877,43 @@ class CheckpointRepository:
                         )
                         .order_by(
                             GPTSlotObservation.ad_unit_path, GPTSlotObservation.dom_element_id
+                        )
+                    )
+                ).all()
+            )
+
+    async def cmp_for_tenant(
+        self, *, tenant_id: uuid.UUID, checkpoint_run_id: uuid.UUID
+    ) -> CMPObservationModel | None:
+        async with self._session_factory() as session:
+            return cast(
+                CMPObservationModel | None,
+                await session.scalar(
+                    select(CMPObservationModel).where(
+                        CMPObservationModel.tenant_id == tenant_id,
+                        CMPObservationModel.checkpoint_run_id == checkpoint_run_id,
+                    )
+                ),
+            )
+
+    async def consent_dependencies_for_tenant(
+        self, *, tenant_id: uuid.UUID, checkpoint_run_id: uuid.UUID
+    ) -> list[ConsentPhaseDependencyObservationModel]:
+        async with self._session_factory() as session:
+            return list(
+                (
+                    await session.scalars(
+                        select(ConsentPhaseDependencyObservationModel)
+                        .join(
+                            DomainEntity,
+                            DomainEntity.id
+                            == ConsentPhaseDependencyObservationModel.dependency_entity_id,
+                        )
+                        .where(
+                            ConsentPhaseDependencyObservationModel.tenant_id == tenant_id,
+                            ConsentPhaseDependencyObservationModel.checkpoint_run_id
+                            == checkpoint_run_id,
+                            DomainEntity.tenant_id == tenant_id,
                         )
                     )
                 ).all()
@@ -888,7 +1069,7 @@ class EvidencePersister:
     ) -> dict[str, Any]:
         comparison = compare_normalized_state(evidence.normalized_state, previous_manifest)
         return {
-            "schema": "browser-checkpoint-manifest/v4",
+            "schema": "browser-checkpoint-manifest/v5",
             "checkpoint_run_id": str(target.checkpoint_run_id),
             "tenant_id": str(target.tenant_id),
             "site_id": str(target.site_id),
@@ -935,6 +1116,17 @@ class EvidencePersister:
                 "present": evidence.gpt_present,
                 "version": evidence.gpt_version,
                 "slots": [asdict(item) for item in evidence.gpt_slots],
+            },
+            "consent": {
+                "path": target.consent_path,
+                "observation": (
+                    asdict(evidence.cmp_observation)
+                    if evidence.cmp_observation is not None
+                    else None
+                ),
+                "phase_dependencies": [
+                    asdict(item) for item in evidence.consent_phase_dependencies
+                ],
             },
             "comparison": comparison,
             "started_at": evidence.started_at.isoformat(),

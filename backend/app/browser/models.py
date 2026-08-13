@@ -145,7 +145,13 @@ class InteractionProfile(Base):
 
 class BrowserScenario(Base):
     __tablename__ = "browser_scenarios"
-    __table_args__ = (UniqueConstraint("tenant_id", "site_id", "code", "version"),)
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "site_id", "code", "version"),
+        CheckConstraint(
+            "consent_path IN ('PRIMARY', 'REJECT', 'NONE')",
+            name="ck_browser_scenarios_consent_path",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
@@ -164,6 +170,7 @@ class BrowserScenario(Base):
     locale: Mapped[str] = mapped_column(String(50), nullable=False, default="en-US")
     timezone: Mapped[str] = mapped_column(String(100), nullable=False, default="UTC")
     cache_mode: Mapped[str] = mapped_column(String(20), nullable=False, default="CLEAN")
+    consent_path: Mapped[str] = mapped_column(String(20), nullable=False, default="PRIMARY")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="ACTIVE")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
@@ -235,7 +242,7 @@ class CheckpointRun(Base):
     playwright_version: Mapped[str | None] = mapped_column(String(50))
     chromium_version: Mapped[str | None] = mapped_column(String(100))
     collector_bundle_version: Mapped[str] = mapped_column(
-        String(50), nullable=False, default="b4-v1"
+        String(50), nullable=False, default="b5-v1"
     )
     environment: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     limitations: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
@@ -466,6 +473,99 @@ class GPTSlotObservation(Base):
     line_item_id: Mapped[str | None] = mapped_column(String(300))
     request_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     collector_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
+class CMPObservation(Base):
+    __tablename__ = "cmp_observations"
+    __table_args__ = (
+        UniqueConstraint("checkpoint_run_id"),
+        Index("ix_cmp_observations_tenant_checkpoint", "tenant_id", "checkpoint_run_id"),
+        CheckConstraint(
+            "consent_action IN ('PRIMARY', 'REJECT', 'NONE')",
+            name="ck_cmp_observations_consent_action",
+        ),
+        CheckConstraint(
+            "consent_action_status IN "
+            "('NOT_REQUESTED', 'NOT_PRESENT', 'UNAVAILABLE', 'COMPLETED', 'TIMEOUT', 'ERROR')",
+            name="ck_cmp_observations_action_status",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    site_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sites.id", ondelete="RESTRICT"), nullable=False
+    )
+    checkpoint_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("checkpoint_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    cmp_entity_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("domain_entities.id", ondelete="RESTRICT")
+    )
+    cmp_detected: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    tcf_api_detected: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    ui_detected_at_ms: Mapped[int | None] = mapped_column(Integer)
+    api_ready_at_ms: Mapped[int | None] = mapped_column(Integer)
+    consent_action: Mapped[str] = mapped_column(String(30), nullable=False)
+    consent_action_status: Mapped[str] = mapped_column(String(30), nullable=False)
+    action_started_at_ms: Mapped[int | None] = mapped_column(Integer)
+    action_completed_at_ms: Mapped[int | None] = mapped_column(Integer)
+    tc_state_available_at_ms: Mapped[int | None] = mapped_column(Integer)
+    gdpr_applies: Mapped[bool | None] = mapped_column(Boolean)
+    tc_string_hash: Mapped[str | None] = mapped_column(String(64))
+    tcf_error_codes: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
+    collector_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, nullable=False, default=dict
+    )
+
+
+class ConsentPhaseDependencyObservation(Base):
+    __tablename__ = "consent_phase_dependency_observations"
+    __table_args__ = (
+        UniqueConstraint(
+            "checkpoint_run_id",
+            "phase",
+            "dependency_entity_id",
+            name="uq_consent_phase_dependency_run",
+        ),
+        Index(
+            "ix_consent_phase_dependencies_tenant_checkpoint",
+            "tenant_id",
+            "checkpoint_run_id",
+        ),
+        CheckConstraint(
+            "phase IN ('PRE_CONSENT', 'POST_ACCEPT', 'POST_REJECT')",
+            name="ck_consent_phase_dependencies_phase",
+        ),
+        CheckConstraint(
+            "request_count >= 0 AND error_count >= 0",
+            name="ck_consent_phase_dependencies_counts",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    checkpoint_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("checkpoint_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    phase: Mapped[str] = mapped_column(String(30), nullable=False)
+    dependency_entity_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("domain_entities.id", ondelete="RESTRICT"), nullable=False
+    )
+    request_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    error_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    first_request_at_ms: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )

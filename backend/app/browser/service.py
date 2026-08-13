@@ -31,6 +31,7 @@ CORE_SCENARIO_CODE = "core_desktop_v1"
 B2_DESKTOP_SCENARIO_CODE = "core_desktop_v2"
 B2_MOBILE_SCENARIO_CODE = "core_mobile_v1"
 B2_INTERACTION_PROFILE_CODE = "core_scroll_v1"
+B5_REJECT_SCENARIO_CODE = "consent_reject_mobile_v1"
 B2_INTERACTION_STEPS: list[dict[str, Any]] = [
     {"type": "wait", "duration_ms": 500},
     {"type": "scroll", "percent": 25},
@@ -133,7 +134,7 @@ class CheckpointService:
                 scheduled_for=now,
                 status="PENDING",
                 attempt_count=0,
-                collector_bundle_version="b4-v1",
+                collector_bundle_version="b5-v1",
                 environment={},
                 limitations=[],
                 manifest={},
@@ -300,6 +301,7 @@ class CheckpointService:
                 locale=self._settings.browser_locale,
                 timezone=self._settings.browser_timezone,
                 cache_mode="CLEAN",
+                consent_path="NONE",
                 status="ACTIVE",
             )
             session.add(scenario)
@@ -336,6 +338,7 @@ class CheckpointService:
                 "has_touch": False,
             },
             timezone_name=timezone_name,
+            consent_path="PRIMARY",
         )
         await self._b2_scenario(
             session,
@@ -355,6 +358,27 @@ class CheckpointService:
                 "has_touch": True,
             },
             timezone_name=timezone_name,
+            consent_path="PRIMARY",
+        )
+        await self._b2_scenario(
+            session,
+            tenant_id=tenant_id,
+            site_id=site_id,
+            profile=profile,
+            code=B5_REJECT_SCENARIO_CODE,
+            version=1,
+            device_class="MOBILE",
+            device_profile={
+                "profile_name": "pixel_7_class",
+                "profile_version": 1,
+                "viewport": {"width": 412, "height": 915},
+                "device_scale_factor": 2.625,
+                "user_agent": MOBILE_USER_AGENT,
+                "is_mobile": True,
+                "has_touch": True,
+            },
+            timezone_name=timezone_name,
+            consent_path="REJECT",
         )
         legacy = await session.scalar(
             select(BrowserScenario).where(
@@ -412,6 +436,7 @@ class CheckpointService:
         device_class: str,
         device_profile: dict[str, object],
         timezone_name: str,
+        consent_path: str,
     ) -> BrowserScenario:
         scenario = await session.scalar(
             select(BrowserScenario).where(
@@ -428,6 +453,7 @@ class CheckpointService:
             "locale": self._settings.browser_locale,
             "timezone": timezone_name,
             "cache_mode": "CLEAN",
+            "consent_path": consent_path,
             "status": "ACTIVE",
         }
         if scenario is None:

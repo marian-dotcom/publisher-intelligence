@@ -11,9 +11,9 @@
 ## Progress
 
 - [x] M0 — Verify B4 integration and close the B5 contract
-- [ ] M1 — Add consent scenario and structured CMP evidence schema
-- [ ] M2 — Implement passive TCF observation and configured consent action
-- [ ] M3 — Persist pre/post dependency effects and visual evidence
+- [x] M1 — Add consent scenario and structured CMP evidence schema
+- [x] M2 — Implement passive TCF observation and configured consent action
+- [x] M3 — Persist pre/post dependency effects and visual evidence
 - [ ] M4 — Prove Accept, Reject, unavailable, tenancy, and migration behavior
 - [ ] M5 — Complete documentation, final CI, and retrospective
 
@@ -183,10 +183,10 @@ README.md
 
 Acceptance:
 
-- [ ] scenario identity distinguishes primary/reject behavior;
-- [ ] existing scenario rows migrate deterministically;
-- [ ] CMP evidence is unique per checkpoint and lifecycle/timing fields remain nullable;
-- [ ] dependency phase evidence is unique per run/phase/dependency and tenant-scoped;
+- [x] scenario identity distinguishes primary/reject behavior;
+- [x] existing scenario rows migrate deterministically;
+- [x] CMP evidence is unique per checkpoint and lifecycle/timing fields remain nullable;
+- [x] dependency phase evidence is unique per run/phase/dependency and tenant-scoped;
 - [ ] upgrade/downgrade/re-upgrade succeeds.
 
 ### M2 — Passive TCF observer and configured action
@@ -198,11 +198,11 @@ Acceptance:
 
 Acceptance:
 
-- [ ] no CMP global/stub is created and deprecated `getTCData` is absent;
-- [ ] no raw TC String, cookie, local storage, targeting, or arbitrary UI text is retained;
-- [ ] no click occurs without an exact configured selector;
-- [ ] Reject completion is valid evidence, not collector/checkpoint failure;
-- [ ] a present CMP with a required unavailable action produces partial evidence.
+- [x] no CMP global/stub is created and deprecated `getTCData` is absent;
+- [x] no raw TC String, cookie, local storage, targeting, or arbitrary UI text is retained;
+- [x] no click occurs without an exact configured selector;
+- [x] Reject completion is valid evidence, not collector/checkpoint failure;
+- [x] a present CMP with a required unavailable action produces partial evidence.
 
 ### M3 — Phase evidence, screenshots, and manifest
 
@@ -214,10 +214,10 @@ Acceptance:
 
 Acceptance:
 
-- [ ] pre/post request patterns are explainable without duplicating raw network logs;
-- [ ] screenshots and action records reveal what the browser did and when;
-- [ ] B3 normalized state, B4 GPT slots, and prior artifact behavior remain intact;
-- [ ] collector failure cannot erase already observed browser evidence.
+- [x] pre/post request patterns are explainable without duplicating raw network logs;
+- [x] screenshots and action records reveal what the browser did and when;
+- [x] B3 normalized state, B4 GPT slots, and prior artifact behavior remain intact;
+- [x] collector failure cannot erase already observed browser evidence.
 
 ### M4 — Validation
 
@@ -282,10 +282,20 @@ COREPACK_HOME=/tmp/publisher-intelligence-corepack corepack pnpm build
   current TC data and changes.
 - Existing B2 scenario selection already uses a strict code allowlist, so a Reject canary scenario
   can be configured without accidentally multiplying six-hour runs.
+- The local work environment has no Docker executable, so PostgreSQL/MinIO migration and real
+  browser integration tests must run in GitHub Actions; this is recorded as unverified locally,
+  not as a local pass.
 
 ## 12. Validation Results
 
-- Pending implementation.
+- `ruff format --check .`: passed across 62 Python files.
+- `ruff check .`: passed.
+- `mypy app tests scripts migrations/env.py`: passed across 56 source files.
+- `pytest tests/unit`: 54 passed; one dependency deprecation warning.
+- frontend `lint`, `typecheck`, `test`, and production `build`: passed; Vitest 1 passed.
+- `alembic heads`: one head, `0006_cmp_consent_b5`.
+- local integration/migration round trip: not run because Docker is unavailable in this runtime;
+  GitHub Actions remains the required validation gate.
 
 ## 13. Rollback
 
@@ -295,6 +305,5 @@ GPT lifecycle evidence, and manifest history remain intact.
 
 ## 14. Next Step
 
-Implement M1 schema/contracts and focused unit coverage before wiring consent actions into the
-real-browser runner.
-33977659fb232fbdf47c5f0768bde28277932188
+Commit the implementation, publish a draft PR, and use GitHub Actions to validate the PostgreSQL,
+MinIO, Chromium, and migration paths unavailable in the local runtime.

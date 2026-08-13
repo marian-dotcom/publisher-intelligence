@@ -266,7 +266,7 @@ class CheckpointSchedulingService:
                     scheduled_for=scheduled_for,
                     status="PENDING",
                     attempt_count=0,
-                    collector_bundle_version="b4-v1",
+                    collector_bundle_version="b5-v1",
                     environment={},
                     limitations=[],
                     manifest={},

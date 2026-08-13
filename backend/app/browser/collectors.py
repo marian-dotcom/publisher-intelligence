@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from time import monotonic
 from typing import Any, cast
 from urllib.parse import urlsplit
 
@@ -23,6 +24,7 @@ class BrowserObservationCollector:
     def __init__(self, canonical_domain: str) -> None:
         self._canonical_domain = canonical_hostname(canonical_domain)
         self.started_at = datetime.now(UTC)
+        self._started_clock = monotonic()
         self.network_hosts: set[str] = set()
         self.request_failures: list[RequestFailure] = []
         self.javascript_errors: list[JavaScriptError] = []
@@ -61,6 +63,7 @@ class BrowserObservationCollector:
                 method=request.method[:20],
                 resource_type=request.resource_type[:50],
                 error_text=error_text,
+                observed_at_ms=self.elapsed_ms(),
             )
         )
 
@@ -72,8 +75,12 @@ class BrowserObservationCollector:
                 method=request.method[:20],
                 resource_type=request.resource_type[:50],
                 status=response.status,
+                observed_at_ms=self.elapsed_ms(),
             )
         )
+
+    def elapsed_ms(self) -> int:
+        return max(0, round((monotonic() - self._started_clock) * 1_000))
 
     def _on_page_error(self, error: Error) -> None:
         self.javascript_errors.append(JavaScriptError(message=_bounded(str(error))))

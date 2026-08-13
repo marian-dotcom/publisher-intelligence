@@ -15,7 +15,9 @@ from app.browser.models import (
     CheckpointAttempt,
     CheckpointRun,
     CheckpointWindow,
+    CMPObservation,
     CollectorRun,
+    ConsentPhaseDependencyObservation,
     DomainEntity,
     EntityObservation,
     GPTSlotObservation,
@@ -29,7 +31,7 @@ from app.browser.models import (
 )
 from app.browser.persistence import CheckpointRepository
 from app.browser.scheduling import CheckpointSchedulingService, resolve_six_hour_window
-from app.browser.service import CheckpointService
+from app.browser.service import B2_DESKTOP_SCENARIO_CODE, B5_REJECT_SCENARIO_CODE, CheckpointService
 from app.browser_worker import run as run_browser_worker
 from app.config.settings import get_settings
 from app.db.models import Job, Tenant
@@ -50,6 +52,18 @@ class FixtureHandler(BaseHTTPRequestHandler):
             return
         if self.path.startswith("/gpt"):
             self._send(200, "text/html", _gpt_fixture_html())
+            return
+        if self.path.startswith("/cmp-pre.js"):
+            self._send(200, "application/javascript", b"window.cmpPreLoaded = true;")
+            return
+        if self.path.startswith("/consent-network/accept"):
+            self._send(200, "application/json", b'{"decision":"accept"}')
+            return
+        if self.path.startswith("/consent-network/reject"):
+            self._send(200, "application/json", b'{"decision":"reject"}')
+            return
+        if self.path.startswith("/cmp"):
+            self._send(200, "text/html", _cmp_fixture_html())
             return
         html = b"""<!doctype html><html><body><h1>Fixture</h1>
         <script src="/asset.js?token=manifest-secret"></script>
@@ -132,6 +146,67 @@ def _gpt_fixture_html() -> bytes:
     </script></body></html>"""
 
 
+def _cmp_fixture_html() -> bytes:
+    return b"""<!doctype html><html><body>
+    <h1>Deterministic CMP fixture</h1>
+    <div id="cmp-banner">
+      <button id="cmp-accept">Accept</button>
+      <button id="cmp-reject">Reject</button>
+    </div>
+    <div id="cmp-complete" hidden>Consent complete</div>
+    <script src="/cmp-pre.js"></script>
+    <script>
+    (() => {
+      const listeners = new Map();
+      let nextListenerId = 1;
+      let tcData = {
+        tcString: 'fixture-tc-before-action',
+        gdprApplies: true,
+        cmpId: 42,
+        cmpVersion: 7,
+        cmpStatus: 'loaded',
+        eventStatus: 'cmpuishown'
+      };
+      const emit = () => {
+        for (const [listenerId, callback] of listeners) {
+          callback({...tcData, listenerId}, true);
+        }
+      };
+      window.__tcfapi = (command, version, callback, parameter) => {
+        if (version !== 2) { callback(null, false); return; }
+        if (command === 'ping') {
+          callback({cmpLoaded: true, cmpStatus: 'loaded', gdprApplies: true}, true);
+          return;
+        }
+        if (command === 'addEventListener') {
+          const listenerId = nextListenerId++;
+          listeners.set(listenerId, callback);
+          callback({...tcData, listenerId}, true);
+          return;
+        }
+        if (command === 'removeEventListener') {
+          callback(listeners.delete(parameter), true);
+          return;
+        }
+        callback(null, false);
+      };
+      const decide = async (decision) => {
+        tcData = {
+          ...tcData,
+          tcString: `fixture-tc-${decision}-sensitive`,
+          eventStatus: 'useractioncomplete'
+        };
+        emit();
+        await fetch(`/consent-network/${decision}?secret=not-retained`);
+        document.querySelector('#cmp-banner').hidden = true;
+        document.querySelector('#cmp-complete').hidden = false;
+      };
+      document.querySelector('#cmp-accept').addEventListener('click', () => decide('accept'));
+      document.querySelector('#cmp-reject').addEventListener('click', () => decide('reject'));
+    })();
+    </script></body></html>"""
+
+
 @pytest.fixture
 def fixture_site() -> Iterator[str]:
     server = ThreadingHTTPServer(("127.0.0.1", 0), FixtureHandler)
@@ -161,6 +236,8 @@ async def _cleanup_tenant(tenant_id: uuid.UUID, storage: S3Storage) -> None:
         for model in (
             Artifact,
             CollectorRun,
+            ConsentPhaseDependencyObservation,
+            CMPObservation,
             EntityObservation,
             JavaScriptErrorObservation,
             GPTSlotObservation,
@@ -249,8 +326,8 @@ async def test_gpt_lifecycle_persists_eager_lazy_and_expected_absent_slots(
         )
         assert run is not None
         assert run.status == "COMPLETE"
-        assert run.collector_bundle_version == "b4-v1"
-        assert run.manifest["schema"] == "browser-checkpoint-manifest/v4"
+        assert run.collector_bundle_version == "b5-v1"
+        assert run.manifest["schema"] == "browser-checkpoint-manifest/v5"
         assert run.manifest["gpt"]["present"] is True
         assert run.manifest["gpt"]["version"] == "fixture-gpt-1"
 
@@ -312,6 +389,189 @@ async def test_gpt_lifecycle_persists_eager_lazy_and_expected_absent_slots(
         await _cleanup_tenant(registered.tenant_id, storage)
 
 
+@pytest.mark.parametrize(
+    ("scenario_code", "decision", "expected_phase"),
+    [
+        (B2_DESKTOP_SCENARIO_CODE, "accept", "POST_ACCEPT"),
+        (B5_REJECT_SCENARIO_CODE, "reject", "POST_REJECT"),
+    ],
+)
+async def test_cmp_action_persists_tcf_and_phase_evidence(
+    fixture_site: str,
+    scenario_code: str,
+    decision: str,
+    expected_phase: str,
+) -> None:
+    settings = get_settings()
+    assert settings.browser_allow_private_networks
+    factory = get_session_factory()
+    queue = JobQueue(factory)
+    service = CheckpointService(factory, queue, settings)
+    repository = CheckpointRepository(factory)
+    storage = S3Storage(settings)
+    registered = await service.register_and_enqueue(
+        tenant_slug=f"cmp-{decision}-{uuid.uuid4().hex}",
+        tenant_name=f"CMP {decision} Tenant",
+        publisher_name="CMP Publisher",
+        site_name="CMP Site",
+        url=f"{fixture_site}/cmp",
+    )
+    try:
+        async with factory() as session, session.begin():
+            run = await session.get(CheckpointRun, registered.checkpoint_run_id)
+            assert run is not None
+            scenario = await session.scalar(
+                select(BrowserScenario).where(
+                    BrowserScenario.tenant_id == registered.tenant_id,
+                    BrowserScenario.site_id == run.site_id,
+                    BrowserScenario.code == scenario_code,
+                )
+            )
+            assert scenario is not None
+            run.scenario_id = scenario.id
+            template = await session.get(Template, run.template_id)
+            assert template is not None
+            template.expected_features = {
+                **template.expected_features,
+                "consent_adapter": {
+                    "type": "manual_config",
+                    "vendor": "fixture-cmp",
+                    "accept_selector": "#cmp-accept",
+                    "reject_selector": "#cmp-reject",
+                    "ready_selector": "#cmp-complete",
+                },
+            }
+
+        await run_browser_worker(once=True)
+
+        run = await repository.get_for_tenant(
+            tenant_id=registered.tenant_id,
+            checkpoint_run_id=registered.checkpoint_run_id,
+        )
+        assert run is not None
+        assert run.status == "COMPLETE"
+        assert run.manifest["schema"] == "browser-checkpoint-manifest/v5"
+        consent = run.manifest["consent"]
+        assert consent["path"] == ("PRIMARY" if decision == "accept" else "REJECT")
+        observation = consent["observation"]
+        assert observation["cmp_detected"] is True
+        assert observation["tcf_api_detected"] is True
+        assert observation["consent_action_status"] == "COMPLETED"
+        assert observation["event_status"] == "useractioncomplete"
+        assert observation["cmp_id"] == 42
+        expected_tc_string = f"fixture-tc-{decision}-sensitive"
+        assert (
+            observation["tc_string_hash"] == hashlib.sha256(expected_tc_string.encode()).hexdigest()
+        )
+        assert expected_tc_string not in str(run.manifest)
+        assert "not-retained" not in str(run.manifest)
+
+        cmp_row = await repository.cmp_for_tenant(
+            tenant_id=registered.tenant_id,
+            checkpoint_run_id=registered.checkpoint_run_id,
+        )
+        assert cmp_row is not None
+        assert cmp_row.consent_action_status == "COMPLETED"
+        assert cmp_row.tc_string_hash == observation["tc_string_hash"]
+        assert (
+            await repository.cmp_for_tenant(
+                tenant_id=uuid.uuid4(),
+                checkpoint_run_id=registered.checkpoint_run_id,
+            )
+            is None
+        )
+
+        phases = await repository.consent_dependencies_for_tenant(
+            tenant_id=registered.tenant_id,
+            checkpoint_run_id=registered.checkpoint_run_id,
+        )
+        assert {item.phase for item in phases} >= {"PRE_CONSENT", expected_phase}
+        assert (
+            await repository.consent_dependencies_for_tenant(
+                tenant_id=uuid.uuid4(),
+                checkpoint_run_id=registered.checkpoint_run_id,
+            )
+            == []
+        )
+        manifest_phase_items = [
+            item for item in consent["phase_dependencies"] if item["phase"] == expected_phase
+        ]
+        assert any(decision in item["path_family"] for item in manifest_phase_items)
+
+        artifacts = await repository.artifacts_for_tenant(
+            tenant_id=registered.tenant_id,
+            checkpoint_run_id=registered.checkpoint_run_id,
+        )
+        assert {
+            "SCREENSHOT_VIEWPORT_PRECONSENT",
+            "SCREENSHOT_VIEWPORT_POSTCONSENT",
+        } <= {item.artifact_type for item in artifacts}
+    finally:
+        await _cleanup_tenant(registered.tenant_id, storage)
+
+
+async def test_present_cmp_with_unavailable_required_action_is_partial(
+    fixture_site: str,
+) -> None:
+    settings = get_settings()
+    factory = get_session_factory()
+    queue = JobQueue(factory)
+    service = CheckpointService(factory, queue, settings)
+    repository = CheckpointRepository(factory)
+    storage = S3Storage(settings)
+    registered = await service.register_and_enqueue(
+        tenant_slug=f"cmp-unavailable-{uuid.uuid4().hex}",
+        tenant_name="CMP Unavailable Tenant",
+        publisher_name="CMP Publisher",
+        site_name="CMP Site",
+        url=f"{fixture_site}/cmp",
+    )
+    try:
+        async with factory() as session, session.begin():
+            run = await session.get(CheckpointRun, registered.checkpoint_run_id)
+            assert run is not None
+            scenario = await session.scalar(
+                select(BrowserScenario).where(
+                    BrowserScenario.tenant_id == registered.tenant_id,
+                    BrowserScenario.site_id == run.site_id,
+                    BrowserScenario.code == B2_DESKTOP_SCENARIO_CODE,
+                )
+            )
+            assert scenario is not None
+            run.scenario_id = scenario.id
+            template = await session.get(Template, run.template_id)
+            assert template is not None
+            template.expected_features = {
+                "consent_adapter": {
+                    "type": "manual_config",
+                    "vendor": "fixture-cmp",
+                    "accept_selector": "#not-present",
+                }
+            }
+
+        await run_browser_worker(once=True)
+
+        run = await repository.get_for_tenant(
+            tenant_id=registered.tenant_id,
+            checkpoint_run_id=registered.checkpoint_run_id,
+        )
+        assert run is not None
+        assert run.status == "PARTIAL"
+        observation = run.manifest["consent"]["observation"]
+        assert observation["cmp_detected"] is True
+        assert observation["tcf_api_detected"] is True
+        assert observation["consent_action_status"] == "UNAVAILABLE"
+        artifacts = await repository.artifacts_for_tenant(
+            tenant_id=registered.tenant_id,
+            checkpoint_run_id=registered.checkpoint_run_id,
+        )
+        artifact_types = {item.artifact_type for item in artifacts}
+        assert "SCREENSHOT_VIEWPORT_PRECONSENT" in artifact_types
+        assert "SCREENSHOT_VIEWPORT_POSTCONSENT" not in artifact_types
+    finally:
+        await _cleanup_tenant(registered.tenant_id, storage)
+
+
 async def test_real_browser_checkpoint_persists_evidence_and_site_error(
     fixture_site: str,
 ) -> None:
@@ -344,7 +604,7 @@ async def test_real_browser_checkpoint_persists_evidence_and_site_error(
         assert run.final_url == f"{fixture_site}/complete"
         assert run.playwright_version
         assert run.chromium_version
-        assert run.manifest["schema"] == "browser-checkpoint-manifest/v4"
+        assert run.manifest["schema"] == "browser-checkpoint-manifest/v5"
         assert run.manifest["normalized_state"]["dom"]["normalizer_version"] == "dom-b3-v1"
         assert "manifest-secret" not in str(run.manifest)
         assert "network-secret" not in str(run.manifest)
@@ -471,7 +731,7 @@ async def test_scheduler_produces_repeatable_desktop_and_mobile_runs(
                 ).all()
             )
             assert len(first_runs) == 2
-            assert {run.collector_bundle_version for run in first_runs} == {"b4-v1"}
+            assert {run.collector_bundle_version for run in first_runs} == {"b5-v1"}
             first_run_ids = {run.id for run in first_runs}
             scheduled_jobs = list(
                 (
