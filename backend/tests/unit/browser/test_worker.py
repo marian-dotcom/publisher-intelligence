@@ -92,6 +92,12 @@ class FakeRunner:
         return self.evidence
 
 
+class FailingRunner:
+    async def run(self, target: BrowserTarget) -> BrowserEvidence:
+        del target
+        raise RuntimeError("sensitive details must not be persisted")
+
+
 def _lease(*, attempt: int = 1, max_attempts: int = 2) -> JobLease:
     return JobLease(
         id=uuid.uuid4(),
@@ -144,3 +150,24 @@ async def test_site_error_is_persisted_without_retry() -> None:
     assert queue.failed == []
     assert persister.persisted
     assert queue.completed
+
+
+async def test_unexpected_runtime_error_records_only_its_class() -> None:
+    lease = _lease()
+    queue = FakeQueue()
+    repository = FakeRepository(_target(lease))
+    persister = FakePersister()
+
+    await handle_browser_job(
+        queue=cast(JobQueue, queue),
+        repository=cast(CheckpointRepository, repository),
+        persister=cast(EvidencePersister, persister),
+        runner=cast(BrowserRunner, FailingRunner()),
+        lease=lease,
+        backoff_seconds=0,
+    )
+
+    assert repository.retry_recorded
+    assert queue.failed[0]["error_class"] == "RuntimeError"
+    assert "sensitive" not in str(queue.failed)
+    assert not persister.persisted

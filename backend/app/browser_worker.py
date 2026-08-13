@@ -76,14 +76,15 @@ async def handle_browser_job(
 
     try:
         evidence = await runner.run(target)
-    except Exception:
+    except Exception as error:
+        runtime_error_class = type(error).__name__[:100]
         retryable = lease.attempt < lease.max_attempts
         if retryable:
             await repository.record_retryable_failure(
                 tenant_id=lease.tenant_id,
                 checkpoint_run_id=checkpoint_run_id,
                 attempt_number=lease.attempt,
-                failure_class="BROWSER_RUNTIME_ERROR",
+                failure_class=runtime_error_class,
                 failure_message="Browser runtime failed unexpectedly",
             )
         else:
@@ -91,20 +92,26 @@ async def handle_browser_job(
                 tenant_id=lease.tenant_id,
                 checkpoint_run_id=checkpoint_run_id,
                 attempt_number=lease.attempt,
-                failure_class="BROWSER_RUNTIME_ERROR",
+                failure_class=runtime_error_class,
                 failure_message="Browser runtime failed unexpectedly",
             )
         await queue.fail_or_retry(
             job_id=lease.id,
             lock_token=lease.lock_token,
             retryable=retryable,
-            error_class="BROWSER_RUNTIME_ERROR",
+            error_class=runtime_error_class,
             error_message="Browser runtime failed unexpectedly",
             backoff_seconds=backoff_seconds,
         )
         logger.error(
             "browser runtime failed",
-            extra={"context": {**context, "checkpoint_run_id": str(checkpoint_run_id)}},
+            extra={
+                "context": {
+                    **context,
+                    "checkpoint_run_id": str(checkpoint_run_id),
+                    "error_class": runtime_error_class,
+                }
+            },
         )
         return
     if evidence.status == "BROWSER_ERROR" and lease.attempt < lease.max_attempts:
