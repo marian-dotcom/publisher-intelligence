@@ -2,6 +2,7 @@ import hashlib
 import threading
 import uuid
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
@@ -14,12 +15,14 @@ from app.browser.models import (
     CheckpointRun,
     CheckpointWindow,
     CollectorRun,
+    InteractionProfile,
     MonitoredUrl,
     Publisher,
     Site,
     Template,
 )
 from app.browser.persistence import CheckpointRepository
+from app.browser.scheduling import CheckpointSchedulingService
 from app.browser.service import CheckpointService
 from app.browser_worker import run as run_browser_worker
 from app.config.settings import get_settings
@@ -93,6 +96,7 @@ async def _cleanup_tenant(tenant_id: uuid.UUID, storage: S3Storage) -> None:
             MonitoredUrl,
             CheckpointWindow,
             BrowserScenario,
+            InteractionProfile,
             Template,
             Site,
             Publisher,
@@ -134,7 +138,7 @@ async def test_real_browser_checkpoint_persists_evidence_and_site_error(
         assert run.final_url == f"{fixture_site}/complete"
         assert run.playwright_version
         assert run.chromium_version
-        assert run.manifest["schema"] == "browser-checkpoint-manifest/v1"
+        assert run.manifest["schema"] == "browser-checkpoint-manifest/v2"
         assert "manifest-secret" not in str(run.manifest)
         assert "network-secret" not in str(run.manifest)
         assert "operator-secret" not in str(run.manifest)
@@ -186,3 +190,142 @@ async def test_real_browser_checkpoint_persists_evidence_and_site_error(
         assert job.attempt == 1
     finally:
         await _cleanup_tenant(first.tenant_id, storage)
+
+
+async def test_scheduler_produces_repeatable_desktop_and_mobile_runs(
+    fixture_site: str,
+) -> None:
+    settings = get_settings()
+    assert settings.browser_allow_private_networks
+    factory = get_session_factory()
+    queue = JobQueue(factory)
+    service = CheckpointService(factory, queue, settings)
+    scheduler = CheckpointSchedulingService(factory, queue, settings)
+    repository = CheckpointRepository(factory)
+    storage = S3Storage(settings)
+    tenant_slug = f"repeatable-{uuid.uuid4().hex}"
+    registered = await service.register_and_enqueue(
+        tenant_slug=tenant_slug,
+        tenant_name="Repeatable Browser Tenant",
+        publisher_name="Repeatable Publisher",
+        site_name="Repeatable Site",
+        url=f"{fixture_site}/complete",
+    )
+    try:
+        await run_browser_worker(once=True)
+        first_window_time = datetime(2026, 8, 13, 12, 1, tzinfo=UTC)
+        first_pass = await scheduler.schedule_due(now=first_window_time)
+        repeated_pass = await scheduler.schedule_due(now=first_window_time)
+        assert first_pass.run_count == 2
+        assert repeated_pass.run_count == 2
+
+        async with factory() as session:
+            site = await session.scalar(select(Site).where(Site.tenant_id == registered.tenant_id))
+            assert site is not None
+            first_window = await session.scalar(
+                select(CheckpointWindow).where(
+                    CheckpointWindow.site_id == site.id,
+                    CheckpointWindow.scheduled_for == datetime(2026, 8, 13, 12, tzinfo=UTC),
+                )
+            )
+            assert first_window is not None
+            first_runs = list(
+                (
+                    await session.scalars(
+                        select(CheckpointRun)
+                        .where(CheckpointRun.checkpoint_window_id == first_window.id)
+                        .order_by(CheckpointRun.scenario_id)
+                    )
+                ).all()
+            )
+            assert len(first_runs) == 2
+            assert {run.collector_bundle_version for run in first_runs} == {"b2-v1"}
+            first_run_ids = {run.id for run in first_runs}
+            scheduled_jobs = list(
+                (
+                    await session.scalars(
+                        select(Job).where(
+                            Job.tenant_id == registered.tenant_id,
+                            Job.job_type == "BROWSER_CHECKPOINT",
+                        )
+                    )
+                ).all()
+            )
+            assert (
+                len(
+                    [
+                        job
+                        for job in scheduled_jobs
+                        if uuid.UUID(str(job.payload["checkpoint_run_id"])) in first_run_ids
+                    ]
+                )
+                == 2
+            )
+
+        await run_browser_worker(once=True)
+        async with factory() as session:
+            in_progress_window = await session.get(CheckpointWindow, first_window.id)
+            assert in_progress_window is not None
+            assert in_progress_window.status == "RUNNING"
+        await run_browser_worker(once=True)
+
+        async with factory() as session:
+            complete_window = await session.get(CheckpointWindow, first_window.id)
+            assert complete_window is not None
+            assert complete_window.status == "COMPLETE"
+            completed_runs = list(
+                (
+                    await session.scalars(
+                        select(CheckpointRun).where(CheckpointRun.id.in_(first_run_ids))
+                    )
+                ).all()
+            )
+            assert {run.status for run in completed_runs} == {"COMPLETE"}
+            assert {run.environment["is_mobile"] for run in completed_runs} == {False, True}
+            for run in completed_runs:
+                scrolls = [
+                    action
+                    for action in run.manifest["actions"]
+                    if action["type"] == "scroll_percent"
+                ]
+                assert [action["percent"] for action in scrolls] == [25, 50, 75]
+                assert all(action["actual_y"] >= 0 for action in scrolls)
+                assert run.manifest["actions"][-1]["kind"] == "full_page"
+
+        second_window_time = datetime(2026, 8, 13, 18, 1, tzinfo=UTC)
+        await scheduler.schedule_due(now=second_window_time)
+        async with factory() as session:
+            second_window = await session.scalar(
+                select(CheckpointWindow).where(
+                    CheckpointWindow.site_id == site.id,
+                    CheckpointWindow.scheduled_for == datetime(2026, 8, 13, 18, tzinfo=UTC),
+                )
+            )
+            assert second_window is not None
+            second_runs = list(
+                (
+                    await session.scalars(
+                        select(CheckpointRun).where(
+                            CheckpointRun.checkpoint_window_id == second_window.id
+                        )
+                    )
+                ).all()
+            )
+            assert len(second_runs) == 2
+        for run in second_runs:
+            previous = await repository.previous_comparable(
+                tenant_id=registered.tenant_id,
+                checkpoint_run_id=run.id,
+            )
+            assert previous is not None
+            assert previous.id in first_run_ids
+            assert previous.scenario_id == run.scenario_id
+        assert (
+            await repository.previous_comparable(
+                tenant_id=uuid.uuid4(),
+                checkpoint_run_id=second_runs[0].id,
+            )
+            is None
+        )
+    finally:
+        await _cleanup_tenant(registered.tenant_id, storage)

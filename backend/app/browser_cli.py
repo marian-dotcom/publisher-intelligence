@@ -32,10 +32,11 @@ async def register_and_enqueue(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Manage explicit B1 browser checkpoints")
+    parser = argparse.ArgumentParser(description="Manage explicit browser checkpoint configuration")
     subparsers = parser.add_subparsers(dest="command", required=True)
     register = subparsers.add_parser(
-        "register-and-enqueue", description="Register one pilot URL and enqueue one checkpoint"
+        "register-and-enqueue",
+        description="Register one pilot URL and enqueue one immediate diagnostic checkpoint",
     )
     register.add_argument("--tenant-slug", required=True)
     register.add_argument("--tenant-name", required=True)

@@ -15,10 +15,11 @@ from app.browser.contracts import (
     CollectorResult,
     CollectorStatus,
 )
+from app.browser.interactions import execute_interaction_steps
 from app.browser.security import BrowserBlockedError, BrowserNetworkGuard, sanitize_url
 from app.config.settings import Settings
 
-COLLECTOR_BUNDLE_VERSION = "b1-v1"
+COLLECTOR_BUNDLE_VERSION = "b2-v1"
 
 
 class BrowserRunner:
@@ -89,6 +90,10 @@ class BrowserRunner:
                 chromium_version = browser.version
                 context = await browser.new_context(
                     viewport={"width": target.viewport_width, "height": target.viewport_height},
+                    device_scale_factor=target.device_scale_factor,
+                    user_agent=target.user_agent,
+                    is_mobile=target.is_mobile,
+                    has_touch=target.has_touch,
                     locale=target.locale,
                     timezone_id=target.timezone,
                     accept_downloads=False,
@@ -120,6 +125,34 @@ class BrowserRunner:
                         "type": "bounded_stabilization",
                         "duration_ms": self._settings.browser_stabilization_ms,
                     }
+                )
+                interaction_started = datetime.now(UTC)
+                interaction = await execute_interaction_steps(page, target.interaction_steps)
+                actions.extend(interaction.actions)
+                collector_results.append(
+                    CollectorResult(
+                        collector_type="INTERACTION_PROFILE",
+                        collector_version=COLLECTOR_BUNDLE_VERSION,
+                        status=(
+                            "ERROR"
+                            if interaction.failed
+                            else "OK"
+                            if target.interaction_steps
+                            else "NOT_PRESENT"
+                        ),
+                        started_at=interaction_started,
+                        completed_at=datetime.now(UTC),
+                        summary={
+                            "step_count": len(target.interaction_steps),
+                            "completed_step_count": len(
+                                [item for item in interaction.actions if item["status"] == "OK"]
+                            ),
+                        },
+                        error_code=interaction.error_code,
+                        error_message=(
+                            "Deterministic interaction failed" if interaction.failed else None
+                        ),
+                    )
                 )
                 raw_dom = (await page.content()).encode("utf-8")
                 artifacts.append(
@@ -168,7 +201,7 @@ class BrowserRunner:
                 actions.append({"type": "screenshot", "kind": "full_page", "order": "last"})
                 if http_status is not None and http_status >= 400:
                     status = "SITE_ERROR"
-                elif script_inventory_failed:
+                elif script_inventory_failed or interaction.failed:
                     status = "PARTIAL"
                 else:
                     status = "COMPLETE"
@@ -315,11 +348,24 @@ class BrowserRunner:
             "scenario_code": target.scenario_code,
             "scenario_version": target.scenario_version,
             "viewport": {"width": target.viewport_width, "height": target.viewport_height},
+            "device_scale_factor": target.device_scale_factor,
+            "user_agent": target.user_agent,
+            "is_mobile": target.is_mobile,
+            "has_touch": target.has_touch,
             "locale": target.locale,
             "timezone": target.timezone,
             "cache_mode": "CLEAN",
             "service_workers": "BLOCKED",
             "downloads": "DISABLED",
+            "interaction_profile": (
+                {
+                    "id": str(target.interaction_profile_id),
+                    "code": target.interaction_profile_code,
+                    "version": target.interaction_profile_version,
+                }
+                if target.interaction_profile_id is not None
+                else None
+            ),
         }
 
     @staticmethod
@@ -327,5 +373,5 @@ class BrowserRunner:
         return [
             "synthetic_observation_not_real_user_truth",
             "application_ssrf_guard_requires_network_egress_enforcement_in_production",
-            "no_consent_or_interaction_actions_in_b1",
+            "no_consent_action_in_b2",
         ]
