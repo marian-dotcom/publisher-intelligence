@@ -1,6 +1,6 @@
 # EP-006 — CMP and Consent Evidence B5
 
-**Status:** IN_PROGRESS
+**Status:** COMPLETE
 **Owner:** Codex / Engineering
 **Created:** 2026-08-14
 **Updated:** 2026-08-14
@@ -14,8 +14,8 @@
 - [x] M1 — Add consent scenario and structured CMP evidence schema
 - [x] M2 — Implement passive TCF observation and configured consent action
 - [x] M3 — Persist pre/post dependency effects and visual evidence
-- [ ] M4 — Prove Accept, Reject, unavailable, tenancy, and migration behavior
-- [ ] M5 — Complete documentation, final CI, and retrospective
+- [x] M4 — Prove Accept, Reject, unavailable, tenancy, and migration behavior
+- [x] M5 — Complete documentation, final CI, and retrospective
 
 ## 1. Purpose and User Outcome
 
@@ -187,7 +187,7 @@ Acceptance:
 - [x] existing scenario rows migrate deterministically;
 - [x] CMP evidence is unique per checkpoint and lifecycle/timing fields remain nullable;
 - [x] dependency phase evidence is unique per run/phase/dependency and tenant-scoped;
-- [ ] upgrade/downgrade/re-upgrade succeeds.
+- [x] upgrade/downgrade/re-upgrade succeeds.
 
 ### M2 — Passive TCF observer and configured action
 
@@ -229,10 +229,10 @@ Acceptance:
 
 Acceptance:
 
-- [ ] controlled fixtures prove Accept, Reject, API/UI timing, and phase differences;
-- [ ] wrong-tenant CMP/dependency reads return no evidence;
-- [ ] ordinary non-CMP pages remain complete and no extra UI click is attempted;
-- [ ] format, lint, typecheck, unit, integration, migration, and build checks pass.
+- [x] controlled fixtures prove Accept, Reject, API/UI timing, and phase differences;
+- [x] wrong-tenant CMP/dependency reads return no evidence;
+- [x] ordinary non-CMP pages remain complete and no extra UI click is attempted;
+- [x] format, lint, typecheck, unit, integration, migration, and build checks pass.
 
 ### M5 — Completion
 
@@ -242,9 +242,9 @@ Acceptance:
 
 Acceptance:
 
-- [ ] plan is `COMPLETE` only after local and remote validation pass;
-- [ ] PR states behavior, safety boundary, tests, limitations, and rollback;
-- [ ] no unrelated changes or hidden blockers remain.
+- [x] plan is `COMPLETE` only after local and remote validation pass;
+- [x] PR states behavior, safety boundary, tests, limitations, and rollback;
+- [x] no unrelated changes or hidden blockers remain.
 
 ## 9. Validation Commands
 
@@ -295,7 +295,10 @@ COREPACK_HOME=/tmp/publisher-intelligence-corepack corepack pnpm build
 - frontend `lint`, `typecheck`, `test`, and production `build`: passed; Vitest 1 passed.
 - `alembic heads`: one head, `0006_cmp_consent_b5`.
 - local integration/migration round trip: not run because Docker is unavailable in this runtime;
-  GitHub Actions remains the required validation gate.
+  GitHub Actions supplied that required validation gate.
+- GitHub Actions CI run #47: backend, frontend, and repository-safety passed. Backend includes 54
+  unit tests, 16 PostgreSQL/MinIO/Chromium integration tests, migration
+  upgrade/downgrade/re-upgrade, scheduler smoke, and worker smoke.
 
 ## 13. Rollback
 
@@ -305,5 +308,5 @@ GPT lifecycle evidence, and manifest history remain intact.
 
 ## 14. Next Step
 
-Commit the implementation, publish a draft PR, and use GitHub Actions to validate the PostgreSQL,
-MinIO, Chromium, and migration paths unavailable in the local runtime.
+PR #7 is green and ready for human review. Mark it ready and merge only after the intended
+review/branch-protection workflow is satisfied; no additional EP-006 engineering work remains.
