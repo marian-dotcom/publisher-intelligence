@@ -1,6 +1,8 @@
+from typing import cast
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+from playwright.async_api import Request
 
 from app.browser.security import BrowserBlockedError, BrowserNetworkGuard, sanitize_url
 
@@ -82,3 +84,33 @@ async def test_private_subresource_is_aborted_and_recorded() -> None:
     route.continue_.assert_not_awaited()
     assert guard.blocked_requests[0].url == "http://127.0.0.1/private"
     assert guard.blocked_requests[0].error_text == "PRIVATE_DESTINATION"
+
+
+async def test_navigation_without_available_frame_is_conservatively_top_level() -> None:
+    class EarlyNavigationRequest:
+        url = "https://attacker.example/redirect?token=secret"
+        resource_type = "document"
+
+        @property
+        def frame(self) -> object:
+            raise AttributeError("frame does not exist yet")
+
+        def is_navigation_request(self) -> bool:
+            return True
+
+    guard = BrowserNetworkGuard(
+        canonical_domain="example.com",
+        allow_private_networks=False,
+        max_requests=10,
+    )
+    route = Mock()
+    route.abort = AsyncMock()
+    route.continue_ = AsyncMock()
+
+    await guard.route(route, cast(Request, EarlyNavigationRequest()))
+
+    route.abort.assert_awaited_once_with("blockedbyclient")
+    route.continue_.assert_not_awaited()
+    assert guard.blocked_top_level
+    assert guard.blocked_requests[0].error_text == "CROSS_SITE_REDIRECT"
+    assert "secret" not in guard.blocked_requests[0].url

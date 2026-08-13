@@ -138,8 +138,8 @@ class BrowserNetworkGuard:
         if request.is_navigation_request():
             try:
                 is_top_level = request.frame == request.frame.page.main_frame
-            except PlaywrightError:
-                is_top_level = False
+            except (AttributeError, PlaywrightError):
+                is_top_level = True
         if self.request_count > self.max_requests:
             self._record_block(request, "REQUEST_BUDGET", is_top_level)
             await route.abort("blockedbyclient")
