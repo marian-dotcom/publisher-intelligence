@@ -1,6 +1,6 @@
 # EP-001 — Repository Bootstrap and Local Development Environment
 
-**Status:** READY  
+**Status:** IN_PROGRESS
 **Owner:** Codex / Engineering  
 **Created:** 2026-08-13  
 **Updated:** 2026-08-13  
@@ -11,12 +11,12 @@
 ## Progress
 
 - [x] M0 — Inspect the documentation-only repository and close bootstrap decisions
-- [ ] M1 — Create repository, backend, and frontend skeletons
-- [ ] M2 — Add local PostgreSQL and S3-compatible object storage
-- [ ] M3 — Add persistence and migration foundation
-- [ ] M4 — Add PostgreSQL job queue, worker, and scheduler skeletons
-- [ ] M5 — Add configuration, object-storage adapter, and health checks
-- [ ] M6 — Add CI, documentation, and final validation
+- [x] M1 — Create repository, backend, and frontend skeletons
+- [ ] M2 — Add local PostgreSQL and S3-compatible object storage (implemented; CI validation pending)
+- [ ] M3 — Add persistence and migration foundation (implemented; CI validation pending)
+- [ ] M4 — Add PostgreSQL job queue, worker, and scheduler skeletons (implemented; CI validation pending)
+- [ ] M5 — Add configuration, object-storage adapter, and health checks (implemented; CI validation pending)
+- [ ] M6 — Add CI, documentation, and final validation (in progress)
 
 ## 1. Purpose and User Outcome
 
@@ -661,6 +661,9 @@ If implementation reveals a choice with material business or security impact, st
 - The uploaded starter package contained ADR-001 through ADR-125 but not the separately approved EP-001 and ADR-126–128 changes from the previous GitHub account.
 - The old textual PR was not accessible from the newly connected account, so the plan and ADRs were reconstructed from the canonical contracts and the preserved approved decision summary.
 - The current repository has no code or infrastructure; no implementation validation can honestly be reported yet.
+- The implementation runtime provides Python 3.12, `uv`, Node.js 24, and `pnpm`, but not Docker or `psql`.
+- `pnpm` 11 requires dependency build permissions in `pnpm-workspace.yaml`; only `esbuild` and `unrs-resolver` are allowed.
+- Python and pnpm cache roots are read-only in this hosted runtime, so local validation used temporary cache directories without changing repository commands.
 
 ## 20. Progress Log
 
@@ -668,20 +671,30 @@ If implementation reveals a choice with material business or security impact, st
 
 M0 complete. Repository state inspected, root normalization defined, bootstrap decisions recorded, and implementation milestones made verifiable. No application code, dependencies, migrations, or infrastructure were created. Next: begin M1 in a new implementation branch and change plan status to `IN_PROGRESS`.
 
+### 2026-08-13 — Foundation implementation
+
+M1 is locally validated. M2–M5 are implemented with locked dependencies, Compose services, the first migration, ADR-128 queue primitives, separate runtime entry points, configuration redaction, storage boundaries, and health checks. M6 includes CI, README guidance, and a repository secret scan. PostgreSQL/MinIO integration evidence remains pending because Docker is unavailable locally; GitHub Actions is the designated validation environment.
+
 ## 21. Validation Results
 
-Documentation-phase validation:
+Local implementation validation on 2026-08-13:
 
-- repository tree inspected through GitHub;
-- canonical root files and assets enumerated;
-- `DECISIONS.md` confirmed to contain ADR-001 through ADR-125 before this change;
-- absence of `plans/EP-001-repository-bootstrap.md` confirmed before this change;
-- planned diff limited to root normalization, `DECISIONS.md`, and this ExecPlan;
-- no code or runtime test result claimed.
+- `uv sync --all-groups --locked` — passed with 51 locked packages;
+- Ruff format and lint — passed across 32 files;
+- mypy — passed across application and test sources;
+- backend unit tests — 6 passed;
+- `pnpm install --frozen-lockfile` — passed;
+- frontend lint, typecheck, Vitest, and production build — passed;
+- frontend test suite — 1 passed;
+- browser-worker placeholder smoke command — passed;
+- Compose and GitHub Actions YAML syntax parse — passed;
+- repository secret scan — passed;
+- `git diff --check` — passed;
+- Docker, migrations, PostgreSQL queue integration, MinIO round trip, and real readiness — not run locally because Docker is unavailable; CI workflow added to execute them.
 
 ## 22. Next Step
 
-Codex should read this complete plan and all canonical references, change status to `IN_PROGRESS`, implement M1, validate it, update this plan, and continue milestone-by-milestone until a real blocker or unsettled product/security decision appears.
+Publish the implementation branch as a draft pull request, let GitHub Actions prove the PostgreSQL/MinIO path, correct any CI-only failure, then mark M2–M6 and the plan complete only after all checks pass.
 
 ## 23. Final Outcome / Retrospective
 

@@ -1,0 +1,54 @@
+name: publisher-intelligence
+
+services:
+  postgres:
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_DB: publisher_intelligence
+      POSTGRES_USER: publisher
+      POSTGRES_PASSWORD: publisher-local
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U publisher -d publisher_intelligence"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  minio:
+    image: quay.io/minio/minio:RELEASE.2024-12-18T13-15-44Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: publisher-local
+      MINIO_ROOT_PASSWORD: replace-with-local-only-secret
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  minio-init:
+    image: quay.io/minio/mc:RELEASE.2024-11-21T17-21-54Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >-
+      /bin/sh -c '
+      mc alias set local http://minio:9000 publisher-local replace-with-local-only-secret &&
+      mc mb --ignore-existing local/publisher-intelligence-local &&
+      mc anonymous set none local/publisher-intelligence-local
+      '
+    restart: "no"
+
+volumes:
+  postgres-data:
+  minio-data:
