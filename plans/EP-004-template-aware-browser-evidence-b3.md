@@ -1,6 +1,6 @@
 # EP-004 — Template-aware Browser Evidence B3
 
-**Status:** IN_PROGRESS
+**Status:** COMPLETE
 **Owner:** Codex / Engineering
 **Created:** 2026-08-14
 **Updated:** 2026-08-14
@@ -11,12 +11,12 @@
 ## Progress
 
 - [x] M0 — Verify B2 integration and close the B3 contract
-- [ ] M1 — Complete template configuration and normalized-evidence schema
-- [ ] M2 — Add deterministic DOM, script, network, and error normalization
-- [ ] M3 — Persist versioned normalized evidence and stable entity observations
-- [ ] M4 — Produce explainable URL/template comparison output
-- [ ] M5 — Prove migration, tenancy, recomputability, and real-browser behavior
-- [ ] M6 — Complete documentation, final CI, and retrospective
+- [x] M1 — Complete template configuration and normalized-evidence schema
+- [x] M2 — Add deterministic DOM, script, network, and error normalization
+- [x] M3 — Persist versioned normalized evidence and stable entity observations
+- [x] M4 — Produce explainable URL/template comparison output
+- [x] M5 — Prove migration, tenancy, recomputability, and real-browser behavior
+- [x] M6 — Complete documentation, final CI, and retrospective
 
 ## 1. Purpose and User Outcome
 
@@ -187,11 +187,11 @@ Implementation:
 
 Acceptance:
 
-- [ ] template identity is unique within a site and carries explicit expectation provenance;
-- [ ] stable entity keys cannot collide across sites;
-- [ ] observations retain checkpoint, collector version, and observed time;
-- [ ] JavaScript fingerprint recurrence remains queryable without full-stack identity;
-- [ ] clean migration upgrade/downgrade/re-upgrade passes.
+- [x] template identity is unique within a site and carries explicit expectation provenance;
+- [x] stable entity keys cannot collide across sites;
+- [x] observations retain checkpoint, collector version, and observed time;
+- [x] JavaScript fingerprint recurrence remains queryable without full-stack identity;
+- [x] clean migration upgrade/downgrade/re-upgrade passes.
 
 ### M2 — Deterministic normalizers
 
@@ -206,13 +206,13 @@ Implementation:
 
 Acceptance:
 
-- [ ] article copy, timestamps, random IDs, auction IDs, and cache-busters do not create false diffs;
-- [ ] hierarchy, scripts, iframes, canonical/meta state, sticky/fixed indicators, and key containers
+- [x] article copy, timestamps, random IDs, auction IDs, and cache-busters do not create false diffs;
+- [x] hierarchy, scripts, iframes, canonical/meta state, sticky/fixed indicators, and key containers
   remain represented;
-- [ ] equivalent cache-busted dependency URLs share one stable identity;
-- [ ] sensitive query values, cookies, headers, request bodies, and raw page text are absent;
-- [ ] malformed/oversized input is bounded and deterministic;
-- [ ] every normalizer version is explicit in output.
+- [x] equivalent cache-busted dependency URLs share one stable identity;
+- [x] sensitive query values, cookies, headers, request bodies, and raw page text are absent;
+- [x] malformed/oversized input is bounded and deterministic;
+- [x] every normalizer version is explicit in output.
 
 ### M3 — Persist normalized evidence and entity observations
 
@@ -227,11 +227,11 @@ Implementation:
 
 Acceptance:
 
-- [ ] a successful fixture run persists raw and normalized DOM with distinct retention classes;
-- [ ] artifact hashes resolve and finalized raw evidence remains immutable;
-- [ ] entity observations are tenant/site/checkpoint scoped and idempotent per run;
-- [ ] `NOT_PRESENT`, `NOT_OBSERVABLE`, and `ERROR` remain distinct collector outcomes;
-- [ ] normalizer failure never destroys screenshots/raw DOM/attempt evidence.
+- [x] a successful fixture run persists raw and normalized DOM with distinct retention classes;
+- [x] artifact hashes resolve and finalized raw evidence remains immutable;
+- [x] entity observations are tenant/site/checkpoint scoped and idempotent per run;
+- [x] `NOT_PRESENT`, `NOT_OBSERVABLE`, and `ERROR` remain distinct collector outcomes;
+- [x] normalizer failure never destroys screenshots/raw DOM/attempt evidence.
 
 ### M4 — Explainable URL/template comparison
 
@@ -246,12 +246,12 @@ Implementation:
 
 Acceptance:
 
-- [ ] desktop/mobile and scenario versions never cross comparison lineages;
-- [ ] a rotated article URL may compare within its stable template;
-- [ ] another template or tenant can never become a predecessor;
-- [ ] unchanged normalized state yields an explicit empty change set;
-- [ ] incompatible/missing normalized versions yield `NOT_COMPARABLE` with a reason;
-- [ ] every reported addition/removal references stable normalized identity only.
+- [x] desktop/mobile and scenario versions never cross comparison lineages;
+- [x] a rotated article URL may compare within its stable template;
+- [x] another template or tenant can never become a predecessor;
+- [x] unchanged normalized state yields an explicit empty change set;
+- [x] incompatible/missing normalized versions yield `NOT_COMPARABLE` with a reason;
+- [x] every reported addition/removal references stable normalized identity only.
 
 ### M5 — Integration and security proof
 
@@ -266,36 +266,36 @@ Implementation:
 
 Acceptance:
 
-- [ ] two noisy-but-equivalent pages produce the same normalized structural hash;
-- [ ] a meaningful structural/dependency change produces a bounded explainable diff;
-- [ ] raw query secrets never enter normalized state, entity keys, logs, or comparison output;
-- [ ] cross-tenant entity, observation, predecessor, and artifact reads are denied;
-- [ ] B2 scheduling/action/status/retry behavior remains green;
-- [ ] frontend and repository safety checks remain green.
+- [x] two noisy-but-equivalent pages produce the same normalized structural hash;
+- [x] a meaningful structural/dependency change produces a bounded explainable diff;
+- [x] raw query secrets never enter normalized state, entity keys, logs, or comparison output;
+- [x] cross-tenant entity, observation, predecessor, and artifact reads are denied;
+- [x] B2 scheduling/action/status/retry behavior remains green;
+- [x] frontend and repository safety checks remain green.
 
 ### M6 — Documentation, final CI, and retrospective
 
 Acceptance:
 
-- [ ] README explains template identity, normalized evidence, URL rotation, and limitations;
-- [ ] docs distinguish raw evidence, normalized state, differences, and future events;
-- [ ] no generated browser artifacts, profiles, traces, secrets, or build output are committed;
-- [ ] all supported local checks and final GitHub Actions pass;
-- [ ] retrospective records deviations and the exact B4 boundary.
+- [x] README explains template identity, normalized evidence, URL rotation, and limitations;
+- [x] docs distinguish raw evidence, normalized state, differences, and future events;
+- [x] no generated browser artifacts, profiles, traces, secrets, or build output are committed;
+- [x] all supported local checks and final GitHub Actions pass;
+- [x] retrospective records deviations and the exact B4 boundary.
 
 ## 9. Final Acceptance Criteria
 
-- [ ] representative URLs retain explicit stable template identity;
-- [ ] template configuration carries versioned expectations without inventing templates;
-- [ ] normalized DOM is deterministic, bounded, versioned, and stored separately from raw DOM;
-- [ ] scripts/network dependencies/errors use safe stable fingerprints;
-- [ ] stable entities and append-only observations remain tenant/site/run scoped;
-- [ ] URL rotation preserves template comparison history without crossing scenarios;
-- [ ] incompatible observer/normalizer versions never produce silent false diffs;
-- [ ] comparison output is structured, bounded, explainable, and non-causal;
-- [ ] raw finalized evidence and all B1/B2 behavior remain intact;
-- [ ] no GPT, CMP, Prebid, video, events, incidents, alerts, AI, or broad crawling is introduced;
-- [ ] migration, local supported checks, and authoritative GitHub Actions pass.
+- [x] representative URLs retain explicit stable template identity;
+- [x] template configuration carries versioned expectations without inventing templates;
+- [x] normalized DOM is deterministic, bounded, versioned, and stored separately from raw DOM;
+- [x] scripts/network dependencies/errors use safe stable fingerprints;
+- [x] stable entities and append-only observations remain tenant/site/run scoped;
+- [x] URL rotation preserves template comparison history without crossing scenarios;
+- [x] incompatible observer/normalizer versions never produce silent false diffs;
+- [x] comparison output is structured, bounded, explainable, and non-causal;
+- [x] raw finalized evidence and all B1/B2 behavior remain intact;
+- [x] no GPT, CMP, Prebid, video, events, incidents, alerts, AI, or broad crawling is introduced;
+- [x] migration, local supported checks, and authoritative GitHub Actions pass.
 
 ## 10. Validation
 
@@ -414,9 +414,37 @@ Local supported validation:
 - secret scan and `git diff --check`: passed.
 
 Docker is not installed in this runtime, so clean PostgreSQL migration, MinIO artifact persistence,
-real Chromium normalization, URL-rotation lineage, and downgrade/re-upgrade are not claimed locally.
-Those remain authoritative GitHub Actions checks before M1–M5 acceptance is closed.
+real Chromium normalization, URL-rotation lineage, and downgrade/re-upgrade were not claimed
+locally. The following authoritative GitHub Actions run supplied that coverage before M1–M5
+acceptance was closed.
+
+### 2026-08-14 — M5–M6 complete; authoritative CI green
+
+GitHub Actions CI run #35 completed successfully for remote commit
+`65be99b456b3c875370959a9e88ca215899e0cc9`. The backend installed Chromium, applied the full
+Alembic chain, started PostgreSQL and MinIO, passed all 47 unit tests and all 12 integration tests,
+and completed scheduler/worker smoke commands. Frontend lint, typecheck, Vitest, and production
+build passed. Repository secret scanning, Compose validation, and diff hygiene also passed.
+
+The real-browser integration proves manifest v3, raw and normalized DOM artifact integrity, stable
+entity/error observations, tenant-scoped reads, unchanged B2 interactions, and the same-template
+lineage fallback after representative URL rotation. No CI-only implementation correction was
+required.
 
 ## 17. Final Outcome / Retrospective
 
-To be completed after authoritative validation.
+EP-004 delivers B3 template-aware browser evidence. Repeated runs now preserve a deterministic,
+versioned structural representation that ignores page copy and recognized volatile identifiers,
+plus stable script/network identities and JavaScript error fingerprints. Large structural output
+is stored as a long-lived normalized artifact; PostgreSQL keeps stable entities and append-only
+observations; manifest v3 keeps compact hashes, versions, expectations, lineage, and bounded
+explainable differences.
+
+Representative URL rotation no longer breaks operational memory: comparison prefers an exact URL
+and may fall back only to the same tenant/site/template and exact browser scenario. Incompatible
+normalizer versions produce `NOT_COMPARABLE` rather than a false publisher change.
+
+The milestone remains deliberately non-causal. Differences are not promoted into events, alerts,
+severity, incidents, or AI conclusions. B4 should next add GPT slot identity and lifecycle
+observation on top of B3 template/normalized evidence, without changing historic B3 observer or
+normalizer identities in place.
