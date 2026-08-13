@@ -1,6 +1,6 @@
 # EP-002 — Minimal Real-Browser Checkpoint B1
 
-**Status:** IN_PROGRESS
+**Status:** COMPLETE
 **Owner:** Codex / Engineering
 **Created:** 2026-08-13
 **Updated:** 2026-08-13
@@ -172,11 +172,11 @@ Acceptance:
 
 Acceptance:
 
-- [ ] migration upgrade/downgrade/re-upgrade passes;
-- [ ] tenant ownership is present directly on fact/artifact tables;
-- [ ] retry attempts are domain records and do not alter EP-001 job semantics;
-- [ ] artifact rows are written only after object upload succeeds;
-- [ ] cross-tenant repository access is denied by scoped queries.
+- [x] migration upgrade/downgrade/re-upgrade passes;
+- [x] tenant ownership is present directly on fact/artifact tables;
+- [x] retry attempts are domain records and do not alter EP-001 job semantics;
+- [x] artifact rows are written only after object upload succeeds;
+- [x] cross-tenant repository access is denied by scoped queries.
 
 ### M2 — Security guard and B1 collectors
 
@@ -186,11 +186,11 @@ Acceptance:
 
 Acceptance:
 
-- [ ] private/reserved/metadata targets are blocked;
-- [ ] configured same-site HTTP→HTTPS/www redirect is allowed;
-- [ ] unexpected cross-site redirect is blocked and recorded;
-- [ ] hostile subresource attempts are aborted and recorded without leaking internal response data;
-- [ ] collectors attach before navigation and fail independently.
+- [x] private/reserved/metadata targets are blocked;
+- [x] configured same-site HTTP→HTTPS/www redirect is allowed;
+- [x] unexpected cross-site redirect is blocked and recorded;
+- [x] hostile subresource attempts are aborted and recorded without leaking internal response data;
+- [x] collectors attach before navigation and fail independently.
 
 ### M3 — Real Chromium runner and evidence persistence
 
@@ -202,11 +202,11 @@ Acceptance:
 
 Acceptance:
 
-- [ ] fixture run produces both screenshots, raw DOM, and manifest;
-- [ ] manifest includes all artifacts, final status/URL/HTTP status, script/network/error evidence, actions, limitations, and observer versions;
-- [ ] object bytes match stored SHA-256 and are retrievable;
-- [ ] context closes on success and failure;
-- [ ] no browser launch uses `--no-sandbox`.
+- [x] fixture run produces both screenshots, raw DOM, and manifest;
+- [x] manifest includes all artifacts, final status/URL/HTTP status, script/network/error evidence, actions, limitations, and observer versions;
+- [x] object bytes match stored SHA-256 and are retrievable;
+- [x] context closes on success and failure;
+- [x] no browser launch uses `--no-sandbox`.
 
 ### M4 — Background workflow and operator smoke path
 
@@ -217,11 +217,11 @@ Acceptance:
 
 Acceptance:
 
-- [ ] checkpoint execution never occurs in API request path;
-- [ ] job payload contains IDs only;
-- [ ] unknown job types fail safely without payload logging;
-- [ ] publisher 503 is completed as `SITE_ERROR`, not retried;
-- [ ] technical retry adds a second checkpoint attempt and preserves the first.
+- [x] checkpoint execution never occurs in API request path;
+- [x] job payload contains IDs only;
+- [x] unknown job types fail safely without payload logging;
+- [x] publisher 503 is completed as `SITE_ERROR`, not retried;
+- [x] technical retry adds a second checkpoint attempt and preserves the first.
 
 ### M5 — Fixtures, tests, CI, and documentation
 
@@ -232,26 +232,26 @@ Acceptance:
 
 Acceptance:
 
-- [ ] local unit/static checks pass;
-- [ ] CI PostgreSQL/MinIO/browser tests pass;
-- [ ] fixture evidence is deterministic and sanitized;
-- [ ] final diff contains no temporary screenshots, traces, browser profiles, or secrets;
-- [ ] EP-002 is marked `COMPLETE` only after the final branch CI is green.
+- [x] local unit/static checks pass;
+- [x] CI PostgreSQL/MinIO/browser tests pass;
+- [x] fixture evidence is deterministic and sanitized;
+- [x] final diff contains no temporary screenshots, traces, browser profiles, or secrets;
+- [x] EP-002 is marked `COMPLETE` only after the final branch CI is green.
 
 ## 10. Acceptance Criteria
 
-- [ ] one configured public URL produces one persisted real-Chromium checkpoint;
-- [ ] checkpoint evidence includes timestamp, viewport/full-page screenshots, raw DOM, scripts, network hosts/domains, request failures, JS/console errors, HTTP/final URL, manifest, and environment provenance;
-- [ ] PostgreSQL remains authoritative for metadata and object storage remains private artifact storage;
-- [ ] evidence is tenant-owned and cross-tenant reads are tested;
-- [ ] finalized source evidence is not overwritten;
-- [ ] `SITE_ERROR`, `BROWSER_ERROR`, `TIMEOUT`, `BLOCKED`, `PARTIAL`, and `COMPLETE` semantics are distinct;
-- [ ] a failed collector does not discard other useful evidence;
-- [ ] page content cannot reach private/internal destinations through allowed browser requests at the application layer;
-- [ ] no ad clicks, form filling, consent action, stealth, authentication, AI, or downstream event/incident judgment is introduced;
-- [ ] Playwright/Chromium and collector versions are recorded;
-- [ ] all waits/retries/resources are bounded;
-- [ ] local supported checks and final GitHub Actions pass.
+- [x] one configured public URL produces one persisted real-Chromium checkpoint;
+- [x] checkpoint evidence includes timestamp, viewport/full-page screenshots, raw DOM, scripts, network hosts/domains, request failures, JS/console errors, HTTP/final URL, manifest, and environment provenance;
+- [x] PostgreSQL remains authoritative for metadata and object storage remains private artifact storage;
+- [x] evidence is tenant-owned and cross-tenant reads are tested;
+- [x] finalized source evidence is not overwritten;
+- [x] `SITE_ERROR`, `BROWSER_ERROR`, `TIMEOUT`, `BLOCKED`, `PARTIAL`, and `COMPLETE` semantics are distinct;
+- [x] a failed collector does not discard other useful evidence;
+- [x] page content cannot reach private/internal destinations through allowed browser requests at the application layer;
+- [x] no ad clicks, form filling, consent action, stealth, authentication, AI, or downstream event/incident judgment is introduced;
+- [x] Playwright/Chromium and collector versions are recorded;
+- [x] all waits/retries/resources are bounded;
+- [x] local supported checks and final GitHub Actions pass.
 
 ## 11. Validation Commands
 
@@ -384,13 +384,30 @@ Local results:
 
 - `ruff format --check` and `ruff check`: passed;
 - strict `mypy`: passed;
-- backend unit suite: 19 passed;
+- backend unit suite: 22 passed;
 - frontend lint/typecheck/test/build: passed (1 frontend test);
 - secret scan and `git diff --check`: passed.
 
 Local integration was not claimed: Docker is unavailable, and this runtime's Playwright CDN proxy
 returned a zero-byte archive when installing Chromium. PostgreSQL/MinIO migration and real-browser
-tests therefore remain pending in GitHub Actions.
+tests were therefore delegated to GitHub Actions and are recorded below.
+
+### 2026-08-13 — GitHub Actions integration closure
+
+Draft PR #3 exposed and closed two integration-only defects: SQLAlchemy needed an explicit flush
+for `checkpoint_windows` before inserting its dependent run, and Playwright needs a mutable bound
+route-handler instance to cache its wrapper. Safe error-class/source diagnostics located the latter
+without logging exception messages or page data. Early navigation requests without an available
+frame are treated conservatively as top-level for redirect enforcement.
+
+GitHub Actions run `31742758932` passed all jobs:
+
+- backend: Playwright Chromium install, Ruff, mypy, 22 unit tests, Alembic migration, MinIO setup,
+  11 PostgreSQL/MinIO/real-Chromium integration tests, scheduler smoke, and worker smoke;
+- frontend: locked install, lint, typecheck, one Vitest test, and production build;
+- repository safety: secret scan, Compose validation, and diff hygiene.
+
+This is the authoritative B1 real-browser validation; no Docker-backed local pass is claimed.
 
 ## 18. Decision Log
 
@@ -422,10 +439,22 @@ Implement application validation and request interception in B1. Require deploym
 
 ## 21. Next Step
 
-Commit the reviewed implementation, publish the branch, open a Draft PR, and use GitHub Actions as
-the authoritative PostgreSQL/MinIO/Chromium validation environment. Resolve any CI finding before
-marking EP-002 complete.
+Review and merge Draft PR #3. After EP-002 lands on `main`, prepare the next ExecPlan for B2
+repeatability: six-hour cadence, desktop/mobile profiles, deterministic interaction/scroll policy,
+and comparable checkpoint sequencing.
 
 ## 22. Final Outcome / Retrospective
 
-Pending implementation.
+EP-002 shipped the first real product behavior: an explicitly configured publisher URL can produce
+an auditable Chromium checkpoint in a background worker. The checkpoint preserves tenant-owned
+PostgreSQL metadata and private object-storage evidence for viewport/full-page screenshots,
+rendered DOM, scripts, network/error observations, final HTTP state, hashes, provenance, and a
+versioned manifest.
+
+The implementation stayed inside B1: one fixed desktop scenario, bounded observation, no consent
+action, no scheduler cadence, no provider-specific interpretation, and no AI/incident judgment.
+Application SSRF checks and fail-closed redirect handling are implemented, while network-level
+egress enforcement remains a production deployment prerequisite.
+
+Local supported checks and GitHub Actions run `31742758932` provide the final validation evidence.
+The remaining FastAPI/Starlette `httpx2` warning is non-blocking and inherited from EP-001.
