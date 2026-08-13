@@ -13,6 +13,7 @@ from app.browser.comparison import compare_normalized_state
 from app.browser.contracts import (
     BrowserEvidence,
     BrowserTarget,
+    ExpectedGPTSlot,
     StoredArtifactRecord,
 )
 from app.browser.interactions import parse_interaction_steps
@@ -26,11 +27,13 @@ from app.browser.models import (
     CollectorRun,
     DomainEntity,
     EntityObservation,
+    GPTSlotObservation,
     InteractionProfile,
     JavaScriptErrorObservation,
     MonitoredUrl,
     Site,
     Template,
+    TemplateExpectedEntity,
 )
 from app.storage.s3 import S3Storage
 
@@ -59,6 +62,7 @@ class CheckpointRepository:
             InteractionProfile | None,
             Template,
         ],
+        expected_gpt_slots: tuple[ExpectedGPTSlot, ...] = (),
     ) -> BrowserTarget:
         run, monitored_url, site, scenario, interaction_profile, template = row
         viewport = scenario.device_profile.get("viewport", {})
@@ -101,7 +105,69 @@ class CheckpointRepository:
             template_family=template.template_family,
             template_fingerprint_version=template.fingerprint_version,
             template_expected_features=template.expected_features,
+            expected_gpt_slots=expected_gpt_slots,
         )
+
+    @staticmethod
+    async def _expected_gpt_slots(
+        session: AsyncSession,
+        *,
+        tenant_id: uuid.UUID,
+        site_id: uuid.UUID,
+        template_id: uuid.UUID,
+        effective_at: datetime,
+    ) -> tuple[ExpectedGPTSlot, ...]:
+        rows = (
+            await session.execute(
+                select(DomainEntity, TemplateExpectedEntity)
+                .join(
+                    TemplateExpectedEntity,
+                    TemplateExpectedEntity.entity_id == DomainEntity.id,
+                )
+                .where(
+                    DomainEntity.tenant_id == tenant_id,
+                    DomainEntity.site_id == site_id,
+                    DomainEntity.entity_kind == "GPT_SLOT",
+                    TemplateExpectedEntity.tenant_id == tenant_id,
+                    TemplateExpectedEntity.site_id == site_id,
+                    TemplateExpectedEntity.template_id == template_id,
+                    TemplateExpectedEntity.expectation_type == "EXPECTED",
+                    TemplateExpectedEntity.valid_from <= effective_at,
+                    or_(
+                        TemplateExpectedEntity.valid_to.is_(None),
+                        TemplateExpectedEntity.valid_to > effective_at,
+                    ),
+                )
+                .order_by(DomainEntity.stable_key)
+            )
+        ).all()
+        slots: list[ExpectedGPTSlot] = []
+        for entity, _expectation in rows:
+            metadata = entity.identity_metadata
+            raw_sizes = metadata.get("sizes", [])
+            sizes = (
+                tuple(str(item)[:50] for item in raw_sizes[:50])
+                if isinstance(raw_sizes, list)
+                else ()
+            )
+            slots.append(
+                ExpectedGPTSlot(
+                    entity_id=entity.id,
+                    stable_key=entity.stable_key,
+                    ad_unit_path=(
+                        str(metadata["ad_unit_path"])[:500]
+                        if metadata.get("ad_unit_path") is not None
+                        else None
+                    ),
+                    dom_element_id=(
+                        str(metadata["dom_element_id"])[:300]
+                        if metadata.get("dom_element_id") is not None
+                        else None
+                    ),
+                    sizes=sizes,
+                )
+            )
+        return tuple(slots)
 
     @staticmethod
     def _target_statement(tenant_id: uuid.UUID, checkpoint_run_id: uuid.UUID) -> Any:
@@ -149,22 +215,30 @@ class CheckpointRepository:
             row = (
                 await session.execute(self._target_statement(tenant_id, checkpoint_run_id))
             ).one_or_none()
-            return (
-                self._target_from_row(
-                    cast(
-                        tuple[
-                            CheckpointRun,
-                            MonitoredUrl,
-                            Site,
-                            BrowserScenario,
-                            InteractionProfile | None,
-                            Template,
-                        ],
-                        row._tuple(),
-                    )
-                )
-                if row is not None
-                else None
+            if row is None:
+                return None
+            typed_row = cast(
+                tuple[
+                    CheckpointRun,
+                    MonitoredUrl,
+                    Site,
+                    BrowserScenario,
+                    InteractionProfile | None,
+                    Template,
+                ],
+                row._tuple(),
+            )
+            run = typed_row[0]
+            expected = await self._expected_gpt_slots(
+                session,
+                tenant_id=tenant_id,
+                site_id=run.site_id,
+                template_id=run.template_id,
+                effective_at=run.scheduled_for,
+            )
+            return self._target_from_row(
+                typed_row,
+                expected,
             )
 
     async def begin_attempt(
@@ -216,18 +290,27 @@ class CheckpointRepository:
                     metadata_json={},
                 )
             )
+            typed_row = cast(
+                tuple[
+                    CheckpointRun,
+                    MonitoredUrl,
+                    Site,
+                    BrowserScenario,
+                    InteractionProfile | None,
+                    Template,
+                ],
+                row._tuple(),
+            )
+            expected = await self._expected_gpt_slots(
+                session,
+                tenant_id=tenant_id,
+                site_id=run.site_id,
+                template_id=run.template_id,
+                effective_at=run.scheduled_for,
+            )
             return self._target_from_row(
-                cast(
-                    tuple[
-                        CheckpointRun,
-                        MonitoredUrl,
-                        Site,
-                        BrowserScenario,
-                        InteractionProfile | None,
-                        Template,
-                    ],
-                    row._tuple(),
-                )
+                typed_row,
+                expected,
             )
 
     async def record_retryable_failure(
@@ -335,6 +418,7 @@ class CheckpointRepository:
                     )
                 )
             await self._persist_normalized_observations(session, target, evidence)
+            await self._persist_gpt_observations(session, target, evidence)
             attempt.status = evidence.status
             attempt.completed_at = evidence.completed_at
             attempt.failure_class = evidence.failure_class
@@ -436,6 +520,67 @@ class CheckpointRepository:
                     collector_version=normalizer_version,
                 )
                 .on_conflict_do_nothing(index_elements=["checkpoint_run_id", "fingerprint"])
+            )
+
+    @staticmethod
+    async def _persist_gpt_observations(
+        session: AsyncSession,
+        target: BrowserTarget,
+        evidence: BrowserEvidence,
+    ) -> None:
+        for slot in evidence.gpt_slots:
+            last_seen = evidence.completed_at if slot.present else DomainEntity.last_seen_at
+            entity_id = (
+                await session.execute(
+                    insert(DomainEntity)
+                    .values(
+                        id=uuid.uuid4(),
+                        tenant_id=target.tenant_id,
+                        site_id=target.site_id,
+                        entity_kind="GPT_SLOT",
+                        stable_key=slot.stable_key,
+                        first_seen_at=evidence.completed_at,
+                        last_seen_at=evidence.completed_at if slot.present else None,
+                        source_system="GPT",
+                        identity_metadata={
+                            "ad_unit_path": slot.ad_unit_path,
+                            "dom_element_id": slot.dom_element_id,
+                            "sizes": list(slot.sizes),
+                        },
+                    )
+                    .on_conflict_do_update(
+                        index_elements=["site_id", "entity_kind", "stable_key"],
+                        set_={"last_seen_at": last_seen},
+                    )
+                    .returning(DomainEntity.id)
+                )
+            ).scalar_one()
+            await session.execute(
+                insert(GPTSlotObservation)
+                .values(
+                    id=uuid.uuid4(),
+                    tenant_id=target.tenant_id,
+                    site_id=target.site_id,
+                    checkpoint_run_id=target.checkpoint_run_id,
+                    slot_entity_id=entity_id,
+                    dom_element_id=slot.dom_element_id,
+                    ad_unit_path=slot.ad_unit_path,
+                    sizes=list(slot.sizes),
+                    expected=slot.expected,
+                    present=slot.present,
+                    defined_at_ms=slot.defined_at_ms,
+                    requested_at_ms=slot.requested_at_ms,
+                    response_at_ms=slot.response_at_ms,
+                    render_ended_at_ms=slot.render_ended_at_ms,
+                    onload_at_ms=slot.onload_at_ms,
+                    viewable_at_ms=slot.viewable_at_ms,
+                    is_empty=slot.is_empty,
+                    creative_id=slot.creative_id,
+                    line_item_id=slot.line_item_id,
+                    request_count=slot.request_count,
+                    collector_version="gpt-b4-v1",
+                )
+                .on_conflict_do_nothing(index_elements=["checkpoint_run_id", "slot_entity_id"])
             )
 
     @staticmethod
@@ -566,6 +711,28 @@ class CheckpointRepository:
                         select(JavaScriptErrorObservation).where(
                             JavaScriptErrorObservation.tenant_id == tenant_id,
                             JavaScriptErrorObservation.checkpoint_run_id == checkpoint_run_id,
+                        )
+                    )
+                ).all()
+            )
+
+    async def gpt_slots_for_tenant(
+        self, *, tenant_id: uuid.UUID, checkpoint_run_id: uuid.UUID
+    ) -> list[GPTSlotObservation]:
+        async with self._session_factory() as session:
+            return list(
+                (
+                    await session.scalars(
+                        select(GPTSlotObservation)
+                        .join(DomainEntity, DomainEntity.id == GPTSlotObservation.slot_entity_id)
+                        .where(
+                            GPTSlotObservation.tenant_id == tenant_id,
+                            GPTSlotObservation.checkpoint_run_id == checkpoint_run_id,
+                            DomainEntity.tenant_id == tenant_id,
+                            DomainEntity.site_id == GPTSlotObservation.site_id,
+                        )
+                        .order_by(
+                            GPTSlotObservation.ad_unit_path, GPTSlotObservation.dom_element_id
                         )
                     )
                 ).all()
@@ -721,7 +888,7 @@ class EvidencePersister:
     ) -> dict[str, Any]:
         comparison = compare_normalized_state(evidence.normalized_state, previous_manifest)
         return {
-            "schema": "browser-checkpoint-manifest/v3",
+            "schema": "browser-checkpoint-manifest/v4",
             "checkpoint_run_id": str(target.checkpoint_run_id),
             "tenant_id": str(target.tenant_id),
             "site_id": str(target.site_id),
@@ -764,6 +931,11 @@ class EvidencePersister:
                 ),
             },
             "normalized_state": evidence.normalized_state,
+            "gpt": {
+                "present": evidence.gpt_present,
+                "version": evidence.gpt_version,
+                "slots": [asdict(item) for item in evidence.gpt_slots],
+            },
             "comparison": comparison,
             "started_at": evidence.started_at.isoformat(),
             "completed_at": evidence.completed_at.isoformat(),

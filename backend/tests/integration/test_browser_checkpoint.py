@@ -8,6 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import pytest
 from sqlalchemy import delete, select
 
+from app.browser.gpt import gpt_stable_key
 from app.browser.models import (
     Artifact,
     BrowserScenario,
@@ -17,12 +18,14 @@ from app.browser.models import (
     CollectorRun,
     DomainEntity,
     EntityObservation,
+    GPTSlotObservation,
     InteractionProfile,
     JavaScriptErrorObservation,
     MonitoredUrl,
     Publisher,
     Site,
     Template,
+    TemplateExpectedEntity,
 )
 from app.browser.persistence import CheckpointRepository
 from app.browser.scheduling import CheckpointSchedulingService, resolve_six_hour_window
@@ -45,6 +48,9 @@ class FixtureHandler(BaseHTTPRequestHandler):
         if self.path.startswith("/site-error"):
             self._send(503, "text/html", b"<html><body>fixture unavailable</body></html>")
             return
+        if self.path.startswith("/gpt"):
+            self._send(200, "text/html", _gpt_fixture_html())
+            return
         html = b"""<!doctype html><html><body><h1>Fixture</h1>
         <script src="/asset.js?token=manifest-secret"></script>
         <script>console.error('fixture console');
@@ -63,6 +69,67 @@ class FixtureHandler(BaseHTTPRequestHandler):
 
     def log_message(self, format: str, *args: object) -> None:
         del format, args
+
+
+def _gpt_fixture_html() -> bytes:
+    return b"""<!doctype html><html><body style="height:4000px">
+    <h1>Deterministic GPT fixture</h1>
+    <div id="eager-slot"></div><div id="lazy-slot" style="margin-top:2500px"></div>
+    <script>
+    (() => {
+      const listeners = {};
+      const makeSlot = (path, element, sizes) => ({
+        getAdUnitPath: () => path,
+        getSlotElementId: () => element,
+        getSizes: () => sizes.map(([width, height]) => ({
+          getWidth: () => width, getHeight: () => height
+        }))
+      });
+      const eager = makeSlot('/123/article/eager', 'eager-slot', [[300, 250]]);
+      const lazy = makeSlot('/123/article/lazy', 'lazy-slot', [[728, 90]]);
+      const pubads = {
+        addEventListener: (name, callback) => {
+          (listeners[name] ||= []).push(callback);
+        },
+        getSlots: () => [eager, lazy]
+      };
+      const emit = (name, slot, extra = {}) => {
+        for (const callback of listeners[name] || []) callback({slot, ...extra});
+      };
+      const cmd = [];
+      window.googletag = {
+        cmd,
+        getVersion: () => 'fixture-gpt-1',
+        pubads: () => pubads
+      };
+      const pump = setInterval(() => {
+        while (cmd.length) cmd.shift()();
+        if (listeners.slotRequested) clearInterval(pump);
+      }, 10);
+      setTimeout(() => {
+        emit('slotRequested', eager);
+        emit('slotRequested', eager);
+        emit('slotResponseReceived', eager);
+        emit('slotRenderEnded', eager, {
+          isEmpty: false, creativeId: 'creative-eager', lineItemId: 'line-eager'
+        });
+        emit('slotOnload', eager);
+        emit('impressionViewable', eager);
+      }, 100);
+      let lazyRequested = false;
+      window.addEventListener('scroll', () => {
+        if (lazyRequested || window.scrollY <= 0) return;
+        lazyRequested = true;
+        emit('slotRequested', lazy);
+        emit('slotResponseReceived', lazy);
+        emit('slotRenderEnded', lazy, {
+          isEmpty: false, creativeId: 'creative-lazy', lineItemId: 'line-lazy'
+        });
+        emit('slotOnload', lazy);
+        emit('impressionViewable', lazy);
+      });
+    })();
+    </script></body></html>"""
 
 
 @pytest.fixture
@@ -96,8 +163,10 @@ async def _cleanup_tenant(tenant_id: uuid.UUID, storage: S3Storage) -> None:
             CollectorRun,
             EntityObservation,
             JavaScriptErrorObservation,
+            GPTSlotObservation,
             CheckpointAttempt,
             CheckpointRun,
+            TemplateExpectedEntity,
             DomainEntity,
             MonitoredUrl,
             CheckpointWindow,
@@ -110,6 +179,137 @@ async def _cleanup_tenant(tenant_id: uuid.UUID, storage: S3Storage) -> None:
         ):
             await session.execute(delete(model).where(model.tenant_id == tenant_id))
         await session.execute(delete(Tenant).where(Tenant.id == tenant_id))
+
+
+async def test_gpt_lifecycle_persists_eager_lazy_and_expected_absent_slots(
+    fixture_site: str,
+) -> None:
+    settings = get_settings()
+    assert settings.browser_allow_private_networks
+    factory = get_session_factory()
+    queue = JobQueue(factory)
+    service = CheckpointService(factory, queue, settings)
+    repository = CheckpointRepository(factory)
+    storage = S3Storage(settings)
+    registered = await service.register_and_enqueue(
+        tenant_slug=f"gpt-{uuid.uuid4().hex}",
+        tenant_name="GPT Browser Tenant",
+        publisher_name="GPT Publisher",
+        site_name="GPT Site",
+        url=f"{fixture_site}/gpt",
+    )
+    paths = ("/123/article/eager", "/123/article/lazy", "/123/article/missing")
+    try:
+        async with factory() as session, session.begin():
+            run = await session.get(CheckpointRun, registered.checkpoint_run_id)
+            assert run is not None
+            scenario = await session.scalar(
+                select(BrowserScenario).where(
+                    BrowserScenario.tenant_id == registered.tenant_id,
+                    BrowserScenario.site_id == run.site_id,
+                    BrowserScenario.code == "core_desktop_v2",
+                )
+            )
+            assert scenario is not None
+            run.scenario_id = scenario.id
+            for path in paths:
+                entity = DomainEntity(
+                    id=uuid.uuid4(),
+                    tenant_id=registered.tenant_id,
+                    site_id=run.site_id,
+                    entity_kind="GPT_SLOT",
+                    stable_key=gpt_stable_key(path, None) or "",
+                    source_system="CONFIG",
+                    first_seen_at=run.scheduled_for,
+                    identity_metadata={
+                        "ad_unit_path": path,
+                        "sizes": ["300x250" if path.endswith("eager") else "728x90"],
+                    },
+                )
+                session.add(entity)
+                session.add(
+                    TemplateExpectedEntity(
+                        id=uuid.uuid4(),
+                        tenant_id=registered.tenant_id,
+                        site_id=run.site_id,
+                        template_id=run.template_id,
+                        entity_id=entity.id,
+                        expectation_type="EXPECTED",
+                        valid_from=run.scheduled_for - timedelta(seconds=1),
+                        source="TEST_CONFIGURATION",
+                        confidence="HIGH",
+                    )
+                )
+
+        await run_browser_worker(once=True)
+
+        run = await repository.get_for_tenant(
+            tenant_id=registered.tenant_id,
+            checkpoint_run_id=registered.checkpoint_run_id,
+        )
+        assert run is not None
+        assert run.status == "COMPLETE"
+        assert run.collector_bundle_version == "b4-v1"
+        assert run.manifest["schema"] == "browser-checkpoint-manifest/v4"
+        assert run.manifest["gpt"]["present"] is True
+        assert run.manifest["gpt"]["version"] == "fixture-gpt-1"
+
+        slots = await repository.gpt_slots_for_tenant(
+            tenant_id=registered.tenant_id,
+            checkpoint_run_id=registered.checkpoint_run_id,
+        )
+        assert len(slots) == 3
+        by_path = {slot.ad_unit_path: slot for slot in slots}
+        eager = by_path["/123/article/eager"]
+        assert eager.expected and eager.present
+        assert eager.request_count == 2
+        assert eager.defined_at_ms is not None
+        assert eager.requested_at_ms is not None
+        assert eager.response_at_ms is not None
+        assert eager.render_ended_at_ms is not None
+        assert eager.onload_at_ms is not None
+        assert eager.viewable_at_ms is not None
+        assert eager.is_empty is False
+        assert eager.creative_id == "creative-eager"
+
+        lazy = by_path["/123/article/lazy"]
+        assert lazy.expected and lazy.present
+        assert lazy.defined_at_ms is not None
+        assert lazy.requested_at_ms is not None
+        assert lazy.requested_at_ms > lazy.defined_at_ms
+        assert lazy.viewable_at_ms is not None
+        assert lazy.request_count == 1
+
+        missing = by_path["/123/article/missing"]
+        assert missing.expected and not missing.present
+        assert missing.defined_at_ms is None
+        assert missing.requested_at_ms is None
+        assert missing.response_at_ms is None
+        assert missing.render_ended_at_ms is None
+        assert missing.onload_at_ms is None
+        assert missing.viewable_at_ms is None
+        assert missing.request_count == 0
+
+        assert (
+            await repository.gpt_slots_for_tenant(
+                tenant_id=uuid.uuid4(),
+                checkpoint_run_id=registered.checkpoint_run_id,
+            )
+            == []
+        )
+        async with factory() as session:
+            collector = await session.scalar(
+                select(CollectorRun).where(
+                    CollectorRun.checkpoint_run_id == registered.checkpoint_run_id,
+                    CollectorRun.collector_type == "GPT_LIFECYCLE",
+                )
+            )
+            assert collector is not None
+            assert collector.status == "OK"
+            assert collector.collector_version == "gpt-b4-v1"
+            assert collector.summary["expected_slot_count"] == 3
+    finally:
+        await _cleanup_tenant(registered.tenant_id, storage)
 
 
 async def test_real_browser_checkpoint_persists_evidence_and_site_error(
@@ -144,7 +344,7 @@ async def test_real_browser_checkpoint_persists_evidence_and_site_error(
         assert run.final_url == f"{fixture_site}/complete"
         assert run.playwright_version
         assert run.chromium_version
-        assert run.manifest["schema"] == "browser-checkpoint-manifest/v3"
+        assert run.manifest["schema"] == "browser-checkpoint-manifest/v4"
         assert run.manifest["normalized_state"]["dom"]["normalizer_version"] == "dom-b3-v1"
         assert "manifest-secret" not in str(run.manifest)
         assert "network-secret" not in str(run.manifest)
@@ -271,7 +471,7 @@ async def test_scheduler_produces_repeatable_desktop_and_mobile_runs(
                 ).all()
             )
             assert len(first_runs) == 2
-            assert {run.collector_bundle_version for run in first_runs} == {"b3-v1"}
+            assert {run.collector_bundle_version for run in first_runs} == {"b4-v1"}
             first_run_ids = {run.id for run in first_runs}
             scheduled_jobs = list(
                 (

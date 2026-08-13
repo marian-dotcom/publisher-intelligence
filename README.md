@@ -33,7 +33,7 @@ make scheduler
 make frontend
 ```
 
-## Template-aware browser checkpoints (B3)
+## GPT-aware browser checkpoints (B4)
 
 Register one explicit public pilot URL. The command also enqueues one immediate legacy B1
 diagnostic run so an operator can verify the configuration without waiting for the next window:
@@ -66,6 +66,15 @@ derives a deterministic structural DOM artifact, stable script/network dependenc
 normalized JavaScript-error fingerprints. Article copy, timestamps, random IDs, auction IDs,
 cache-busters, and URL query values are excluded from the normalized comparison state.
 
+B4 installs a passive, bounded GPT observer before navigation. It inventories publisher-defined
+slots and preserves the independently observed `defined`, `slotRequested`,
+`slotResponseReceived`, `slotRenderEnded`, `slotOnload`, and `impressionViewable` stages. Existing
+deterministic scroll steps run before the final snapshot, so lazy slots remain distinguishable from
+eager slots. Template-configured expectations are merged with discovered slots; an expected slot
+that is absent is stored with `present=false` and null lifecycle timestamps rather than invented
+zeros. GPT absence and non-observability are explicit collector outcomes and do not erase B1–B3
+evidence.
+
 Comparison prefers the previous run for the same URL and exact scenario. When an operator retires
 one representative URL and creates another under the same template, lineage may fall back to the
 same tenant/site/template and exact scenario. The manifest records whether comparison used the
@@ -76,12 +85,15 @@ PostgreSQL stores authoritative metadata; private S3-compatible storage holds vi
 screenshots, raw DOM, long-lived normalized structural DOM, manifests, and their hashes. Stable
 script/network entities and append-only observations live in PostgreSQL. No public artifact URLs
 are created, and historical raw checkpoints are never rewritten when a normalizer changes.
+Template expectations and specialized append-only GPT slot observations also live in PostgreSQL;
+creative and line-item identifiers are observation details and never stable identity.
 
 `BROWSER_ALLOW_PRIVATE_NETWORKS` defaults to `false` and must remain false outside controlled
 tests. The application validates DNS destinations and intercepts browser requests, but production
 deployment still requires network-level egress enforcement to cover DNS rebinding and browser
-runtime failures. B3 does not perform consent actions, authenticate, bypass paywalls, click ads,
-submit forms, run stealth, discover templates automatically, or make event/incident/AI judgments.
+runtime failures. B4 does not configure, display, refresh, or click ads; perform consent actions;
+collect targeting; authenticate; bypass paywalls; run stealth; discover templates automatically;
+or make event/incident/AI judgments.
 
 Apply or inspect migrations independently:
 
@@ -115,6 +127,7 @@ If Docker is unavailable, run the local unit/lint/build checks and rely on GitHu
 
 ## Repository boundaries
 
-EP-004 adds template-aware, versioned normalized browser evidence and bounded explainable
-comparison output. No provider connector, event promotion, alert, incident, LLM, consent action,
-GPT lifecycle, or production authentication behavior is implemented here.
+EP-005 adds passive GPT slot discovery, configured expectations, and versioned lifecycle evidence
+on top of the B1–B3 checkpoint pipeline. No provider connector, event promotion, alert, incident,
+LLM, consent action, Prebid/CMP/video collector, or production authentication behavior is
+implemented here.

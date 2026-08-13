@@ -16,6 +16,7 @@ from app.browser.contracts import (
     CollectorStatus,
     NormalizedEntityObservation,
 )
+from app.browser.gpt import GPTCollection, GPTLifecycleCollector
 from app.browser.interactions import execute_interaction_steps
 from app.browser.normalization import (
     normalize_dom,
@@ -28,7 +29,7 @@ from app.browser.normalization import (
 from app.browser.security import BrowserBlockedError, BrowserNetworkGuard, sanitize_url
 from app.config.settings import Settings
 
-COLLECTOR_BUNDLE_VERSION = "b3-v1"
+COLLECTOR_BUNDLE_VERSION = "b4-v1"
 
 
 class BrowserRunner:
@@ -78,6 +79,8 @@ class BrowserRunner:
             max_requests=self._settings.browser_max_requests,
         )
         collector = BrowserObservationCollector(target.canonical_domain)
+        gpt_collector = GPTLifecycleCollector()
+        gpt_collection: GPTCollection | None = None
         artifacts: list[ArtifactContent] = []
         actions: list[dict[str, object]] = []
         browser: Browser | None = None
@@ -111,6 +114,7 @@ class BrowserRunner:
                 await context.route("**/*", guard.route)
                 page = await context.new_page()
                 collector.attach(page)
+                await gpt_collector.attach(page)
                 response = await page.goto(
                     target.url,
                     wait_until="domcontentloaded",
@@ -163,6 +167,8 @@ class BrowserRunner:
                         ),
                     )
                 )
+                gpt_collection = await gpt_collector.collect(page, target.expected_gpt_slots)
+                collector_results.append(gpt_collection.result)
                 raw_dom = (await page.content()).encode("utf-8")
                 artifacts.append(
                     ArtifactContent(
@@ -294,7 +300,12 @@ class BrowserRunner:
                 actions.append({"type": "screenshot", "kind": "full_page", "order": "last"})
                 if http_status is not None and http_status >= 400:
                     status = "SITE_ERROR"
-                elif script_inventory_failed or interaction.failed or normalization_failed:
+                elif (
+                    script_inventory_failed
+                    or interaction.failed
+                    or normalization_failed
+                    or gpt_collection.result.status == "ERROR"
+                ):
                     status = "PARTIAL"
                 else:
                     status = "COMPLETE"
@@ -317,6 +328,7 @@ class BrowserRunner:
                     collectors=collector_results,
                     normalized_state=normalized_state,
                     normalized_entities=normalized_entities,
+                    gpt_collection=gpt_collection,
                 )
         except BrowserBlockedError as error:
             status = "BLOCKED"
@@ -385,6 +397,7 @@ class BrowserRunner:
             actions=actions,
             artifacts=artifacts,
             collectors=collector_results,
+            gpt_collection=gpt_collection,
             failure_class=failure_class,
             failure_message=(failure_message or "")[:1_000] or None,
         )
@@ -408,6 +421,7 @@ class BrowserRunner:
         collectors: list[CollectorResult],
         normalized_state: dict[str, object] | None = None,
         normalized_entities: list[NormalizedEntityObservation] | None = None,
+        gpt_collection: GPTCollection | None = None,
         failure_class: str | None = None,
         failure_message: str | None = None,
     ) -> BrowserEvidence:
@@ -435,6 +449,9 @@ class BrowserRunner:
             collectors=collectors,
             normalized_state=normalized_state or {},
             normalized_entities=normalized_entities or [],
+            gpt_present=gpt_collection.present if gpt_collection is not None else False,
+            gpt_version=gpt_collection.version if gpt_collection is not None else None,
+            gpt_slots=gpt_collection.slots if gpt_collection is not None else [],
             failure_class=failure_class,
             failure_message=failure_message,
         )

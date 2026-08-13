@@ -235,7 +235,7 @@ class CheckpointRun(Base):
     playwright_version: Mapped[str | None] = mapped_column(String(50))
     chromium_version: Mapped[str | None] = mapped_column(String(100))
     collector_bundle_version: Mapped[str] = mapped_column(
-        String(50), nullable=False, default="b3-v1"
+        String(50), nullable=False, default="b4-v1"
     )
     environment: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     limitations: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
@@ -377,6 +377,94 @@ class EntityObservation(Base):
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     state_hash: Mapped[str | None] = mapped_column(String(64))
     state: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    collector_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
+class TemplateExpectedEntity(Base):
+    __tablename__ = "template_expected_entities"
+    __table_args__ = (
+        UniqueConstraint(
+            "template_id",
+            "entity_id",
+            "expectation_type",
+            "valid_from",
+            name="uq_template_expected_entity_version",
+        ),
+        CheckConstraint(
+            "valid_to IS NULL OR valid_to > valid_from",
+            name="ck_template_expected_entity_validity",
+        ),
+        Index(
+            "ix_template_expected_entities_tenant_template",
+            "tenant_id",
+            "template_id",
+            "valid_from",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    site_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sites.id", ondelete="RESTRICT"), nullable=False
+    )
+    template_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("templates.id", ondelete="RESTRICT"), nullable=False
+    )
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("domain_entities.id", ondelete="RESTRICT"), nullable=False
+    )
+    expectation_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    valid_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source: Mapped[str] = mapped_column(String(100), nullable=False)
+    confidence: Mapped[str] = mapped_column(String(20), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
+class GPTSlotObservation(Base):
+    __tablename__ = "gpt_slot_observations"
+    __table_args__ = (
+        UniqueConstraint("checkpoint_run_id", "slot_entity_id", name="uq_gpt_slot_observation_run"),
+        CheckConstraint("request_count >= 0", name="ck_gpt_slot_request_count"),
+        Index("ix_gpt_slot_observations_tenant_checkpoint", "tenant_id", "checkpoint_run_id"),
+        Index("ix_gpt_slot_observations_site_created", "site_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    site_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sites.id", ondelete="RESTRICT"), nullable=False
+    )
+    checkpoint_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("checkpoint_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    slot_entity_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("domain_entities.id", ondelete="RESTRICT"), nullable=False
+    )
+    dom_element_id: Mapped[str | None] = mapped_column(String(300))
+    ad_unit_path: Mapped[str | None] = mapped_column(String(500))
+    sizes: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
+    expected: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    present: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    defined_at_ms: Mapped[int | None] = mapped_column(Integer)
+    requested_at_ms: Mapped[int | None] = mapped_column(Integer)
+    response_at_ms: Mapped[int | None] = mapped_column(Integer)
+    render_ended_at_ms: Mapped[int | None] = mapped_column(Integer)
+    onload_at_ms: Mapped[int | None] = mapped_column(Integer)
+    viewable_at_ms: Mapped[int | None] = mapped_column(Integer)
+    is_empty: Mapped[bool | None] = mapped_column(Boolean)
+    creative_id: Mapped[str | None] = mapped_column(String(300))
+    line_item_id: Mapped[str | None] = mapped_column(String(300))
+    request_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     collector_version: Mapped[str] = mapped_column(String(50), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
