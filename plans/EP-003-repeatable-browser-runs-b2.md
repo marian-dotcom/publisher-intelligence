@@ -1,6 +1,6 @@
 # EP-003 — Repeatable Browser Runs B2
 
-**Status:** IN_PROGRESS  
+**Status:** COMPLETE
 **Owner:** Codex / Engineering  
 **Created:** 2026-08-14  
 **Updated:** 2026-08-14  
@@ -11,12 +11,12 @@
 ## Progress
 
 - [x] M0 — Inspect merged B1 and close the B2 contract
-- [ ] M1 — Add immutable interaction-profile and complete device-scenario configuration
-- [ ] M2 — Materialize idempotent six-hour windows and scheduled jobs
-- [ ] M3 — Execute frozen desktop/mobile profiles and deterministic interactions
-- [ ] M4 — Preserve comparable manifests and checkpoint-window lifecycle
-- [ ] M5 — Prove repeatability, scheduling, migration, security, and browser behavior
-- [ ] M6 — Complete documentation, final CI, and retrospective
+- [x] M1 — Add immutable interaction-profile and complete device-scenario configuration
+- [x] M2 — Materialize idempotent six-hour windows and scheduled jobs
+- [x] M3 — Execute frozen desktop/mobile profiles and deterministic interactions
+- [x] M4 — Preserve comparable manifests and checkpoint-window lifecycle
+- [x] M5 — Prove repeatability, scheduling, migration, security, and browser behavior
+- [x] M6 — Complete documentation, final CI, and retrospective
 
 ## 1. Purpose and User Outcome
 
@@ -209,7 +209,7 @@ git status --short
 git diff --check
 ```
 
-Expected observable result: this self-contained plan is `IN_PROGRESS` and implementation can resume
+Expected observable result: this self-contained plan was ready for implementation to resume
 without chat history.
 
 ### M1 — Immutable interaction profile and complete device scenarios
@@ -228,11 +228,11 @@ Implementation:
 
 Acceptance:
 
-- [ ] old B1 checkpoints still resolve their original scenario unchanged;
-- [ ] active desktop/mobile scenarios contain complete frozen device provenance;
-- [ ] interaction profile version or material device behavior cannot change in place;
-- [ ] tenant/site mismatch between scenario and interaction profile is rejected;
-- [ ] migration upgrade/downgrade/re-upgrade passes on a clean database.
+- [x] old B1 checkpoints still resolve their original scenario unchanged;
+- [x] active desktop/mobile scenarios contain complete frozen device provenance;
+- [x] interaction profile version or material device behavior cannot change in place;
+- [x] tenant/site mismatch between scenario and interaction profile is rejected;
+- [x] migration upgrade/downgrade/re-upgrade passes on a clean database.
 
 Validation:
 
@@ -259,12 +259,12 @@ Implementation:
 
 Acceptance:
 
-- [ ] one active URL produces exactly desktop + mobile runs in a due window;
-- [ ] repeated/concurrent ticks create no duplicates;
-- [ ] inactive URLs/sites/scenarios are skipped;
-- [ ] scheduled timestamps remain correct across `Europe/Bucharest` DST transitions;
-- [ ] jobs are spread within the window and contain identifiers only;
-- [ ] a scheduler restart can enqueue an existing PENDING run whose job was never created.
+- [x] one active URL produces exactly desktop + mobile runs in a due window;
+- [x] repeated/concurrent ticks create no duplicates;
+- [x] inactive URLs/sites/scenarios are skipped;
+- [x] scheduled timestamps remain correct across `Europe/Bucharest` DST transitions;
+- [x] jobs are spread within the window and contain identifiers only;
+- [x] a scheduler restart can enqueue an existing PENDING run whose job was never created.
 
 Validation:
 
@@ -292,12 +292,12 @@ Implementation:
 
 Acceptance:
 
-- [ ] desktop and mobile fixture runs expose distinct stored environment provenance;
-- [ ] repeated execution of the same fixture/profile yields the same ordered action contract;
-- [ ] scroll steps record target and actual values without random/human-like behavior;
-- [ ] an unsupported or malformed step fails safely before arbitrary page execution;
-- [ ] action failure yields explicit partial/timeout evidence without discarding prior artifacts;
-- [ ] no action can click an ad, submit a form, or execute arbitrary JavaScript from configuration.
+- [x] desktop and mobile fixture runs expose distinct stored environment provenance;
+- [x] repeated execution of the same fixture/profile yields the same ordered action contract;
+- [x] scroll steps record target and actual values without random/human-like behavior;
+- [x] an unsupported or malformed step fails safely before arbitrary page execution;
+- [x] action failure yields explicit partial/timeout evidence without discarding prior artifacts;
+- [x] no action can click an ad, submit a form, or execute arbitrary JavaScript from configuration.
 
 Validation:
 
@@ -324,12 +324,12 @@ Implementation:
 
 Acceptance:
 
-- [ ] desktop never selects mobile as predecessor;
-- [ ] a new scenario version does not compare against the old observer definition;
-- [ ] predecessor selection is tenant-scoped and ordered by scheduled/actual time deterministically;
-- [ ] window `COMPLETE` means all child observations finalized, not that every page was healthy;
-- [ ] mixed finalized/non-finalized child states yield an explicit operational window state;
-- [ ] finalization cannot overwrite an existing completed run.
+- [x] desktop never selects mobile as predecessor;
+- [x] a new scenario version does not compare against the old observer definition;
+- [x] predecessor selection is tenant-scoped and ordered by scheduled/actual time deterministically;
+- [x] window `COMPLETE` means all child observations finalized, not that every page was healthy;
+- [x] mixed finalized/non-finalized child states yield an explicit operational window state;
+- [x] finalization cannot overwrite an existing completed run.
 
 Validation:
 
@@ -354,13 +354,13 @@ Implementation:
 
 Acceptance:
 
-- [ ] two windows produce four immutable runs and no duplicates;
-- [ ] all artifact hashes and manifest references resolve;
-- [ ] SSRF and private-subresource protections remain green during interaction;
-- [ ] cross-tenant scheduling, scenario, run, predecessor, and artifact access is denied;
-- [ ] site 503 remains `SITE_ERROR` and is not retried away;
-- [ ] browser/runtime failure still preserves attempts and retries at most once;
-- [ ] scheduled workload and action budgets remain bounded.
+- [x] two windows produce four immutable runs and no duplicates;
+- [x] all artifact hashes and manifest references resolve;
+- [x] SSRF and private-subresource protections remain green during interaction;
+- [x] cross-tenant scheduling, scenario, run, predecessor, and artifact access is denied;
+- [x] site 503 remains `SITE_ERROR` and is not retried away;
+- [x] browser/runtime failure still preserves attempts and retries at most once;
+- [x] scheduled workload and action budgets remain bounded.
 
 Validation:
 
@@ -388,11 +388,11 @@ Implementation:
 
 Acceptance:
 
-- [ ] docs distinguish scheduled monitoring from manual diagnostic enqueue;
-- [ ] docs state synthetic evidence and production network-egress limitations;
-- [ ] no temporary screenshots, profiles, traces, secrets, or generated build artifacts are committed;
-- [ ] all local supported checks and final GitHub Actions pass;
-- [ ] retrospective records deviations, limitations, and the exact next B3 step.
+- [x] docs distinguish scheduled monitoring from manual diagnostic enqueue;
+- [x] docs state synthetic evidence and production network-egress limitations;
+- [x] no temporary screenshots, profiles, traces, secrets, or generated build artifacts are committed;
+- [x] all local supported checks and final GitHub Actions pass;
+- [x] retrospective records deviations, limitations, and the exact next B3 step.
 
 Validation:
 
@@ -413,21 +413,21 @@ validation claims.
 
 ## 9. Final Acceptance Criteria
 
-- [ ] each active core URL receives exactly one desktop and one mobile run in each due six-hour
+- [x] each active core URL receives exactly one desktop and one mobile run in each due six-hour
   site-local window;
-- [ ] repeated or concurrent scheduler ticks are idempotent;
-- [ ] execution is staggered and bounded rather than bursty;
-- [ ] scenario and interaction definitions are immutable/versioned and fully represented in
+- [x] repeated or concurrent scheduler ticks are idempotent;
+- [x] execution is staggered and bounded rather than bursty;
+- [x] scenario and interaction definitions are immutable/versioned and fully represented in
   checkpoint provenance;
-- [ ] deterministic actions are recorded in order with target/actual state and no arbitrary code;
-- [ ] initial viewport evidence precedes interaction and final full-page capture remains last;
-- [ ] two same-URL/same-scenario runs form a valid comparison lineage;
-- [ ] different device/scenario versions never become silent comparators;
-- [ ] finalized evidence, artifact hashes, attempt history, and tenant ownership remain intact;
-- [ ] window status describes observer completion separately from publisher health;
-- [ ] site/browser/timeout/blocked/partial/complete semantics remain distinct;
-- [ ] no consent, ad clicking, stealth, authentication, event, incident, or AI scope is introduced;
-- [ ] migration, local supported checks, and authoritative GitHub Actions pass.
+- [x] deterministic actions are recorded in order with target/actual state and no arbitrary code;
+- [x] initial viewport evidence precedes interaction and final full-page capture remains last;
+- [x] two same-URL/same-scenario runs form a valid comparison lineage;
+- [x] different device/scenario versions never become silent comparators;
+- [x] finalized evidence, artifact hashes, attempt history, and tenant ownership remain intact;
+- [x] window status describes observer completion separately from publisher health;
+- [x] site/browser/timeout/blocked/partial/complete semantics remain distinct;
+- [x] no consent, ad clicking, stealth, authentication, event, incident, or AI scope is introduced;
+- [x] migration, local supported checks, and authoritative GitHub Actions pass.
 
 ## 10. Final Validation
 
@@ -607,6 +607,10 @@ clicking would expand security and product scope.
   interactions; adding another ad-hoc CLI run would not satisfy the six-hour contract.
 - Existing `core_desktop_v1` has already produced evidence without interaction steps, so extending
   it in place would corrupt comparison semantics.
+- PostgreSQL rejects an unscoped `FOR UPDATE` when the target query includes the nullable side of
+  the interaction-profile outer join. Locking only `checkpoint_runs` preserves fencing semantics.
+- Integration fixtures must derive due windows from the current instant: a fixed historic window
+  correctly excludes a newly registered monitored URL whose `valid_from` is later.
 
 ## 20. Progress Log
 
@@ -637,9 +641,37 @@ Local supported validation:
 - secret scan and `git diff --check`: passed.
 
 Docker is not installed in this runtime, so clean PostgreSQL migration, MinIO persistence, and real
-Chromium repeatability tests are not claimed locally. Those remain the next authoritative GitHub
-Actions validation step before M1–M5 acceptance boxes are closed.
+Chromium repeatability tests were not claimed locally. The following authoritative GitHub Actions
+run supplied that coverage before M1–M5 acceptance was closed.
+
+### 2026-08-14 — M5–M6 complete; authoritative CI green
+
+GitHub Actions CI run #29 completed successfully for commit
+`0ee80879c9ae1913c19fe2353815856ad79845f6`. The backend job installed Chromium, applied the full
+Alembic chain, started PostgreSQL and MinIO, passed 38 unit tests and all 12 integration tests, and
+completed scheduler/worker smoke commands. Frontend lint, typecheck, Vitest, and production build
+passed, as did repository secret scanning, Compose validation, and diff hygiene.
+
+Two CI-only defects were corrected without expanding scope: the checkpoint attempt query now locks
+only its primary `checkpoint_runs` row when loading an optional interaction profile, and the
+repeatability fixture derives its two consecutive six-hour windows from the current UTC instant.
+Both corrections retain the intended production contracts and are covered by the green real-
+infrastructure integration suite.
 
 ## 21. Final Outcome / Retrospective
 
-To be completed after final validation.
+EP-003 delivers the B2 product proof: each active monitored URL can be materialized idempotently as
+one frozen desktop and one frozen mobile observation per site-local six-hour window. Runs execute a
+bounded, versioned interaction profile, retain exact device/action provenance, summarize their
+window lifecycle, and expose only exact-scenario predecessor lineage for the future diff stage.
+
+The implementation deliberately stops before B3 interpretation. It does not normalize DOM or
+network evidence, compute semantic differences, create events/incidents, interact with consent
+controls, or add AI conclusions. Historic B1 evidence remains readable and is never silently
+treated as comparable with the new observer definitions.
+
+Validation is complete for the supported local checks and the authoritative GitHub environment.
+The remaining operational limitation is unchanged: application request interception is not a
+substitute for production network-level egress enforcement against DNS rebinding. B3 should next
+add stable DOM/network normalization and explainable comparison output on top of the exact lineage
+created here, without changing B2 observer identities in place.
