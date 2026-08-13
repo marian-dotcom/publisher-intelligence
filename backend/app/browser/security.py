@@ -68,7 +68,8 @@ def _parse_web_url(url: str) -> tuple[SplitResult, str]:
     return parts, canonical_hostname(parts.hostname)
 
 
-@dataclass(slots=True)
+# Playwright caches a wrapper attribute on bound route-handler instances.
+@dataclass
 class BrowserNetworkGuard:
     canonical_domain: str
     allow_private_networks: bool

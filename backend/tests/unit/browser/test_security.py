@@ -15,6 +15,18 @@ def test_sanitize_url_removes_credentials_query_and_fragment() -> None:
     assert sanitize_url("https://example.com:invalid/path") == "[INVALID_URL]"
 
 
+def test_guard_supports_playwright_bound_handler_cache() -> None:
+    guard = BrowserNetworkGuard(
+        canonical_domain="example.com",
+        allow_private_networks=False,
+        max_requests=10,
+    )
+
+    guard.__dict__["_playwright_handler_wrapper"] = object()
+
+    assert "_playwright_handler_wrapper" in guard.__dict__
+
+
 @pytest.mark.parametrize(
     "url",
     [
