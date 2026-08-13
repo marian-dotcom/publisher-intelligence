@@ -151,7 +151,9 @@ class CheckpointRepository:
     ) -> BrowserTarget:
         now = datetime.now(UTC)
         async with self._session_factory() as session, session.begin():
-            statement = self._target_statement(tenant_id, checkpoint_run_id).with_for_update()
+            statement = self._target_statement(tenant_id, checkpoint_run_id).with_for_update(
+                of=CheckpointRun
+            )
             row = (await session.execute(statement)).one_or_none()
             if row is None:
                 raise CheckpointStateError("checkpoint does not belong to the job tenant")
