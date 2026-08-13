@@ -83,6 +83,7 @@ async def test_manifest_is_uploaded_last_and_finalized_after_objects() -> None:
         "RAW_DOM",
         "MANIFEST",
     ]
-    assert manifest["schema"] == "browser-checkpoint-manifest/v3"
+    assert manifest["schema"] == "browser-checkpoint-manifest/v4"
+    assert manifest["gpt"] == {"present": False, "version": None, "slots": []}
     assert manifest["comparison"]["status"] == "NOT_COMPARABLE"
     assert "secret" not in str(manifest)

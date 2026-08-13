@@ -39,12 +39,14 @@ async def test_schema_is_minimal_and_rejects_cancelled_status() -> None:
             "collector_runs",
             "domain_entities",
             "entity_observations",
+            "gpt_slot_observations",
             "jobs",
             "js_error_observations",
             "monitored_urls",
             "publishers",
             "sites",
             "templates",
+            "template_expected_entities",
             "tenants",
         }
         constraints = (

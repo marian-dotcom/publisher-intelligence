@@ -24,6 +24,15 @@ class InteractionStep:
 
 
 @dataclass(frozen=True, slots=True)
+class ExpectedGPTSlot:
+    entity_id: uuid.UUID
+    stable_key: str
+    ad_unit_path: str | None = None
+    dom_element_id: str | None = None
+    sizes: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class BrowserTarget:
     checkpoint_run_id: uuid.UUID
     tenant_id: uuid.UUID
@@ -52,6 +61,7 @@ class BrowserTarget:
     template_family: str = "CUSTOM"
     template_fingerprint_version: str | None = None
     template_expected_features: dict[str, object] = field(default_factory=dict)
+    expected_gpt_slots: tuple[ExpectedGPTSlot, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,6 +94,26 @@ class NormalizedEntityObservation:
     stable_key: str
     state_hash: str
     state: dict[str, object]
+
+
+@dataclass(frozen=True, slots=True)
+class GPTSlotObservation:
+    stable_key: str
+    ad_unit_path: str | None
+    dom_element_id: str | None
+    sizes: tuple[str, ...]
+    expected: bool
+    present: bool
+    defined_at_ms: int | None = None
+    requested_at_ms: int | None = None
+    response_at_ms: int | None = None
+    render_ended_at_ms: int | None = None
+    onload_at_ms: int | None = None
+    viewable_at_ms: int | None = None
+    is_empty: bool | None = None
+    creative_id: str | None = None
+    line_item_id: str | None = None
+    request_count: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,6 +162,9 @@ class BrowserEvidence:
     collectors: list[CollectorResult] = field(default_factory=list)
     normalized_state: dict[str, object] = field(default_factory=dict)
     normalized_entities: list[NormalizedEntityObservation] = field(default_factory=list)
+    gpt_present: bool = False
+    gpt_version: str | None = None
+    gpt_slots: list[GPTSlotObservation] = field(default_factory=list)
     failure_class: str | None = None
     failure_message: str | None = None
 
