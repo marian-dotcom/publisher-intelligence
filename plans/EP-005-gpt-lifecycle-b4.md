@@ -1,6 +1,6 @@
 # EP-005 — GPT Lifecycle Evidence B4
 
-**Status:** IN_PROGRESS
+**Status:** COMPLETE
 **Owner:** Codex / Engineering
 **Created:** 2026-08-14
 **Updated:** 2026-08-14
@@ -14,8 +14,8 @@
 - [x] M1 — Add expected-slot and GPT observation schema
 - [x] M2 — Implement bounded pre-navigation GPT instrumentation
 - [x] M3 — Persist expected, discovered, eager, and lazy slot evidence
-- [ ] M4 — Prove lifecycle semantics, tenancy, and migration behavior
-- [ ] M5 — Complete documentation, final CI, and retrospective
+- [x] M4 — Prove lifecycle semantics, tenancy, and migration behavior
+- [x] M5 — Complete documentation, final CI, and retrospective
 
 ## 1. Purpose and User Outcome
 
@@ -172,7 +172,7 @@ Acceptance:
 - [x] expected slots are configuration-owned and time-valid;
 - [x] observations are unique per run/slot and all lifecycle stages are nullable;
 - [x] tenant/site ownership and query indexes are explicit;
-- [ ] upgrade/downgrade/re-upgrade succeeds in CI (local Docker is unavailable).
+- [x] upgrade/downgrade/re-upgrade succeeds in CI.
 
 ### M2 — Passive GPT observer
 
@@ -213,10 +213,10 @@ Acceptance:
 
 Acceptance:
 
-- [ ] controlled local fixtures prove all lifecycle distinctions without live Google services;
-- [ ] wrong-tenant GPT reads return no observations;
-- [ ] no lifecycle timestamp is synthesized as zero;
-- [ ] format, lint, typecheck, unit, integration, migration, and build checks pass.
+- [x] controlled local fixtures prove all lifecycle distinctions without live Google services;
+- [x] wrong-tenant GPT reads return no observations;
+- [x] no lifecycle timestamp is synthesized as zero;
+- [x] format, lint, typecheck, unit, integration, migration, and build checks pass.
 
 ### M5 — Completion
 
@@ -226,9 +226,9 @@ Acceptance:
 
 Acceptance:
 
-- [ ] plan status is `COMPLETE` only after local and remote validation pass;
-- [ ] PR description states scope, semantics, tests, limitations, and rollback path;
-- [ ] no unrelated changes or hidden blockers remain.
+- [x] plan status is `COMPLETE` only after local and remote validation pass;
+- [x] PR description states scope, semantics, tests, limitations, and rollback path;
+- [x] no unrelated changes or hidden blockers remain.
 
 ## 9. Validation Commands
 
@@ -279,8 +279,9 @@ corepack pnpm build
 - 2026-08-14 — repository secret scan and `git diff --check`: pass.
 - 2026-08-14 — integration collection: 13 tests collected, including the new real-browser GPT
   fixture; skipped locally as designed because `RUN_INTEGRATION=1` requires Docker services.
-- Pending — GitHub Actions PostgreSQL/MinIO/Chromium integration, migration round trip, frontend,
-  repository safety, and final remote CI.
+- 2026-08-14 — GitHub Actions CI run #41: backend, frontend, and repository-safety all pass.
+  Backend includes migration upgrade, downgrade/re-upgrade test, 51 unit tests, 13 integration
+  tests, real Chromium GPT fixture, scheduler smoke, and worker smoke.
 
 ## 13. Rollback
 
@@ -290,5 +291,5 @@ manifests remain intact. No destructive backfill is required.
 
 ## 14. Next Step
 
-Run frontend/repository checks, review the complete diff, publish the draft PR, then use GitHub
-Actions to validate PostgreSQL/MinIO/Chromium and the migration round trip.
+PR #6 is ready for human review. Mark it ready and merge only after the intended review/branch
+protection workflow is satisfied; no additional EP-005 engineering work remains.
