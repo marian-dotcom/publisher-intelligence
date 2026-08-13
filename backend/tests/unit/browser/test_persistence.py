@@ -29,7 +29,7 @@ class RecordingRepository:
     async def finalize(self, **kwargs: Any) -> None:
         self.finalized = kwargs
 
-    async def previous_comparable(self, **kwargs: Any) -> None:
+    async def previous_comparable_selection(self, **kwargs: Any) -> None:
         del kwargs
         return None
 
@@ -83,4 +83,6 @@ async def test_manifest_is_uploaded_last_and_finalized_after_objects() -> None:
         "RAW_DOM",
         "MANIFEST",
     ]
+    assert manifest["schema"] == "browser-checkpoint-manifest/v3"
+    assert manifest["comparison"]["status"] == "NOT_COMPARABLE"
     assert "secret" not in str(manifest)

@@ -15,7 +15,10 @@ from app.browser.models import (
     CheckpointRun,
     CheckpointWindow,
     CollectorRun,
+    DomainEntity,
+    EntityObservation,
     InteractionProfile,
+    JavaScriptErrorObservation,
     MonitoredUrl,
     Publisher,
     Site,
@@ -91,8 +94,11 @@ async def _cleanup_tenant(tenant_id: uuid.UUID, storage: S3Storage) -> None:
         for model in (
             Artifact,
             CollectorRun,
+            EntityObservation,
+            JavaScriptErrorObservation,
             CheckpointAttempt,
             CheckpointRun,
+            DomainEntity,
             MonitoredUrl,
             CheckpointWindow,
             BrowserScenario,
@@ -138,7 +144,8 @@ async def test_real_browser_checkpoint_persists_evidence_and_site_error(
         assert run.final_url == f"{fixture_site}/complete"
         assert run.playwright_version
         assert run.chromium_version
-        assert run.manifest["schema"] == "browser-checkpoint-manifest/v2"
+        assert run.manifest["schema"] == "browser-checkpoint-manifest/v3"
+        assert run.manifest["normalized_state"]["dom"]["normalizer_version"] == "dom-b3-v1"
         assert "manifest-secret" not in str(run.manifest)
         assert "network-secret" not in str(run.manifest)
         assert "operator-secret" not in str(run.manifest)
@@ -151,6 +158,7 @@ async def test_real_browser_checkpoint_persists_evidence_and_site_error(
             "SCREENSHOT_VIEWPORT",
             "SCREENSHOT_FULL_PAGE",
             "RAW_DOM",
+            "NORMALIZED_DOM",
             "MANIFEST",
         }
         for artifact in artifacts:
@@ -164,6 +172,29 @@ async def test_real_browser_checkpoint_persists_evidence_and_site_error(
         )
         assert (
             await repository.artifacts_for_tenant(
+                tenant_id=uuid.uuid4(), checkpoint_run_id=first.checkpoint_run_id
+            )
+            == []
+        )
+        entity_observations = await repository.entity_observations_for_tenant(
+            tenant_id=first.tenant_id,
+            checkpoint_run_id=first.checkpoint_run_id,
+        )
+        assert entity_observations
+        assert {item.collector_version for item in entity_observations} == {"b3-v1"}
+        assert (
+            await repository.entity_observations_for_tenant(
+                tenant_id=uuid.uuid4(), checkpoint_run_id=first.checkpoint_run_id
+            )
+            == []
+        )
+        normalized_errors = await repository.javascript_errors_for_tenant(
+            tenant_id=first.tenant_id,
+            checkpoint_run_id=first.checkpoint_run_id,
+        )
+        assert normalized_errors
+        assert (
+            await repository.javascript_errors_for_tenant(
                 tenant_id=uuid.uuid4(), checkpoint_run_id=first.checkpoint_run_id
             )
             == []
@@ -240,7 +271,7 @@ async def test_scheduler_produces_repeatable_desktop_and_mobile_runs(
                 ).all()
             )
             assert len(first_runs) == 2
-            assert {run.collector_bundle_version for run in first_runs} == {"b2-v1"}
+            assert {run.collector_bundle_version for run in first_runs} == {"b3-v1"}
             first_run_ids = {run.id for run in first_runs}
             scheduled_jobs = list(
                 (
@@ -293,6 +324,29 @@ async def test_scheduler_produces_repeatable_desktop_and_mobile_runs(
                 assert all(action["actual_y"] >= 0 for action in scrolls)
                 assert run.manifest["actions"][-1]["kind"] == "full_page"
 
+            monitored_url = await session.scalar(
+                select(MonitoredUrl).where(
+                    MonitoredUrl.tenant_id == registered.tenant_id,
+                    MonitoredUrl.status == "ACTIVE",
+                )
+            )
+            assert monitored_url is not None
+            monitored_url.status = "RETIRED"
+            monitored_url.valid_to = first_bounds.window_end
+            rotated_url = MonitoredUrl(
+                id=uuid.uuid4(),
+                tenant_id=registered.tenant_id,
+                site_id=site.id,
+                template_id=monitored_url.template_id,
+                url=f"{fixture_site}/complete?representative=rotated",
+                priority=monitored_url.priority,
+                is_canary=monitored_url.is_canary,
+                status="ACTIVE",
+                valid_from=first_bounds.window_end,
+            )
+            session.add(rotated_url)
+            await session.commit()
+
         second_window_time = first_bounds.window_end + timedelta(minutes=1)
         second_bounds = resolve_six_hour_window(second_window_time, "UTC")
         await scheduler.schedule_due(now=second_window_time)
@@ -315,13 +369,14 @@ async def test_scheduler_produces_repeatable_desktop_and_mobile_runs(
             )
             assert len(second_runs) == 2
         for run in second_runs:
-            previous = await repository.previous_comparable(
+            previous = await repository.previous_comparable_selection(
                 tenant_id=registered.tenant_id,
                 checkpoint_run_id=run.id,
             )
             assert previous is not None
-            assert previous.id in first_run_ids
-            assert previous.scenario_id == run.scenario_id
+            assert previous.run.id in first_run_ids
+            assert previous.run.scenario_id == run.scenario_id
+            assert previous.selection_scope == "SAME_TEMPLATE_URL_ROTATION"
         assert (
             await repository.previous_comparable(
                 tenant_id=uuid.uuid4(),
