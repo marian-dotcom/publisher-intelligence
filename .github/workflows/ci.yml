@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.4-alpine
+        env:
+          POSTGRES_DB: publisher_intelligence
+          POSTGRES_USER: publisher
+          POSTGRES_PASSWORD: publisher-local
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U publisher -d publisher_intelligence"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      ENVIRONMENT: test
+      DATABASE_URL: postgresql+psycopg://publisher:publisher-local@localhost:5432/publisher_intelligence
+      S3_ENDPOINT_URL: http://localhost:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: publisher-intelligence-local
+      S3_ACCESS_KEY_ID: publisher-local
+      S3_SECRET_ACCESS_KEY: replace-with-local-only-secret
+      S3_USE_SSL: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv --directory backend sync --all-groups --locked
+      - run: uv --directory backend run ruff format --check .
+      - run: uv --directory backend run ruff check .
+      - run: uv --directory backend run mypy app tests scripts migrations/env.py
+      - run: uv --directory backend run pytest tests/unit
+      - run: uv --directory backend run alembic upgrade head
+      - name: Start local object storage
+        run: >-
+          docker run --detach --name minio --publish 9000:9000
+          --env MINIO_ROOT_USER=publisher-local
+          --env MINIO_ROOT_PASSWORD=replace-with-local-only-secret
+          quay.io/minio/minio:RELEASE.2024-12-18T13-15-44Z server /data
+      - run: uv --directory backend run python scripts/create_test_bucket.py
+      - run: RUN_INTEGRATION=1 uv --directory backend run pytest tests/integration
+      - run: uv --directory backend run python -m app.scheduler --once
+      - run: uv --directory backend run python -m app.worker --once
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm --dir frontend install --frozen-lockfile
+      - run: pnpm --dir frontend lint
+      - run: pnpm --dir frontend typecheck
+      - run: pnpm --dir frontend test
+      - run: pnpm --dir frontend build
+
+  repository-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python scripts/check_secrets.py
+      - run: docker compose config
+      - run: git diff --check

@@ -1,6 +1,6 @@
 # EP-001 — Repository Bootstrap and Local Development Environment
 
-**Status:** READY  
+**Status:** COMPLETE
 **Owner:** Codex / Engineering  
 **Created:** 2026-08-13  
 **Updated:** 2026-08-13  
@@ -11,12 +11,12 @@
 ## Progress
 
 - [x] M0 — Inspect the documentation-only repository and close bootstrap decisions
-- [ ] M1 — Create repository, backend, and frontend skeletons
-- [ ] M2 — Add local PostgreSQL and S3-compatible object storage
-- [ ] M3 — Add persistence and migration foundation
-- [ ] M4 — Add PostgreSQL job queue, worker, and scheduler skeletons
-- [ ] M5 — Add configuration, object-storage adapter, and health checks
-- [ ] M6 — Add CI, documentation, and final validation
+- [x] M1 — Create repository, backend, and frontend skeletons
+- [x] M2 — Add local PostgreSQL and S3-compatible object storage
+- [x] M3 — Add persistence and migration foundation
+- [x] M4 — Add PostgreSQL job queue, worker, and scheduler skeletons
+- [x] M5 — Add configuration, object-storage adapter, and health checks
+- [x] M6 — Add CI, documentation, and final validation
 
 ## 1. Purpose and User Outcome
 
@@ -661,6 +661,10 @@ If implementation reveals a choice with material business or security impact, st
 - The uploaded starter package contained ADR-001 through ADR-125 but not the separately approved EP-001 and ADR-126–128 changes from the previous GitHub account.
 - The old textual PR was not accessible from the newly connected account, so the plan and ADRs were reconstructed from the canonical contracts and the preserved approved decision summary.
 - The current repository has no code or infrastructure; no implementation validation can honestly be reported yet.
+- The implementation runtime provides Python 3.12, `uv`, Node.js 24, and `pnpm`, but not Docker or `psql`.
+- `pnpm` 11 requires dependency build permissions in `pnpm-workspace.yaml`; only `esbuild` and `unrs-resolver` are allowed.
+- Python and pnpm cache roots are read-only in this hosted runtime, so local validation used temporary cache directories without changing repository commands.
+- GitHub Dependency Review is unavailable until the repository Dependency Graph is enabled; the optional job was removed after its explicit unsupported-repository error, while locked installs and the repository secret scan remain enforced.
 
 ## 20. Progress Log
 
@@ -668,29 +672,39 @@ If implementation reveals a choice with material business or security impact, st
 
 M0 complete. Repository state inspected, root normalization defined, bootstrap decisions recorded, and implementation milestones made verifiable. No application code, dependencies, migrations, or infrastructure were created. Next: begin M1 in a new implementation branch and change plan status to `IN_PROGRESS`.
 
+### 2026-08-13 — Foundation implementation
+
+M1 is locally validated. M2–M5 are implemented with locked dependencies, Compose services, the first migration, ADR-128 queue primitives, separate runtime entry points, configuration redaction, storage boundaries, and health checks. M6 includes CI, README guidance, and a repository secret scan. PostgreSQL/MinIO integration evidence remains pending because Docker is unavailable locally; GitHub Actions is the designated validation environment.
+
 ## 21. Validation Results
 
-Documentation-phase validation:
+Local implementation validation on 2026-08-13:
 
-- repository tree inspected through GitHub;
-- canonical root files and assets enumerated;
-- `DECISIONS.md` confirmed to contain ADR-001 through ADR-125 before this change;
-- absence of `plans/EP-001-repository-bootstrap.md` confirmed before this change;
-- planned diff limited to root normalization, `DECISIONS.md`, and this ExecPlan;
-- no code or runtime test result claimed.
+- `uv sync --all-groups --locked` — passed with 51 locked packages;
+- Ruff format and lint — passed across 32 files;
+- mypy — passed across application and test sources;
+- backend unit tests — 6 passed;
+- `pnpm install --frozen-lockfile` — passed;
+- frontend lint, typecheck, Vitest, and production build — passed;
+- frontend test suite — 1 passed;
+- browser-worker placeholder smoke command — passed;
+- Compose and GitHub Actions YAML syntax parse — passed;
+- repository secret scan — passed;
+- `git diff --check` — passed;
+- Docker, migrations, PostgreSQL queue integration, MinIO round trip, and real readiness — not run locally because Docker is unavailable; CI workflow added to execute them.
+- GitHub Actions run 31733563563 — backend, PostgreSQL migrations/queue integration, MinIO storage/readiness, frontend, and repository safety passed; only the optional Dependency Review job failed because the repository Dependency Graph is disabled.
+- GitHub Actions run 31733763807 — all supported jobs passed: backend, PostgreSQL migrations and queue integration, MinIO storage/readiness, scheduler/worker smoke, frontend, Compose validation, secret scan, and diff hygiene.
 
 ## 22. Next Step
 
-Codex should read this complete plan and all canonical references, change status to `IN_PROGRESS`, implement M1, validate it, update this plan, and continue milestone-by-milestone until a real blocker or unsettled product/security decision appears.
+Review Draft PR #2 and merge when the implementation is accepted. Begin EP-002 only after this foundation is on `main`.
 
 ## 23. Final Outcome / Retrospective
 
-Pending implementation.
+EP-001 shipped a locked FastAPI/Next.js modular-monolith foundation, PostgreSQL and private S3-compatible local dependencies, reversible tenant/job schema, ADR-128 queue implementation, distinct runtime entry points, validated/redacted configuration, health endpoints, CI, tests, and developer documentation.
 
-When complete, record:
+The implementation stayed inside the planned infrastructure scope. The only operational deviation was replacing the unavailable GitHub Dependency Review job with supported locked-install, Compose, diff, and secret checks; enabling the repository Dependency Graph remains an optional GitHub settings action.
 
-- what shipped;
-- deviations from the original plan;
-- exact validation commands and results;
-- known limitations;
-- follow-up ExecPlan for Browser Checkpoint B1.
+Local checks and GitHub Actions run 31733763807 provide the final validation evidence. No Docker-backed integration result is claimed from the local runtime. A non-blocking FastAPI/Starlette deprecation warning notes that the current TestClient compatibility layer will eventually move from `httpx` to `httpx2`.
+
+The next planned deliverable is EP-002, Browser Checkpoint B1: one public publisher URL producing one reproducible Chromium checkpoint persisted to PostgreSQL and object storage.
