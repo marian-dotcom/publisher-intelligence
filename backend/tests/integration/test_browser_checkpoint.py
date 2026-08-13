@@ -2,7 +2,7 @@ import hashlib
 import threading
 import uuid
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
@@ -22,7 +22,7 @@ from app.browser.models import (
     Template,
 )
 from app.browser.persistence import CheckpointRepository
-from app.browser.scheduling import CheckpointSchedulingService
+from app.browser.scheduling import CheckpointSchedulingService, resolve_six_hour_window
 from app.browser.service import CheckpointService
 from app.browser_worker import run as run_browser_worker
 from app.config.settings import get_settings
@@ -213,7 +213,8 @@ async def test_scheduler_produces_repeatable_desktop_and_mobile_runs(
     )
     try:
         await run_browser_worker(once=True)
-        first_window_time = datetime(2026, 8, 13, 12, 1, tzinfo=UTC)
+        first_window_time = datetime.now(UTC)
+        first_bounds = resolve_six_hour_window(first_window_time, "UTC")
         first_pass = await scheduler.schedule_due(now=first_window_time)
         repeated_pass = await scheduler.schedule_due(now=first_window_time)
         assert first_pass.run_count == 2
@@ -225,7 +226,7 @@ async def test_scheduler_produces_repeatable_desktop_and_mobile_runs(
             first_window = await session.scalar(
                 select(CheckpointWindow).where(
                     CheckpointWindow.site_id == site.id,
-                    CheckpointWindow.scheduled_for == datetime(2026, 8, 13, 12, tzinfo=UTC),
+                    CheckpointWindow.scheduled_for == first_bounds.scheduled_for,
                 )
             )
             assert first_window is not None
@@ -292,13 +293,14 @@ async def test_scheduler_produces_repeatable_desktop_and_mobile_runs(
                 assert all(action["actual_y"] >= 0 for action in scrolls)
                 assert run.manifest["actions"][-1]["kind"] == "full_page"
 
-        second_window_time = datetime(2026, 8, 13, 18, 1, tzinfo=UTC)
+        second_window_time = first_bounds.window_end + timedelta(minutes=1)
+        second_bounds = resolve_six_hour_window(second_window_time, "UTC")
         await scheduler.schedule_due(now=second_window_time)
         async with factory() as session:
             second_window = await session.scalar(
                 select(CheckpointWindow).where(
                     CheckpointWindow.site_id == site.id,
-                    CheckpointWindow.scheduled_for == datetime(2026, 8, 13, 18, tzinfo=UTC),
+                    CheckpointWindow.scheduled_for == second_bounds.scheduled_for,
                 )
             )
             assert second_window is not None
