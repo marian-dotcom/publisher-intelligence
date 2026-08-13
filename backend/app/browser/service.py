@@ -110,7 +110,9 @@ class CheckpointService:
                 limitations=[],
                 manifest={},
             )
-            session.add_all([window, run])
+            session.add(window)
+            await session.flush()
+            session.add(run)
             tenant_id = tenant.id
             run_id = run.id
 
