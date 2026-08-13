@@ -2,6 +2,8 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any, cast
 
+import pytest
+
 from app.browser.contracts import BrowserEvidence, BrowserTarget
 from app.browser.persistence import CheckpointRepository, EvidencePersister
 from app.browser.runner import BrowserRunner
@@ -152,7 +154,9 @@ async def test_site_error_is_persisted_without_retry() -> None:
     assert queue.completed
 
 
-async def test_unexpected_runtime_error_records_only_its_class() -> None:
+async def test_unexpected_runtime_error_records_only_safe_diagnostics(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     lease = _lease()
     queue = FakeQueue()
     repository = FakeRepository(_target(lease))
@@ -171,3 +175,9 @@ async def test_unexpected_runtime_error_records_only_its_class() -> None:
     assert queue.failed[0]["error_class"] == "RuntimeError"
     assert "sensitive" not in str(queue.failed)
     assert not persister.persisted
+    record = next(item for item in caplog.records if item.getMessage() == "browser runtime failed")
+    context = cast(dict[str, object], record.__dict__["context"])
+    assert context["error_module"] == "test_worker.py"
+    assert context["error_function"] == "run"
+    assert isinstance(context["error_line"], int)
+    assert "sensitive" not in str(context)

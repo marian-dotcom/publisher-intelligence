@@ -4,7 +4,9 @@ import json
 import logging
 import signal
 import socket
+import traceback
 import uuid
+from pathlib import Path
 
 from app.browser.persistence import CheckpointRepository, CheckpointStateError, EvidencePersister
 from app.browser.runner import BrowserRunner
@@ -15,6 +17,18 @@ from app.jobs.queue import JobLease, JobQueue
 from app.storage.s3 import S3Storage
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_error_source(error: Exception) -> dict[str, str | int]:
+    frames = traceback.extract_tb(error.__traceback__)
+    if not frames:
+        return {}
+    frame = frames[-1]
+    return {
+        "error_module": Path(frame.filename).name,
+        "error_function": frame.name,
+        "error_line": frame.lineno or 0,
+    }
 
 
 async def handle_browser_job(
@@ -78,6 +92,7 @@ async def handle_browser_job(
         evidence = await runner.run(target)
     except Exception as error:
         runtime_error_class = type(error).__name__[:100]
+        error_source = _safe_error_source(error)
         retryable = lease.attempt < lease.max_attempts
         if retryable:
             await repository.record_retryable_failure(
@@ -110,6 +125,7 @@ async def handle_browser_job(
                     **context,
                     "checkpoint_run_id": str(checkpoint_run_id),
                     "error_class": runtime_error_class,
+                    **error_source,
                 }
             },
         )
