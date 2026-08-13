@@ -33,6 +33,14 @@ class ExpectedGPTSlot:
 
 
 @dataclass(frozen=True, slots=True)
+class ConsentAdapterConfig:
+    vendor: str | None = None
+    accept_selector: str | None = None
+    reject_selector: str | None = None
+    ready_selector: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class BrowserTarget:
     checkpoint_run_id: uuid.UUID
     tenant_id: uuid.UUID
@@ -62,6 +70,8 @@ class BrowserTarget:
     template_fingerprint_version: str | None = None
     template_expected_features: dict[str, object] = field(default_factory=dict)
     expected_gpt_slots: tuple[ExpectedGPTSlot, ...] = ()
+    consent_path: str = "NONE"
+    consent_adapter: ConsentAdapterConfig | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +96,7 @@ class NetworkObservation:
     resource_type: str
     status: int | None = None
     error_text: str | None = None
+    observed_at_ms: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,6 +125,40 @@ class GPTSlotObservation:
     creative_id: str | None = None
     line_item_id: str | None = None
     request_count: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class CMPObservation:
+    cmp_detected: bool
+    tcf_api_detected: bool
+    consent_action: str
+    consent_action_status: str
+    ui_detected_at_ms: int | None = None
+    api_ready_at_ms: int | None = None
+    action_started_at_ms: int | None = None
+    action_completed_at_ms: int | None = None
+    tc_state_available_at_ms: int | None = None
+    gdpr_applies: bool | None = None
+    tc_string_hash: str | None = None
+    tcf_error_codes: tuple[str, ...] = ()
+    cmp_id: int | None = None
+    cmp_version: int | None = None
+    cmp_status: str | None = None
+    event_status: str | None = None
+    vendor: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ConsentPhaseDependencyObservation:
+    phase: str
+    stable_key: str
+    host: str
+    path_family: str
+    resource_type: str
+    category: str
+    request_count: int
+    error_count: int
+    first_request_at_ms: int | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,6 +210,10 @@ class BrowserEvidence:
     gpt_present: bool = False
     gpt_version: str | None = None
     gpt_slots: list[GPTSlotObservation] = field(default_factory=list)
+    cmp_observation: CMPObservation | None = None
+    consent_phase_dependencies: list[ConsentPhaseDependencyObservation] = field(
+        default_factory=list
+    )
     failure_class: str | None = None
     failure_message: str | None = None
 

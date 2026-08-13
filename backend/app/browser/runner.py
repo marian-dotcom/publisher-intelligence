@@ -6,6 +6,11 @@ from playwright.async_api import Browser, BrowserContext, Page, async_playwright
 from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
+from app.browser.cmp import (
+    CMPCollection,
+    CMPCollector,
+    summarize_consent_dependencies,
+)
 from app.browser.collectors import BrowserObservationCollector
 from app.browser.contracts import (
     ArtifactContent,
@@ -14,6 +19,7 @@ from app.browser.contracts import (
     CheckpointStatus,
     CollectorResult,
     CollectorStatus,
+    ConsentPhaseDependencyObservation,
     NormalizedEntityObservation,
 )
 from app.browser.gpt import GPTCollection, GPTLifecycleCollector
@@ -29,7 +35,7 @@ from app.browser.normalization import (
 from app.browser.security import BrowserBlockedError, BrowserNetworkGuard, sanitize_url
 from app.config.settings import Settings
 
-COLLECTOR_BUNDLE_VERSION = "b4-v1"
+COLLECTOR_BUNDLE_VERSION = "b5-v1"
 
 
 class BrowserRunner:
@@ -79,6 +85,8 @@ class BrowserRunner:
             max_requests=self._settings.browser_max_requests,
         )
         collector = BrowserObservationCollector(target.canonical_domain)
+        cmp_collector = CMPCollector(self._settings)
+        cmp_collection: CMPCollection | None = None
         gpt_collector = GPTLifecycleCollector()
         gpt_collection: GPTCollection | None = None
         artifacts: list[ArtifactContent] = []
@@ -114,6 +122,7 @@ class BrowserRunner:
                 await context.route("**/*", guard.route)
                 page = await context.new_page()
                 collector.attach(page)
+                await cmp_collector.attach(page)
                 await gpt_collector.attach(page)
                 response = await page.goto(
                     target.url,
@@ -139,6 +148,49 @@ class BrowserRunner:
                         "duration_ms": self._settings.browser_stabilization_ms,
                     }
                 )
+                cmp_started = datetime.now(UTC)
+                try:
+                    cmp_pre = await cmp_collector.observe_pre(page, target, collector.elapsed_ms)
+                    if cmp_pre.cmp_detected:
+                        artifacts.append(
+                            ArtifactContent(
+                                artifact_type="SCREENSHOT_VIEWPORT_PRECONSENT",
+                                filename="screenshots/viewport-preconsent.png",
+                                content_type="image/png",
+                                retention_class="CORE_MEDIUM",
+                                content=await page.screenshot(type="png", full_page=False),
+                            )
+                        )
+                        actions.append({"type": "screenshot", "kind": "viewport_preconsent"})
+                    cmp_collection = await cmp_collector.act_and_collect(
+                        page,
+                        target,
+                        cmp_pre,
+                        collector.elapsed_ms,
+                    )
+                    actions.append(
+                        {
+                            "type": "consent_action",
+                            "path": target.consent_path,
+                            "status": cmp_collection.observation.consent_action_status,
+                            "started_at_ms": (cmp_collection.observation.action_started_at_ms),
+                            "completed_at_ms": (cmp_collection.observation.action_completed_at_ms),
+                        }
+                    )
+                    if cmp_collection.capture_post:
+                        artifacts.append(
+                            ArtifactContent(
+                                artifact_type="SCREENSHOT_VIEWPORT_POSTCONSENT",
+                                filename="screenshots/viewport-postconsent.png",
+                                content_type="image/png",
+                                retention_class="CORE_MEDIUM",
+                                content=await page.screenshot(type="png", full_page=False),
+                            )
+                        )
+                        actions.append({"type": "screenshot", "kind": "viewport_postconsent"})
+                except PlaywrightError:
+                    cmp_collection = cmp_collector.failure(target, cmp_started)
+                collector_results.append(cmp_collection.result)
                 interaction_started = datetime.now(UTC)
                 interaction = await execute_interaction_steps(page, target.interaction_steps)
                 actions.extend(interaction.actions)
@@ -169,6 +221,11 @@ class BrowserRunner:
                 )
                 gpt_collection = await gpt_collector.collect(page, target.expected_gpt_slots)
                 collector_results.append(gpt_collection.result)
+                consent_phase_dependencies = summarize_consent_dependencies(
+                    collector.network_observations,
+                    action_boundary_ms=cmp_collection.action_boundary_ms,
+                    consent_path=target.consent_path,
+                )
                 raw_dom = (await page.content()).encode("utf-8")
                 artifacts.append(
                     ArtifactContent(
@@ -305,6 +362,7 @@ class BrowserRunner:
                     or interaction.failed
                     or normalization_failed
                     or gpt_collection.result.status == "ERROR"
+                    or cmp_collection.required_action_failed
                 ):
                     status = "PARTIAL"
                 else:
@@ -329,6 +387,8 @@ class BrowserRunner:
                     normalized_state=normalized_state,
                     normalized_entities=normalized_entities,
                     gpt_collection=gpt_collection,
+                    cmp_collection=cmp_collection,
+                    consent_phase_dependencies=consent_phase_dependencies,
                 )
         except BrowserBlockedError as error:
             status = "BLOCKED"
@@ -398,6 +458,7 @@ class BrowserRunner:
             artifacts=artifacts,
             collectors=collector_results,
             gpt_collection=gpt_collection,
+            cmp_collection=cmp_collection,
             failure_class=failure_class,
             failure_message=(failure_message or "")[:1_000] or None,
         )
@@ -422,6 +483,8 @@ class BrowserRunner:
         normalized_state: dict[str, object] | None = None,
         normalized_entities: list[NormalizedEntityObservation] | None = None,
         gpt_collection: GPTCollection | None = None,
+        cmp_collection: CMPCollection | None = None,
+        consent_phase_dependencies: list[ConsentPhaseDependencyObservation] | None = None,
         failure_class: str | None = None,
         failure_message: str | None = None,
     ) -> BrowserEvidence:
@@ -452,6 +515,8 @@ class BrowserRunner:
             gpt_present=gpt_collection.present if gpt_collection is not None else False,
             gpt_version=gpt_collection.version if gpt_collection is not None else None,
             gpt_slots=gpt_collection.slots if gpt_collection is not None else [],
+            cmp_observation=(cmp_collection.observation if cmp_collection is not None else None),
+            consent_phase_dependencies=consent_phase_dependencies or [],
             failure_class=failure_class,
             failure_message=failure_message,
         )

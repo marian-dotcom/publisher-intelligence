@@ -36,6 +36,8 @@ async def test_schema_is_minimal_and_rejects_cancelled_status() -> None:
             "checkpoint_attempts",
             "checkpoint_runs",
             "checkpoint_windows",
+            "cmp_observations",
+            "consent_phase_dependency_observations",
             "collector_runs",
             "domain_entities",
             "entity_observations",

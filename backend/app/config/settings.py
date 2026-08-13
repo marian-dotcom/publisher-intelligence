@@ -39,6 +39,9 @@ class Settings(BaseSettings):
 
     browser_navigation_timeout_ms: int = Field(default=30_000, ge=1_000, le=120_000)
     browser_stabilization_ms: int = Field(default=1_000, ge=0, le=10_000)
+    browser_consent_discovery_timeout_ms: int = Field(default=2_000, ge=100, le=10_000)
+    browser_consent_action_timeout_ms: int = Field(default=3_000, ge=100, le=15_000)
+    browser_post_consent_stabilization_ms: int = Field(default=500, ge=0, le=10_000)
     browser_overall_timeout_seconds: int = Field(default=60, ge=5, le=300)
     browser_max_requests: int = Field(default=500, ge=10, le=5_000)
     browser_viewport_width: int = Field(default=1440, ge=320, le=3840)
@@ -84,6 +87,9 @@ class Settings(BaseSettings):
             "job_reclaim_backoff_seconds": self.job_reclaim_backoff_seconds,
             "browser_navigation_timeout_ms": self.browser_navigation_timeout_ms,
             "browser_stabilization_ms": self.browser_stabilization_ms,
+            "browser_consent_discovery_timeout_ms": self.browser_consent_discovery_timeout_ms,
+            "browser_consent_action_timeout_ms": self.browser_consent_action_timeout_ms,
+            "browser_post_consent_stabilization_ms": (self.browser_post_consent_stabilization_ms),
             "browser_overall_timeout_seconds": self.browser_overall_timeout_seconds,
             "browser_max_requests": self.browser_max_requests,
             "browser_viewport_width": self.browser_viewport_width,
