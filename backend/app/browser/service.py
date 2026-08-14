@@ -134,7 +134,7 @@ class CheckpointService:
                 scheduled_for=now,
                 status="PENDING",
                 attempt_count=0,
-                collector_bundle_version="b7-v1",
+                collector_bundle_version="b8-v1",
                 environment={},
                 limitations=[],
                 manifest={},

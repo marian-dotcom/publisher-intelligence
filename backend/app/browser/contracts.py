@@ -210,6 +210,20 @@ class VideoPlayerObservation:
 
 
 @dataclass(frozen=True, slots=True)
+class SyntheticPerformanceObservation:
+    lcp_ms: float | None
+    cls: float | None
+    inp_ms: float | None
+    inp_method: str | None
+    ttfb_ms: float | None
+    dom_content_loaded_ms: float | None
+    load_event_ms: float | None
+    long_task_count: int | None
+    long_task_total_ms: float | None
+    metadata: dict[str, object]
+
+
+@dataclass(frozen=True, slots=True)
 class CollectorResult:
     collector_type: str
     collector_version: str
@@ -272,6 +286,7 @@ class BrowserEvidence:
     video_present: bool = False
     video_limitations: list[str] = field(default_factory=list)
     video_players: list[VideoPlayerObservation] = field(default_factory=list)
+    synthetic_performance: SyntheticPerformanceObservation | None = None
     failure_class: str | None = None
     failure_message: str | None = None
 

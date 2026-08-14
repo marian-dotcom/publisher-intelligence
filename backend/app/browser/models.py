@@ -243,7 +243,7 @@ class CheckpointRun(Base):
     playwright_version: Mapped[str | None] = mapped_column(String(50))
     chromium_version: Mapped[str | None] = mapped_column(String(100))
     collector_bundle_version: Mapped[str] = mapped_column(
-        String(50), nullable=False, default="b7-v1"
+        String(50), nullable=False, default="b8-v1"
     )
     environment: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     limitations: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
@@ -706,6 +706,55 @@ class VideoPlayerObservation(Base):
     vast_error_count: Mapped[int] = mapped_column(Integer, nullable=False)
     media_request_count: Mapped[int] = mapped_column(Integer, nullable=False)
     playback_started: Mapped[bool | None] = mapped_column(Boolean)
+    collector_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, nullable=False, default=dict
+    )
+
+
+class SyntheticPerformanceObservation(Base):
+    __tablename__ = "synthetic_performance_observations"
+    __table_args__ = (
+        UniqueConstraint("checkpoint_run_id", name="uq_synthetic_performance_checkpoint"),
+        CheckConstraint(
+            "(lcp_ms IS NULL OR lcp_ms >= 0) AND "
+            "(cls IS NULL OR cls >= 0) AND "
+            "(inp_ms IS NULL OR inp_ms >= 0) AND "
+            "(ttfb_ms IS NULL OR ttfb_ms >= 0) AND "
+            "(dom_content_loaded_ms IS NULL OR dom_content_loaded_ms >= 0) AND "
+            "(load_event_ms IS NULL OR load_event_ms >= 0)",
+            name="ck_synthetic_performance_timings",
+        ),
+        CheckConstraint(
+            "(long_task_count IS NULL OR long_task_count >= 0) AND "
+            "(long_task_total_ms IS NULL OR long_task_total_ms >= 0)",
+            name="ck_synthetic_performance_long_tasks",
+        ),
+        Index("ix_synthetic_performance_tenant_checkpoint", "tenant_id", "checkpoint_run_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    site_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sites.id", ondelete="RESTRICT"), nullable=False
+    )
+    checkpoint_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("checkpoint_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    lcp_ms: Mapped[float | None] = mapped_column(Float)
+    cls: Mapped[float | None] = mapped_column(Float)
+    inp_ms: Mapped[float | None] = mapped_column(Float)
+    inp_method: Mapped[str | None] = mapped_column(String(100))
+    ttfb_ms: Mapped[float | None] = mapped_column(Float)
+    dom_content_loaded_ms: Mapped[float | None] = mapped_column(Float)
+    load_event_ms: Mapped[float | None] = mapped_column(Float)
+    long_task_count: Mapped[int | None] = mapped_column(Integer)
+    long_task_total_ms: Mapped[float | None] = mapped_column(Float)
     collector_version: Mapped[str] = mapped_column(String(50), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
