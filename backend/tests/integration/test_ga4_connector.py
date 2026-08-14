@@ -59,25 +59,31 @@ async def connector_site() -> AsyncIterator[tuple[uuid.UUID, uuid.UUID, uuid.UUI
                     slug=f"ga4-other-{other_tenant_id.hex[:10]}",
                     name="Other Tenant",
                 ),
-                Publisher(
-                    id=publisher_id,
-                    tenant_id=tenant_id,
-                    name="GA4 Publisher",
-                    slug=f"publisher-{publisher_id.hex[:10]}",
-                    default_timezone="Europe/Bucharest",
-                    status="ACTIVE",
-                ),
-                Site(
-                    id=site_id,
-                    tenant_id=tenant_id,
-                    publisher_id=publisher_id,
-                    name="GA4 Site",
-                    canonical_domain=f"{site_id.hex}.example.com",
-                    canonical_scheme="https",
-                    timezone="Europe/Bucharest",
-                    status="ACTIVE",
-                ),
             ]
+        )
+        await session.flush()
+        session.add(
+            Publisher(
+                id=publisher_id,
+                tenant_id=tenant_id,
+                name="GA4 Publisher",
+                slug=f"publisher-{publisher_id.hex[:10]}",
+                default_timezone="Europe/Bucharest",
+                status="ACTIVE",
+            )
+        )
+        await session.flush()
+        session.add(
+            Site(
+                id=site_id,
+                tenant_id=tenant_id,
+                publisher_id=publisher_id,
+                name="GA4 Site",
+                canonical_domain=f"{site_id.hex}.example.com",
+                canonical_scheme="https",
+                timezone="Europe/Bucharest",
+                status="ACTIVE",
+            )
         )
     yield tenant_id, other_tenant_id, site_id
     async with factory() as session, session.begin():

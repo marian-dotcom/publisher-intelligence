@@ -327,6 +327,9 @@ OAuth lifecycle before pilot credentials are connected.
 
 - The repository roadmap numbering moved as Browser B5–B8 received dedicated plans; the next free
   identifier is EP-010 even though the original illustrative sequence used a different number.
+- Initial CI run 67 exposed test-fixture insert ordering: the ORM models intentionally have no
+  relationship graph, so adding tenant, publisher, and site in one flush did not guarantee the FK
+  order. The fixture now flushes each ownership level explicitly; production code was unaffected.
 
 ## 20. Progress Log
 
@@ -338,6 +341,9 @@ OAuth lifecycle before pilot credentials are connected.
   secret scan, locked dependency sync, offline PostgreSQL DDL generation, and diff checks pass.
   Docker is unavailable in the local runner, so live PostgreSQL/MinIO integration and migration
   round-trip remain the GitHub Actions release gate.
+- 2026-08-14: Draft PR #11 published. Initial CI run 67 passed frontend, repository safety,
+  migration 0010, static checks, and unit tests, then identified only the GA4 integration fixture's
+  tenant→publisher insert ordering. Added explicit ownership-level flushes and republished.
 
 ## 21. Final Outcome / Retrospective
 
