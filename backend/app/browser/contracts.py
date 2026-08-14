@@ -96,6 +96,7 @@ class NetworkObservation:
     resource_type: str
     status: int | None = None
     error_text: str | None = None
+    request_started_at_ms: int | None = None
     observed_at_ms: int | None = None
 
 
@@ -162,6 +163,34 @@ class ConsentPhaseDependencyObservation:
 
 
 @dataclass(frozen=True, slots=True)
+class PrebidAuctionObservation:
+    auction_key: str
+    started_at_ms: int | None
+    ended_at_ms: int | None
+    configured_timeout_ms: int | None
+    ad_unit_count: int | None
+    bidder_request_count: int
+    bid_response_count: int
+    no_bid_count: int
+    timeout_count: int
+    first_ad_server_request_at_ms: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PrebidBidderObservation:
+    auction_key: str
+    bidder_code: str
+    request_count: int
+    response_count: int
+    no_bid_count: int
+    timeout_count: int
+    response_time_ms_min: float | None
+    response_time_ms_max: float | None
+    response_time_ms_avg: float | None
+    winning_bid_count: int
+
+
+@dataclass(frozen=True, slots=True)
 class CollectorResult:
     collector_type: str
     collector_version: str
@@ -214,6 +243,13 @@ class BrowserEvidence:
     consent_phase_dependencies: list[ConsentPhaseDependencyObservation] = field(
         default_factory=list
     )
+    prebid_present: bool = False
+    prebid_version: str | None = None
+    prebid_server_side_configured: bool = False
+    prebid_targeting_keys: list[str] = field(default_factory=list)
+    prebid_limitations: list[str] = field(default_factory=list)
+    prebid_auctions: list[PrebidAuctionObservation] = field(default_factory=list)
+    prebid_bidders: list[PrebidBidderObservation] = field(default_factory=list)
     failure_class: str | None = None
     failure_message: str | None = None
 

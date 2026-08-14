@@ -33,7 +33,7 @@ make scheduler
 make frontend
 ```
 
-## Consent-aware browser checkpoints (B5)
+## Auction-aware browser checkpoints (B6)
 
 Register one explicit public pilot URL. The command also enqueues one immediate legacy B1
 diagnostic run so an operator can verify the configuration without waiting for the next window:
@@ -87,7 +87,20 @@ When a CMP is observed, B5 stores bounded API/UI readiness, action timing/status
 identifiers, and only a SHA-256 hash of the TC String. It captures pre/post viewport evidence and
 aggregates stable network dependencies into `PRE_CONSENT`, `POST_ACCEPT`, or `POST_REJECT` phases.
 Reject completion is valid evidence, not an operational failure or compliance conclusion. The
-manifest v5 records the frozen consent path and phase evidence alongside B1–B4 output.
+manifest preserves the frozen consent path and phase evidence alongside B1–B4 output.
+
+B6 installs a passive Prebid observer before navigation without creating or mutating `pbjs` or
+its command queue. When the publisher exposes the read-only public event/configuration APIs, the
+observer keeps bounded, sanitized auction stages in page memory, replaces raw auction IDs with
+run-local keys, and aggregates bidder request/response/no-bid/timeout/win counts plus observable
+response timing. It stores only targeting key names, never targeting values, bid prices, deal or
+creative data, raw auction/bid IDs, request bodies, headers, cookies, or OpenRTB payloads.
+
+Each observable auction can be correlated with the first sanitized GAM request that starts after
+the auction. A visible Prebid Server endpoint without client-side bidder events is recorded as
+`NOT_OBSERVABLE`; the checkpoint does not invent hidden server bidders or timing. Prebid absence
+is an explicit collector outcome and does not make an otherwise successful checkpoint partial.
+Manifest v6 records the bounded Prebid evidence alongside the preserved B1–B5 output.
 
 Comparison prefers the previous run for the same URL and exact scenario. When an operator retires
 one representative URL and creates another under the same template, lineage may fall back to the
@@ -105,9 +118,10 @@ creative and line-item identifiers are observation details and never stable iden
 `BROWSER_ALLOW_PRIVATE_NETWORKS` defaults to `false` and must remain false outside controlled
 tests. The application validates DNS destinations and intercepts browser requests, but production
 deployment still requires network-level egress enforcement to cover DNS rebinding and browser
-runtime failures. B5 does not configure, display, refresh, or click ads; infer CMP actions; decode
-or retain raw consent strings; collect targeting; authenticate; bypass paywalls; run stealth;
-discover templates automatically; or make compliance, event, incident, or AI judgments.
+runtime failures. B6 does not configure, display, refresh, or click ads; request bids; change ad
+targeting; infer CMP actions; decode or retain raw consent strings; authenticate; bypass paywalls;
+run stealth; discover templates automatically; or make compliance, revenue, event, incident,
+causality, bidder-quality, or AI judgments.
 
 Apply or inspect migrations independently:
 
@@ -141,7 +155,7 @@ If Docker is unavailable, run the local unit/lint/build checks and rely on GitHu
 
 ## Repository boundaries
 
-EP-006 adds configured consent scenarios, passive TCF observation, and versioned pre/post consent
-evidence on top of the B1–B4 checkpoint pipeline. No provider connector, event promotion, alert,
-incident, LLM, universal CMP discovery, Prebid-auction/video collector, legal-compliance judgment,
-or production authentication behavior is implemented here.
+EP-007 adds passive, bounded Prebid auction and bidder evidence on top of the B1–B5 checkpoint
+pipeline. No provider connector, production auction analytics, event promotion, alert, incident,
+LLM, universal CMP discovery, video collector, legal-compliance judgment, or production
+authentication behavior is implemented here.

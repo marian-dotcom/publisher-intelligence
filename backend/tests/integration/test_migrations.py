@@ -46,6 +46,8 @@ async def test_schema_is_minimal_and_rejects_cancelled_status() -> None:
             "js_error_observations",
             "monitored_urls",
             "publishers",
+            "prebid_auction_observations",
+            "prebid_bidder_observations",
             "sites",
             "templates",
             "template_expected_entities",

@@ -7,6 +7,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -242,7 +243,7 @@ class CheckpointRun(Base):
     playwright_version: Mapped[str | None] = mapped_column(String(50))
     chromium_version: Mapped[str | None] = mapped_column(String(100))
     collector_bundle_version: Mapped[str] = mapped_column(
-        String(50), nullable=False, default="b5-v1"
+        String(50), nullable=False, default="b6-v1"
     )
     environment: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     limitations: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
@@ -568,6 +569,96 @@ class ConsentPhaseDependencyObservation(Base):
     first_request_at_ms: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
+class PrebidAuctionObservation(Base):
+    __tablename__ = "prebid_auction_observations"
+    __table_args__ = (
+        UniqueConstraint("checkpoint_run_id", "auction_key", name="uq_prebid_auction_run_key"),
+        CheckConstraint(
+            "bidder_request_count >= 0 AND bid_response_count >= 0 AND "
+            "no_bid_count >= 0 AND timeout_count >= 0",
+            name="ck_prebid_auction_counts",
+        ),
+        Index("ix_prebid_auctions_tenant_checkpoint", "tenant_id", "checkpoint_run_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    site_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sites.id", ondelete="RESTRICT"), nullable=False
+    )
+    checkpoint_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("checkpoint_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    auction_key: Mapped[str] = mapped_column(String(50), nullable=False)
+    started_at_ms: Mapped[float | None] = mapped_column(Float)
+    ended_at_ms: Mapped[float | None] = mapped_column(Float)
+    configured_timeout_ms: Mapped[int | None] = mapped_column(Integer)
+    ad_unit_count: Mapped[int | None] = mapped_column(Integer)
+    bidder_request_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    bid_response_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    no_bid_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    timeout_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    collector_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, nullable=False, default=dict
+    )
+
+
+class PrebidBidderObservation(Base):
+    __tablename__ = "prebid_bidder_observations"
+    __table_args__ = (
+        UniqueConstraint(
+            "auction_observation_id", "bidder_code", name="uq_prebid_bidder_auction_code"
+        ),
+        CheckConstraint(
+            "request_count >= 0 AND response_count >= 0 AND no_bid_count >= 0 AND "
+            "timeout_count >= 0 AND winning_bid_count >= 0",
+            name="ck_prebid_bidder_counts",
+        ),
+        Index("ix_prebid_bidders_tenant_checkpoint", "tenant_id", "checkpoint_run_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    site_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sites.id", ondelete="RESTRICT"), nullable=False
+    )
+    checkpoint_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("checkpoint_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    auction_observation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("prebid_auction_observations.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    bidder_entity_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("domain_entities.id", ondelete="RESTRICT")
+    )
+    bidder_code: Mapped[str] = mapped_column(String(100), nullable=False)
+    request_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    response_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    no_bid_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    timeout_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    response_time_ms_min: Mapped[float | None] = mapped_column(Float)
+    response_time_ms_max: Mapped[float | None] = mapped_column(Float)
+    response_time_ms_avg: Mapped[float | None] = mapped_column(Float)
+    winning_bid_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    collector_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, nullable=False, default=dict
     )
 
 
