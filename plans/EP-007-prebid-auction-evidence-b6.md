@@ -1,6 +1,6 @@
 # EP-007 — Prebid Auction Evidence B6
 
-**Status:** IN_PROGRESS
+**Status:** COMPLETE
 **Owner:** Codex / Engineering
 **Created:** 2026-08-14
 **Updated:** 2026-08-14
@@ -15,7 +15,7 @@
 - [x] M2 — Implement passive public-API Prebid observation
 - [x] M3 — Persist auction, bidder, targeting-key, and ad-server timing evidence
 - [x] M4 — Prove client-side, timeout, server-hidden, absence, and tenancy behavior
-- [ ] M5 — Complete documentation, final CI, and retrospective
+- [x] M5 — Complete documentation, final CI, and retrospective
 
 ## 1. Purpose and User Outcome
 
@@ -190,7 +190,7 @@ Acceptance:
 - [x] auction keys are local run identities, not durable cross-checkpoint entities;
 - [x] bidder codes map to stable site-owned entities without bid/auction IDs;
 - [x] nullable timing remains unknown rather than invented as zero;
-- [ ] upgrade/downgrade/re-upgrade succeeds in GitHub Actions.
+- [x] upgrade/downgrade/re-upgrade succeeds in GitHub Actions.
 
 ### M2 — Passive safe observer
 
@@ -236,7 +236,7 @@ Acceptance:
 - [x] timeout fixture proves timeout is evidence, not a bidder-quality conclusion;
 - [x] server-only fixture proves hidden bidder detail remains absent;
 - [x] wrong-tenant reads return no auction/bidder evidence;
-- [ ] format, lint, typecheck, unit, integration, migration, and build checks pass.
+- [x] format, lint, typecheck, unit, integration, migration, and build checks pass.
 
 ### M5 — Completion
 
@@ -246,9 +246,9 @@ Acceptance:
 
 Acceptance:
 
-- [ ] plan is `COMPLETE` only after local and remote validation pass;
-- [ ] PR states behavior, limitations, safety, tests, and rollback;
-- [ ] no unrelated changes or hidden blockers remain.
+- [x] plan is `COMPLETE` only after local and remote validation pass;
+- [x] PR states behavior, limitations, safety, tests, and rollback;
+- [x] no unrelated changes or hidden blockers remain.
 
 ## 9. Validation Commands
 
@@ -304,8 +304,15 @@ Local validation on 2026-08-14:
 - frontend Vitest — passed (1 test);
 - frontend production build — passed;
 - repository secret scan and `git diff --check` — passed;
-- PostgreSQL/MinIO browser integration and migration round trip — pending GitHub Actions because
-  Docker is unavailable in this workspace.
+- GitHub Actions run 31756794343 — passed: backend, frontend, and repository-safety;
+- PostgreSQL/MinIO browser integration, deterministic client/timeout/server-only fixtures, and
+  migration upgrade/downgrade/re-upgrade — passed in GitHub Actions;
+- Draft PR #8: https://github.com/marian-dotcom/publisher-intelligence/pull/8.
+
+Retrospective: the page-side allowlist and local auction-key projection kept raw Prebid arguments
+outside the durable boundary, while request-start timestamps made GAM ordering representable
+without bodies or query values. Explicit `NOT_OBSERVABLE` server evidence preserved the key
+client/server distinction without expanding B6 into log ingestion or auction analytics.
 
 ## 13. Rollback
 
@@ -315,5 +322,5 @@ evidence, and manifest history remain intact.
 
 ## 14. Next Step
 
-Commit and publish the B6 implementation as a draft PR, then use GitHub Actions to validate the
-PostgreSQL migration round trip and deterministic real-browser Prebid fixtures.
+Review and merge Draft PR #8. The next planned browser milestone is B7 video evidence; it remains
+outside EP-007 and should begin with a separate ExecPlan after B6 is integrated into `main`.
