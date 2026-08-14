@@ -1,6 +1,6 @@
 # EP-008 — Video / Player Evidence B7
 
-**Status:** IN_PROGRESS
+**Status:** COMPLETE
 **Owner:** Codex / Engineering
 **Created:** 2026-08-14
 **Updated:** 2026-08-14
@@ -14,8 +14,8 @@
 - [x] M1 — Add lightweight player observation schema and contracts
 - [x] M2 — Implement passive generic video/player observation
 - [x] M3 — Persist player state and bounded VAST/media network evidence
-- [ ] M4 — Prove sticky, playback, opaque-network, absence, and tenancy behavior
-- [ ] M5 — Complete documentation, final CI, and retrospective
+- [x] M4 — Prove sticky, playback, opaque-network, absence, and tenancy behavior
+- [x] M5 — Complete documentation, final CI, and retrospective
 
 ## 1. Purpose and User Outcome
 
@@ -225,7 +225,7 @@ Acceptance:
 - [x] player identity is site-owned and contains no URL, query, DOM text, or raw attribute value;
 - [x] unknown state remains null instead of false/zero;
 - [x] counts and dimensions reject negative values;
-- [ ] upgrade/downgrade/re-upgrade succeeds.
+- [x] upgrade/downgrade/re-upgrade succeeds.
 
 Validation:
 
@@ -309,12 +309,12 @@ Implementation:
 
 Acceptance:
 
-- [ ] EVAL-BR-009 sticky player is observed after deterministic scroll;
-- [ ] dimensions, visibility, autoplay, mute, controls, dismiss, and playback evidence persist;
-- [ ] VAST/media counts and VAST HTTP failure count are explainable;
-- [ ] opaque network-only evidence creates no player row;
-- [ ] wrong-tenant reads return no player evidence;
-- [ ] format, lint, typecheck, unit, integration, migration, build, and secret checks pass.
+- [x] EVAL-BR-009 sticky player is observed after deterministic scroll;
+- [x] dimensions, visibility, autoplay, mute, controls, dismiss, and playback evidence persist;
+- [x] VAST/media counts and VAST HTTP failure count are explainable;
+- [x] opaque network-only evidence creates no player row;
+- [x] wrong-tenant reads return no player evidence;
+- [x] format, lint, typecheck, unit, integration, migration, build, and secret checks pass.
 
 Validation:
 
@@ -338,9 +338,9 @@ Implementation:
 
 Acceptance:
 
-- [ ] plan becomes `COMPLETE` only after local and remote validation pass;
-- [ ] PR states behavior, limitations, safety, tests, and rollback;
-- [ ] no unrelated change, accidental secret, or hidden blocker remains.
+- [x] plan becomes `COMPLETE` only after local and remote validation pass;
+- [x] PR states behavior, limitations, safety, tests, and rollback;
+- [x] no unrelated change, accidental secret, or hidden blocker remains.
 
 Validation:
 
@@ -354,14 +354,14 @@ Expected result: one focused, green Draft PR for B7.
 
 ## 9. Final Acceptance Criteria
 
-- [ ] a native player is persisted with canonical observable state and `video-b7-v1` provenance;
-- [ ] sticky/fixed and autoplay/playback distinctions are preserved;
-- [ ] VAST/media lifecycle counts use sanitized metadata only;
-- [ ] opaque/multiple-player limits are explicit and no attribution is fabricated;
-- [ ] video absence or non-observability does not crash or fail an otherwise valid checkpoint;
-- [ ] technical collector failure retains B1–B6 evidence as `PARTIAL`;
-- [ ] tenant ownership, migration round trip, and all regressions pass;
-- [ ] manifest v7 and bundle `b7-v1` are documented and tested.
+- [x] a native player is persisted with canonical observable state and `video-b7-v1` provenance;
+- [x] sticky/fixed and autoplay/playback distinctions are preserved;
+- [x] VAST/media lifecycle counts use sanitized metadata only;
+- [x] opaque/multiple-player limits are explicit and no attribution is fabricated;
+- [x] video absence or non-observability does not crash or fail an otherwise valid checkpoint;
+- [x] technical collector failure retains B1–B6 evidence as `PARTIAL`;
+- [x] tenant ownership, migration round trip, and all regressions pass;
+- [x] manifest v7 and bundle `b7-v1` are documented and tested.
 
 ## 10. Final Validation
 
@@ -501,6 +501,9 @@ remain future pilot-driven decisions outside B7.
 - 2026-08-14 — Local Ruff, mypy, all 59 backend unit tests, frontend lint/typecheck/test/build,
   secret scan, and diff check passed. PostgreSQL/MinIO integration and migration round trip remain
   for GitHub Actions because Docker is unavailable locally.
+- 2026-08-14 — Draft PR #9 published. GitHub Actions CI run 57 passed repository safety,
+  frontend, backend unit/integration tests, migration upgrade/round trip, scheduler, and worker;
+  M4–M5 and EP-008 complete.
 
 ## 21. Validation Results
 
@@ -512,14 +515,25 @@ Local validation on 2026-08-14:
 - `pytest tests/unit` — passed (59 tests; one upstream Starlette deprecation warning);
 - frontend lint, typecheck, Vitest, and production build — passed;
 - repository secret scan and `git diff --check` — passed;
-- PostgreSQL/MinIO browser integration and migration round trip — pending GitHub Actions because
-  Docker is unavailable in this workspace.
+- GitHub Actions CI run 57 — passed on 2026-08-14;
+- PostgreSQL/MinIO browser integration, deterministic native/opaque video fixtures, migration
+  upgrade/round trip, scheduler, and worker — passed in GitHub Actions;
+- Draft PR: https://github.com/marian-dotcom/publisher-intelligence/pull/9;
+- CI: https://github.com/marian-dotcom/publisher-intelligence/actions/runs/31758191544.
 
 ## 22. Final Outcome / Retrospective
 
-Pending implementation and validation.
+B7 is complete as a passive, generic, explainable video/player evidence slice. Native players are
+identified without sensitive DOM/media identifiers, playback and autoplay remain distinct, and
+VAST/media evidence uses sanitized network metadata without bodies or XML. Deterministic tests
+proved sticky/fixed transitions, player state, bounded network counts, opaque-player limitations,
+tenant isolation, migration safety, and B1–B6 regression safety.
+
+The deliberate boundary remains appropriate: proprietary/cross-origin players can be
+`NOT_OBSERVABLE`, multi-player network attribution is not guessed, and B7 makes no policy or
+impression claim. No new dependency, service, permission, or infrastructure category was added.
 
 ## 23. Next Step
 
-Review and commit the B7 implementation, publish a Draft PR, then use GitHub Actions to validate
-the dynamic sticky-player and opaque-network fixtures plus the migration round trip.
+Review and merge Draft PR #9. Start B8 synthetic performance evidence in a separate ExecPlan only
+after B7 is merged into `main`.
