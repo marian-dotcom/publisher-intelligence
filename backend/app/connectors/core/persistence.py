@@ -56,7 +56,7 @@ class ConnectorRepository:
                     status="PENDING",
                     scopes=list(scopes),
                     secret_reference=secret_reference,
-                    metadata={},
+                    connection_metadata={},
                 )
                 .on_conflict_do_nothing(constraint="uq_data_connections_property")
                 .returning(DataConnection.id)

@@ -330,6 +330,9 @@ OAuth lifecycle before pilot credentials are connected.
 - Initial CI run 67 exposed test-fixture insert ordering: the ORM models intentionally have no
   relationship graph, so adding tenant, publisher, and site in one flush did not guarantee the FK
   order. The fixture now flushes each ownership level explicitly; production code was unaffected.
+- CI run 69 then reached the repository and exposed SQLAlchemy's reserved declarative `metadata`
+  name in an ORM insert keyword. The column was already safely mapped as `connection_metadata`;
+  the insert now uses that mapped attribute and a compile-time regression test protects it.
 
 ## 20. Progress Log
 
@@ -344,6 +347,9 @@ OAuth lifecycle before pilot credentials are connected.
 - 2026-08-14: Draft PR #11 published. Initial CI run 67 passed frontend, repository safety,
   migration 0010, static checks, and unit tests, then identified only the GA4 integration fixture's
   tenant→publisher insert ordering. Added explicit ownership-level flushes and republished.
+- 2026-08-14: CI run 69 passed the fixture and reached connection registration, identifying the
+  reserved ORM `metadata` keyword. Updated the insert to `connection_metadata`, added a direct
+  SQLAlchemy compilation regression test, and republished.
 
 ## 21. Final Outcome / Retrospective
 
