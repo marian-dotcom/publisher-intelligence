@@ -1,0 +1,1 @@
+"""GSC connector unit tests."""

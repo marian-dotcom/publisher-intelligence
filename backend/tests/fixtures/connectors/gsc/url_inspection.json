@@ -1,0 +1,16 @@
+{
+  "inspectionResult": {
+    "indexStatusResult": {
+      "verdict": "PASS",
+      "coverageState": "Submitted and indexed",
+      "robotsTxtState": "ALLOWED",
+      "indexingState": "INDEXING_ALLOWED",
+      "pageFetchState": "SUCCESSFUL",
+      "googleCanonical": "https://www.example.com/article/",
+      "userCanonical": "https://www.example.com/article/",
+      "lastCrawlTime": "2026-08-13T08:30:00Z",
+      "crawledAs": "MOBILE"
+    },
+    "inspectionResultLink": "https://search.google.com/search-console/inspect"
+  }
+}

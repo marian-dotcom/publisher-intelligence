@@ -149,6 +149,27 @@ call Google. A missing row produces no point. Thresholding, sampling, restrictio
 `dataLossFromOtherRow` remain extract limitations; they do not become zero traffic or an incident
 conclusion. Preliminary operational data and later mature reconciliation remain separate extracts.
 
+## Google Search Console read-only connector (C3)
+
+The GSC connector accepts only the exact `webmasters.readonly` scope and preserves Domain and
+URL-prefix property identifiers without collapsing their semantics. `sites.list` permission
+discovery plus safe one-day `web` and `discover` probes must succeed before the connection becomes
+`CONNECTED`; a valid Discover probe with zero rows is not a connector failure.
+
+Routine definitions keep Search and Discover separate. Final daily Search/Discover extracts run
+as seven-day mature reconciliations, while the low-cardinality hourly Search path runs every four
+hours as preliminary evidence. Search Analytics dates/hours remain in
+`America/Los_Angeles` source time and are also stored as explicit UTC intervals. `final`, `all`,
+and `hourly_all` definitions retain incomplete-data metadata, and each point at or after an
+incomplete boundary remains preliminary.
+
+Requests are paged at no more than 25,000 rows and stop at the documented 50,000-row daily/type
+exposure cap. The source's top-row limitation is always retained; missing rows never become zero.
+Routine cubes exclude the privacy-sensitive query dimension. URL Inspection is read-only and
+on-demand, stores only a bounded sanitized current-index view, never claims a live URL test, and a
+URL Inspection quota error does not disable routine Search Analytics extraction. Tests use only
+sanitized fixtures and never call Google.
+
 Comparison prefers the previous run for the same URL and exact scenario. When an operator retires
 one representative URL and creates another under the same template, lineage may fall back to the
 same tenant/site/template and exact scenario. The manifest records whether comparison used the
@@ -203,7 +224,8 @@ If Docker is unavailable, run the local unit/lint/build checks and rely on GitHu
 
 ## Repository boundaries
 
-EP-009 completes Browser v1. EP-010 adds the C1 persistence contract and GA4 C2 aggregate
-read-only connector, but not production OAuth onboarding, a managed secret provider, GSC, GAM,
-cross-source derivation, provider write access, event promotion, alerts, incident conclusions,
-LLM-selected queries, or production rollout.
+EP-009 completes Browser v1. EP-010 adds C1 persistence and GA4 C2. EP-011 adds the GSC C3
+aggregate read-only connector, including separate Search/Discover evidence and bounded on-demand
+URL Inspection. The repository still excludes production OAuth onboarding, a managed secret
+provider, GAM, cross-source derivation, provider write access, event promotion, alerts, incident
+conclusions, LLM-selected queries, and production rollout.

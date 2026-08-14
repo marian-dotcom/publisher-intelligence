@@ -8,7 +8,8 @@ from app.connectors.ga4.scheduling import GA4SchedulingService
 
 
 class Repository:
-    async def schedulable_connections(self) -> tuple[ConnectionSnapshot, ...]:
+    async def schedulable_connections(self, *, provider: str) -> tuple[ConnectionSnapshot, ...]:
+        assert provider == "GA4"
         return (
             ConnectionSnapshot(
                 id=uuid.uuid4(),

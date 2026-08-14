@@ -28,6 +28,14 @@ class AccessTokenResolver(Protocol):
     async def resolve(self, secret_reference: str) -> AccessCredential: ...
 
 
+class PersistableExtractDefinition(Protocol):
+    @property
+    def code(self) -> str: ...
+
+    @property
+    def connector_version(self) -> str: ...
+
+
 @dataclass(frozen=True, slots=True)
 class ConnectionSnapshot:
     id: uuid.UUID
@@ -57,7 +65,7 @@ class ExtractPeriod:
 class MetricDefinition:
     api_name: str
     metric_code: str
-    unit: Literal["COUNT", "RATIO"]
+    unit: Literal["COUNT", "RATIO", "NUMBER"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +106,9 @@ class NormalizedMetricPoint:
     period_start: datetime
     period_end: datetime
     value: float
+    numerator: float | None = None
+    denominator: float | None = None
+    freshness_status: FreshnessStatus | None = None
 
 
 @dataclass(frozen=True, slots=True)

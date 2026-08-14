@@ -1,0 +1,12 @@
+{
+  "rows": [],
+  "responseAggregationType": "auto",
+  "metadata": {},
+  "pagination": {
+    "pagesRequested": 1,
+    "returnedRows": 0,
+    "rowLimit": 25000,
+    "maxRows": 50000,
+    "capReached": false
+  }
+}

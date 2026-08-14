@@ -180,7 +180,7 @@ class MetricPoint(Base):
     source_extract_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("source_extracts.id", ondelete="RESTRICT"), nullable=False
     )
-    source_time: Mapped[str] = mapped_column(String(20), nullable=False)
+    source_time: Mapped[str] = mapped_column(String(64), nullable=False)
     period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     value: Mapped[float] = mapped_column(Float, nullable=False)

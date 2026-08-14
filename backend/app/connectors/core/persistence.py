@@ -12,11 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.browser.models import Site
 from app.connectors.core.contracts import (
     ConnectionSnapshot,
-    ExtractDefinition,
     ExtractPeriod,
     ExtractStart,
     FreshnessStatus,
     NormalizedExtract,
+    PersistableExtractDefinition,
 )
 from app.connectors.models import DataConnection, MetricPoint, MetricSeries, SourceExtract
 
@@ -29,11 +29,12 @@ class ConnectorRepository:
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
 
-    async def register_ga4_connection(
+    async def register_connection(
         self,
         *,
         tenant_id: uuid.UUID,
         site_id: uuid.UUID,
+        provider: str,
         property_id: str,
         scopes: tuple[str, ...],
         secret_reference: str,
@@ -51,7 +52,7 @@ class ConnectorRepository:
                     id=connection_id,
                     tenant_id=tenant_id,
                     site_id=site_id,
-                    provider="GA4",
+                    provider=provider,
                     external_property_id=property_id,
                     status="PENDING",
                     scopes=list(scopes),
@@ -68,13 +69,31 @@ class ConnectorRepository:
                 select(DataConnection.id).where(
                     DataConnection.tenant_id == tenant_id,
                     DataConnection.site_id == site_id,
-                    DataConnection.provider == "GA4",
+                    DataConnection.provider == provider,
                     DataConnection.external_property_id == property_id,
                 )
             )
             if existing is None:
                 raise ConnectorStateError("connection registration conflict could not be resolved")
             return existing
+
+    async def register_ga4_connection(
+        self,
+        *,
+        tenant_id: uuid.UUID,
+        site_id: uuid.UUID,
+        property_id: str,
+        scopes: tuple[str, ...],
+        secret_reference: str,
+    ) -> uuid.UUID:
+        return await self.register_connection(
+            tenant_id=tenant_id,
+            site_id=site_id,
+            provider="GA4",
+            property_id=property_id,
+            scopes=scopes,
+            secret_reference=secret_reference,
+        )
 
     async def load_connection(
         self, *, tenant_id: uuid.UUID, connection_id: uuid.UUID
@@ -137,7 +156,7 @@ class ConnectorRepository:
         self,
         *,
         connection: ConnectionSnapshot,
-        definition: ExtractDefinition,
+        definition: PersistableExtractDefinition,
         query_definition: dict[str, Any],
         scheduled_run_key: str,
         freshness_status: FreshnessStatus,
@@ -150,7 +169,7 @@ class ConnectorRepository:
                     DataConnection.id == connection.id,
                     DataConnection.tenant_id == connection.tenant_id,
                     DataConnection.site_id == connection.site_id,
-                    DataConnection.provider == "GA4",
+                    DataConnection.provider == connection.provider,
                 )
             )
             if ownership is None:
@@ -162,7 +181,7 @@ class ConnectorRepository:
                     tenant_id=connection.tenant_id,
                     site_id=connection.site_id,
                     connection_id=connection.id,
-                    source="GA4",
+                    source=connection.provider,
                     extract_type=definition.code,
                     scheduled_run_key=scheduled_run_key,
                     query_definition=query_definition,
@@ -255,6 +274,7 @@ class ConnectorRepository:
                     semantics_version=point.metric_semantics_version,
                     granularity=point.granularity,
                     dimensions=point.dimensions,
+                    source=connection.provider,
                 )
                 series_id = uuid.uuid4()
                 created_series_id = await session.scalar(
@@ -263,7 +283,7 @@ class ConnectorRepository:
                         id=series_id,
                         tenant_id=connection.tenant_id,
                         site_id=connection.site_id,
-                        source="GA4",
+                        source=connection.provider,
                         metric_code=point.metric_code,
                         metric_semantics_version=point.metric_semantics_version,
                         unit=point.unit,
@@ -296,8 +316,10 @@ class ConnectorRepository:
                         period_start=point.period_start,
                         period_end=point.period_end,
                         value=point.value,
+                        numerator=point.numerator,
+                        denominator=point.denominator,
                         sample_status=("LIMITED" if normalized.limitations else "COMPLETE"),
-                        freshness_status=freshness_status,
+                        freshness_status=point.freshness_status or freshness_status,
                         retrieved_at=now,
                     )
                     .on_conflict_do_nothing(constraint="uq_metric_points_extract_period")
@@ -334,6 +356,7 @@ class ConnectorRepository:
         extract_id: uuid.UUID | None,
         error_class: str,
         error_code: str,
+        affect_connection: bool = True,
     ) -> None:
         now = datetime.now(UTC)
         connection_status = {
@@ -361,6 +384,8 @@ class ConnectorRepository:
                         },
                     )
                 )
+            if not affect_connection:
+                return
             result = await session.execute(
                 update(DataConnection)
                 .where(
@@ -379,12 +404,14 @@ class ConnectorRepository:
             if cast(Any, result).rowcount != 1:
                 raise ConnectorStateError("connection failure ownership validation failed")
 
-    async def schedulable_connections(self) -> tuple[ConnectionSnapshot, ...]:
+    async def schedulable_connections(
+        self, *, provider: str = "GA4"
+    ) -> tuple[ConnectionSnapshot, ...]:
         async with self._session_factory() as session:
             rows = (
                 await session.scalars(
                     select(DataConnection).where(
-                        DataConnection.provider == "GA4",
+                        DataConnection.provider == provider,
                         DataConnection.status.in_(["CONNECTED", "DEGRADED"]),
                         DataConnection.archived_at.is_(None),
                     )
@@ -420,12 +447,13 @@ def _series_key(
     semantics_version: str,
     granularity: str,
     dimensions: dict[str, str],
+    source: str = "GA4",
 ) -> str:
     canonical = json.dumps(
         {
             "tenantId": str(tenant_id),
             "siteId": str(site_id),
-            "source": "GA4",
+            "source": source,
             "metricCode": metric_code,
             "semanticsVersion": semantics_version,
             "granularity": granularity,
