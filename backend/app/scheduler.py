@@ -6,6 +6,8 @@ import signal
 from app.browser.scheduling import CheckpointSchedulingService
 from app.common.logging import configure_logging
 from app.config.settings import get_settings
+from app.connectors.core.persistence import ConnectorRepository
+from app.connectors.ga4.scheduling import GA4SchedulingService
 from app.db.session import get_session_factory
 from app.jobs.queue import JobQueue
 
@@ -24,6 +26,16 @@ async def run_once() -> None:
                 "site_count": result.site_count,
                 "run_count": result.run_count,
                 "job_count": result.job_count,
+            }
+        },
+    )
+    ga4_result = await GA4SchedulingService(ConnectorRepository(factory), queue).schedule_due()
+    logger.info(
+        "GA4 scheduling pass completed",
+        extra={
+            "context": {
+                "connection_count": ga4_result.connection_count,
+                "job_count": ga4_result.job_count,
             }
         },
     )

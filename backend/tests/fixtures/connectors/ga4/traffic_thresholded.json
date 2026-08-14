@@ -1,0 +1,21 @@
+{
+  "dimensionHeaders": [
+    {"name": "dateHour"},
+    {"name": "deviceCategory"},
+    {"name": "sessionDefaultChannelGroup"}
+  ],
+  "metricHeaders": [
+    {"name": "activeUsers", "type": "TYPE_INTEGER"},
+    {"name": "sessions", "type": "TYPE_INTEGER"},
+    {"name": "screenPageViews", "type": "TYPE_INTEGER"},
+    {"name": "engagedSessions", "type": "TYPE_INTEGER"}
+  ],
+  "rows": [],
+  "rowCount": 0,
+  "metadata": {
+    "timeZone": "UTC",
+    "subjectToThresholding": true,
+    "emptyReason": "No rows met the report threshold"
+  },
+  "dataLossFromOtherRow": true
+}

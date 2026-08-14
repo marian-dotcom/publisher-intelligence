@@ -1,0 +1,36 @@
+{
+  "dimensionHeaders": [
+    {"name": "date"},
+    {"name": "deviceCategory"}
+  ],
+  "metricHeaders": [
+    {"name": "activeUsers", "type": "TYPE_INTEGER"},
+    {"name": "sessions", "type": "TYPE_INTEGER"},
+    {"name": "screenPageViews", "type": "TYPE_INTEGER"},
+    {"name": "screenPageViewsPerUser", "type": "TYPE_FLOAT"},
+    {"name": "screenPageViewsPerSession", "type": "TYPE_FLOAT"},
+    {"name": "engagementRate", "type": "TYPE_FLOAT"}
+  ],
+  "rows": [
+    {
+      "dimensionValues": [
+        {"value": "20260812"},
+        {"value": "mobile"}
+      ],
+      "metricValues": [
+        {"value": "1000"},
+        {"value": "1100"},
+        {"value": "1700"},
+        {"value": "1.7"},
+        {"value": "1.545454545"},
+        {"value": "0.62"}
+      ]
+    }
+  ],
+  "rowCount": 1,
+  "metadata": {
+    "timeZone": "Europe/Bucharest",
+    "subjectToThresholding": false
+  },
+  "dataLossFromOtherRow": false
+}

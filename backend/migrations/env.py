@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.browser import models as browser_models  # noqa: F401
 from app.config.settings import get_settings
+from app.connectors import models as connector_models  # noqa: F401
 from app.db import models  # noqa: F401
 from app.db.base import Base
 

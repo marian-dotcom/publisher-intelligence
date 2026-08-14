@@ -1,0 +1,53 @@
+{
+  "dimensionHeaders": [
+    {"name": "dateHour"},
+    {"name": "deviceCategory"},
+    {"name": "sessionDefaultChannelGroup"}
+  ],
+  "metricHeaders": [
+    {"name": "activeUsers", "type": "TYPE_INTEGER"},
+    {"name": "sessions", "type": "TYPE_INTEGER"},
+    {"name": "screenPageViews", "type": "TYPE_INTEGER"},
+    {"name": "engagedSessions", "type": "TYPE_INTEGER"}
+  ],
+  "rows": [
+    {
+      "dimensionValues": [
+        {"value": "2026081310"},
+        {"value": "mobile"},
+        {"value": "Organic Search"}
+      ],
+      "metricValues": [
+        {"value": "120"},
+        {"value": "150"},
+        {"value": "225"},
+        {"value": "95"}
+      ]
+    },
+    {
+      "dimensionValues": [
+        {"value": "2026081310"},
+        {"value": "desktop"},
+        {"value": "Direct"}
+      ],
+      "metricValues": [
+        {"value": "40"},
+        {"value": "50"},
+        {"value": "70"},
+        {"value": "28"}
+      ]
+    }
+  ],
+  "rowCount": 2,
+  "metadata": {
+    "timeZone": "Europe/Bucharest",
+    "currencyCode": "RON",
+    "subjectToThresholding": false
+  },
+  "propertyQuota": {
+    "tokensPerDay": {"consumed": 3, "remaining": 199997},
+    "tokensPerHour": {"consumed": 3, "remaining": 39997},
+    "concurrentRequests": {"consumed": 1, "remaining": 9}
+  },
+  "dataLossFromOtherRow": false
+}
