@@ -33,7 +33,7 @@ make scheduler
 make frontend
 ```
 
-## Video-aware browser checkpoints (B7)
+## Performance-aware browser checkpoints (B8)
 
 Register one explicit public pilot URL. The command also enqueues one immediate legacy B1
 diagnostic run so an operator can verify the configuration without waiting for the next window:
@@ -117,6 +117,19 @@ evidence without an inspectable native player is `NOT_OBSERVABLE`, and a VAST re
 reported as proof of playback or impression. Manifest v7 records this B7 evidence alongside the
 preserved B1–B6 output.
 
+B8 installs a small native PerformanceObserver collector before navigation. After the configured
+interaction sequence and before DOM serialization/full-page screenshot work, it snapshots bounded
+navigation timing, the latest foreground LCP candidate, standard CLS session windows, Event
+Timing interaction latency when a qualifying interaction exists, long-task totals, aggregate
+resource timing, and DOM node count. It stores no resource URLs, query values, DOM identities,
+layout-shift nodes, task attribution stacks, or trace archives.
+
+Every performance row and manifest section is explicitly `synthetic_browser`, scenario-bound, and
+collector-versioned. Missing APIs or missing qualifying interactions remain null with limitation
+codes; they are not converted to zero. These values are not real-user p75 Core Web Vitals, a
+Lighthouse audit, a performance event, an SEO/ranking conclusion, or causal proof. Manifest v8
+records B8 alongside the preserved B1–B7 evidence.
+
 Comparison prefers the previous run for the same URL and exact scenario. When an operator retires
 one representative URL and creates another under the same template, lineage may fall back to the
 same tenant/site/template and exact scenario. The manifest records whether comparison used the
@@ -133,7 +146,7 @@ creative and line-item identifiers are observation details and never stable iden
 `BROWSER_ALLOW_PRIVATE_NETWORKS` defaults to `false` and must remain false outside controlled
 tests. The application validates DNS destinations and intercepts browser requests, but production
 deployment still requires network-level egress enforcement to cover DNS rebinding and browser
-runtime failures. B7 does not configure, display, refresh, or click ads; request bids; change ad
+runtime failures. B8 does not configure, display, refresh, or click ads; request bids; change ad
 targeting; play, seek, mute, dismiss, or otherwise control video; infer CMP actions; decode or
 retain raw consent strings; authenticate; bypass paywalls; run stealth; discover templates
 automatically; or make compliance, revenue, event, incident, causality, player-quality, or AI
@@ -171,7 +184,7 @@ If Docker is unavailable, run the local unit/lint/build checks and rely on GitHu
 
 ## Repository boundaries
 
-EP-008 adds passive, bounded generic video/player evidence on top of the B1–B6 checkpoint pipeline.
-No proprietary player adapter, provider connector, production video/auction analytics, event
-promotion, alert, incident, LLM, policy-compliance judgment, B8 synthetic-performance collector,
-or production authentication behavior is implemented here.
+EP-009 completes Browser v1 with passive, bounded synthetic performance evidence on top of the
+B1–B7 checkpoint pipeline. No proprietary player adapter, provider connector, field/RUM ingestion,
+Lighthouse clone, performance threshold/event promotion, alert, incident, LLM, SEO causality,
+policy-compliance judgment, or production authentication behavior is implemented here.

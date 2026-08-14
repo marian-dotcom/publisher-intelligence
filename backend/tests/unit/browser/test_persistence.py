@@ -106,9 +106,13 @@ async def test_manifest_is_uploaded_last_and_finalized_after_objects() -> None:
         "RAW_DOM",
         "MANIFEST",
     ]
-    assert manifest["schema"] == "browser-checkpoint-manifest/v7"
+    assert manifest["schema"] == "browser-checkpoint-manifest/v8"
     assert manifest["gpt"] == {"present": False, "version": None, "slots": []}
     assert manifest["video"] == {"present": False, "limitations": [], "players": []}
+    assert manifest["performance"] == {
+        "source": "synthetic_browser",
+        "observation": None,
+    }
     assert manifest["consent"] == {
         "path": "NONE",
         "observation": None,

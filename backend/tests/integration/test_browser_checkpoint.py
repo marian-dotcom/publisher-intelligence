@@ -28,6 +28,7 @@ from app.browser.models import (
     PrebidBidderObservation,
     Publisher,
     Site,
+    SyntheticPerformanceObservation,
     Template,
     TemplateExpectedEntity,
     VideoPlayerObservation,
@@ -92,6 +93,18 @@ class FixtureHandler(BaseHTTPRequestHandler):
             return
         if self.path.startswith("/video-opaque"):
             self._send(200, "text/html", _opaque_video_fixture_html())
+            return
+        if self.path.startswith("/performance-resource.js"):
+            self._send(200, "application/javascript", b"window.performanceFixtureAsset = true;")
+            return
+        if self.path.startswith("/performance-data"):
+            self._send(200, "application/json", b'{"fixture":"ok"}')
+            return
+        if self.path.startswith("/performance-error"):
+            self._send(200, "text/html", _performance_error_fixture_html())
+            return
+        if self.path.startswith("/performance-fixture"):
+            self._send(200, "text/html", _performance_fixture_html())
             return
         html = b"""<!doctype html><html><body><h1>Fixture</h1>
         <script src="/asset.js?token=manifest-secret"></script>
@@ -336,6 +349,43 @@ def _opaque_video_fixture_html() -> bytes:
     </script></body></html>"""
 
 
+def _performance_fixture_html() -> bytes:
+    return b"""<!doctype html><html><head>
+    <script src="/performance-resource.js?token=resource-secret"></script>
+    </head><body style="height:4000px;margin:0">
+    <div id="fixture-top" style="height:20px"></div>
+    <h1 id="fixture-lcp" style="display:block;width:600px;height:120px;margin:0;font-size:48px">
+      Deterministic synthetic performance fixture
+    </h1>
+    <p id="shift-target" style="height:80px;margin:0">Visible content that will move.</p>
+    <script>
+    (() => {
+      setTimeout(() => fetch('/performance-data?secret=fetch-secret'), 60);
+      setTimeout(() => {
+        const block = document.createElement('div');
+        block.style.height = '220px';
+        block.textContent = 'Late block';
+        document.body.insertBefore(block, document.querySelector('#fixture-lcp'));
+      }, 150);
+      setTimeout(() => {
+        const started = performance.now();
+        while (performance.now() - started < 90) {}
+      }, 300);
+    })();
+    </script></body></html>"""
+
+
+def _performance_error_fixture_html() -> bytes:
+    return b"""<!doctype html><html><body><h1>Performance failure fixture</h1>
+    <script>
+    setTimeout(() => {
+      if (window.__piPerformanceB8) {
+        window.__piPerformanceB8.snapshot = () => { throw new Error('fixture failure'); };
+      }
+    }, 20);
+    </script></body></html>"""
+
+
 @pytest.fixture
 def fixture_site() -> Iterator[str]:
     server = ThreadingHTTPServer(("127.0.0.1", 0), FixtureHandler)
@@ -368,6 +418,7 @@ async def _cleanup_tenant(tenant_id: uuid.UUID, storage: S3Storage) -> None:
             PrebidBidderObservation,
             PrebidAuctionObservation,
             VideoPlayerObservation,
+            SyntheticPerformanceObservation,
             ConsentPhaseDependencyObservation,
             CMPObservation,
             EntityObservation,
@@ -458,8 +509,8 @@ async def test_gpt_lifecycle_persists_eager_lazy_and_expected_absent_slots(
         )
         assert run is not None
         assert run.status == "COMPLETE"
-        assert run.collector_bundle_version == "b7-v1"
-        assert run.manifest["schema"] == "browser-checkpoint-manifest/v7"
+        assert run.collector_bundle_version == "b8-v1"
+        assert run.manifest["schema"] == "browser-checkpoint-manifest/v8"
         assert run.manifest["gpt"]["present"] is True
         assert run.manifest["gpt"]["version"] == "fixture-gpt-1"
 
@@ -547,8 +598,8 @@ async def test_prebid_client_auction_persists_safe_timing_and_bidder_evidence(
         )
         assert run is not None
         assert run.status == "COMPLETE"
-        assert run.collector_bundle_version == "b7-v1"
-        assert run.manifest["schema"] == "browser-checkpoint-manifest/v7"
+        assert run.collector_bundle_version == "b8-v1"
+        assert run.manifest["schema"] == "browser-checkpoint-manifest/v8"
         prebid = run.manifest["prebid"]
         assert prebid["present"] is True
         assert prebid["version"] == "fixture-prebid-11"
@@ -722,8 +773,8 @@ async def test_native_video_player_persists_sticky_playback_and_network_evidence
         )
         assert run is not None
         assert run.status == "COMPLETE"
-        assert run.collector_bundle_version == "b7-v1"
-        assert run.manifest["schema"] == "browser-checkpoint-manifest/v7"
+        assert run.collector_bundle_version == "b8-v1"
+        assert run.manifest["schema"] == "browser-checkpoint-manifest/v8"
         video = run.manifest["video"]
         assert video["present"] is True
         assert video["limitations"] == ["vast_payload_not_inspected"]
@@ -846,6 +897,157 @@ async def test_video_network_without_native_player_is_not_observable(
         await _cleanup_tenant(registered.tenant_id, storage)
 
 
+async def test_synthetic_performance_persists_bounded_metrics_and_provenance(
+    fixture_site: str,
+) -> None:
+    settings = get_settings()
+    assert settings.browser_allow_private_networks
+    factory = get_session_factory()
+    queue = JobQueue(factory)
+    service = CheckpointService(factory, queue, settings)
+    repository = CheckpointRepository(factory)
+    storage = S3Storage(settings)
+    registered = await service.register_and_enqueue(
+        tenant_slug=f"performance-{uuid.uuid4().hex}",
+        tenant_name="Synthetic Performance Tenant",
+        publisher_name="Performance Publisher",
+        site_name="Synthetic Performance Site",
+        url=f"{fixture_site}/performance-fixture?operator-secret=not-retained",
+    )
+    try:
+        async with factory() as session, session.begin():
+            run = await session.get(CheckpointRun, registered.checkpoint_run_id)
+            assert run is not None
+            scenario = await session.scalar(
+                select(BrowserScenario).where(
+                    BrowserScenario.tenant_id == registered.tenant_id,
+                    BrowserScenario.site_id == run.site_id,
+                    BrowserScenario.code == B2_DESKTOP_SCENARIO_CODE,
+                )
+            )
+            assert scenario is not None
+            run.scenario_id = scenario.id
+
+        await run_browser_worker(once=True)
+
+        run = await repository.get_for_tenant(
+            tenant_id=registered.tenant_id,
+            checkpoint_run_id=registered.checkpoint_run_id,
+        )
+        assert run is not None
+        assert run.status == "COMPLETE"
+        assert run.collector_bundle_version == "b8-v1"
+        assert run.manifest["schema"] == "browser-checkpoint-manifest/v8"
+        performance = run.manifest["performance"]
+        assert performance["source"] == "synthetic_browser"
+        observation = performance["observation"]
+        assert observation is not None
+        assert observation["lcp_ms"] > 0
+        assert observation["cls"] > 0
+        assert observation["inp_ms"] is None
+        assert observation["inp_method"] is None
+        assert observation["ttfb_ms"] >= 0
+        assert observation["dom_content_loaded_ms"] > 0
+        assert observation["load_event_ms"] > 0
+        assert observation["long_task_count"] >= 1
+        assert observation["long_task_total_ms"] >= 50
+        assert observation["metadata"]["source"] == "synthetic_browser"
+        assert observation["metadata"]["dom_node_count"] >= 6
+        assert observation["metadata"]["resource_timing"]["entry_count"] >= 2
+        assert (
+            "inp_proxy_unavailable_no_qualifying_interaction"
+            in observation["metadata"]["limitations"]
+        )
+
+        persisted = await repository.synthetic_performance_for_tenant(
+            tenant_id=registered.tenant_id,
+            checkpoint_run_id=registered.checkpoint_run_id,
+        )
+        assert persisted is not None
+        assert persisted.lcp_ms == observation["lcp_ms"]
+        assert persisted.cls == observation["cls"]
+        assert persisted.inp_ms is None
+        assert persisted.long_task_count is not None and persisted.long_task_count >= 1
+        assert persisted.collector_version == "performance-b8-v1"
+        assert persisted.metadata_json["source"] == "synthetic_browser"
+        assert persisted.metadata_json["environment_synthetic"] is True
+        assert persisted.metadata_json["scenario_code"] == B2_DESKTOP_SCENARIO_CODE
+        assert (
+            await repository.synthetic_performance_for_tenant(
+                tenant_id=uuid.uuid4(),
+                checkpoint_run_id=registered.checkpoint_run_id,
+            )
+            is None
+        )
+        serialized_manifest = str(run.manifest)
+        for forbidden in ("resource-secret", "fetch-secret", "operator-secret"):
+            assert forbidden not in serialized_manifest
+        async with factory() as session:
+            collector = await session.scalar(
+                select(CollectorRun).where(
+                    CollectorRun.checkpoint_run_id == registered.checkpoint_run_id,
+                    CollectorRun.collector_type == "SYNTHETIC_PERFORMANCE",
+                )
+            )
+            assert collector is not None
+            assert collector.status == "OK"
+            assert collector.collector_version == "performance-b8-v1"
+            assert collector.summary["source"] == "synthetic_browser"
+    finally:
+        await _cleanup_tenant(registered.tenant_id, storage)
+
+
+async def test_performance_collector_failure_retains_other_checkpoint_evidence(
+    fixture_site: str,
+) -> None:
+    settings = get_settings()
+    factory = get_session_factory()
+    queue = JobQueue(factory)
+    service = CheckpointService(factory, queue, settings)
+    repository = CheckpointRepository(factory)
+    storage = S3Storage(settings)
+    registered = await service.register_and_enqueue(
+        tenant_slug=f"performance-error-{uuid.uuid4().hex}",
+        tenant_name="Performance Error Tenant",
+        publisher_name="Performance Publisher",
+        site_name="Performance Error Site",
+        url=f"{fixture_site}/performance-error",
+    )
+    try:
+        await run_browser_worker(once=True)
+        run = await repository.get_for_tenant(
+            tenant_id=registered.tenant_id,
+            checkpoint_run_id=registered.checkpoint_run_id,
+        )
+        assert run is not None
+        assert run.status == "PARTIAL"
+        assert run.manifest["performance"] == {
+            "source": "synthetic_browser",
+            "observation": None,
+        }
+        assert run.manifest["normalized_state"]
+        assert run.manifest["actions"][-1]["kind"] == "full_page"
+        assert (
+            await repository.synthetic_performance_for_tenant(
+                tenant_id=registered.tenant_id,
+                checkpoint_run_id=registered.checkpoint_run_id,
+            )
+            is None
+        )
+        async with factory() as session:
+            collector = await session.scalar(
+                select(CollectorRun).where(
+                    CollectorRun.checkpoint_run_id == registered.checkpoint_run_id,
+                    CollectorRun.collector_type == "SYNTHETIC_PERFORMANCE",
+                )
+            )
+            assert collector is not None
+            assert collector.status == "ERROR"
+            assert collector.error_code == "PLAYWRIGHT_ERROR"
+    finally:
+        await _cleanup_tenant(registered.tenant_id, storage)
+
+
 @pytest.mark.parametrize(
     ("scenario_code", "decision", "expected_phase"),
     [
@@ -907,7 +1109,7 @@ async def test_cmp_action_persists_tcf_and_phase_evidence(
         )
         assert run is not None
         assert run.status == "COMPLETE"
-        assert run.manifest["schema"] == "browser-checkpoint-manifest/v7"
+        assert run.manifest["schema"] == "browser-checkpoint-manifest/v8"
         consent = run.manifest["consent"]
         assert consent["path"] == ("PRIMARY" if decision == "accept" else "REJECT")
         observation = consent["observation"]
@@ -1061,7 +1263,7 @@ async def test_real_browser_checkpoint_persists_evidence_and_site_error(
         assert run.final_url == f"{fixture_site}/complete"
         assert run.playwright_version
         assert run.chromium_version
-        assert run.manifest["schema"] == "browser-checkpoint-manifest/v7"
+        assert run.manifest["schema"] == "browser-checkpoint-manifest/v8"
         assert run.manifest["normalized_state"]["dom"]["normalizer_version"] == "dom-b3-v1"
         assert "manifest-secret" not in str(run.manifest)
         assert "network-secret" not in str(run.manifest)
@@ -1188,7 +1390,7 @@ async def test_scheduler_produces_repeatable_desktop_and_mobile_runs(
                 ).all()
             )
             assert len(first_runs) == 2
-            assert {run.collector_bundle_version for run in first_runs} == {"b7-v1"}
+            assert {run.collector_bundle_version for run in first_runs} == {"b8-v1"}
             first_run_ids = {run.id for run in first_runs}
             scheduled_jobs = list(
                 (

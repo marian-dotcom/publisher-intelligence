@@ -32,12 +32,13 @@ from app.browser.normalization import (
     normalized_dom_artifact,
     state_hash,
 )
+from app.browser.performance import PerformanceCollection, SyntheticPerformanceCollector
 from app.browser.prebid import PrebidCollection, PrebidCollector
 from app.browser.security import BrowserBlockedError, BrowserNetworkGuard, sanitize_url
 from app.browser.video import VideoCollection, VideoPlayerCollector
 from app.config.settings import Settings
 
-COLLECTOR_BUNDLE_VERSION = "b7-v1"
+COLLECTOR_BUNDLE_VERSION = "b8-v1"
 
 
 class BrowserRunner:
@@ -95,6 +96,8 @@ class BrowserRunner:
         prebid_collection: PrebidCollection | None = None
         video_collector = VideoPlayerCollector()
         video_collection: VideoCollection | None = None
+        performance_collector = SyntheticPerformanceCollector()
+        performance_collection: PerformanceCollection | None = None
         artifacts: list[ArtifactContent] = []
         actions: list[dict[str, object]] = []
         browser: Browser | None = None
@@ -132,6 +135,7 @@ class BrowserRunner:
                 await gpt_collector.attach(page)
                 await prebid_collector.attach(page)
                 await video_collector.attach(page)
+                await performance_collector.attach(page)
                 response = await page.goto(
                     target.url,
                     wait_until="domcontentloaded",
@@ -240,6 +244,8 @@ class BrowserRunner:
                     collector.network_observations,
                 )
                 collector_results.append(video_collection.result)
+                performance_collection = await performance_collector.collect(page)
+                collector_results.append(performance_collection.result)
                 consent_phase_dependencies = summarize_consent_dependencies(
                     collector.network_observations,
                     action_boundary_ms=cmp_collection.action_boundary_ms,
@@ -383,6 +389,7 @@ class BrowserRunner:
                     or gpt_collection.result.status == "ERROR"
                     or prebid_collection.result.status == "ERROR"
                     or video_collection.result.status == "ERROR"
+                    or performance_collection.result.status == "ERROR"
                     or cmp_collection.required_action_failed
                 ):
                     status = "PARTIAL"
@@ -410,6 +417,7 @@ class BrowserRunner:
                     gpt_collection=gpt_collection,
                     prebid_collection=prebid_collection,
                     video_collection=video_collection,
+                    performance_collection=performance_collection,
                     cmp_collection=cmp_collection,
                     consent_phase_dependencies=consent_phase_dependencies,
                 )
@@ -483,6 +491,7 @@ class BrowserRunner:
             gpt_collection=gpt_collection,
             prebid_collection=prebid_collection,
             video_collection=video_collection,
+            performance_collection=performance_collection,
             cmp_collection=cmp_collection,
             failure_class=failure_class,
             failure_message=(failure_message or "")[:1_000] or None,
@@ -510,6 +519,7 @@ class BrowserRunner:
         gpt_collection: GPTCollection | None = None,
         prebid_collection: PrebidCollection | None = None,
         video_collection: VideoCollection | None = None,
+        performance_collection: PerformanceCollection | None = None,
         cmp_collection: CMPCollection | None = None,
         consent_phase_dependencies: list[ConsentPhaseDependencyObservation] | None = None,
         failure_class: str | None = None,
@@ -562,6 +572,9 @@ class BrowserRunner:
                 video_collection.limitations if video_collection is not None else []
             ),
             video_players=(video_collection.players if video_collection is not None else []),
+            synthetic_performance=(
+                performance_collection.observation if performance_collection is not None else None
+            ),
             failure_class=failure_class,
             failure_message=failure_message,
         )

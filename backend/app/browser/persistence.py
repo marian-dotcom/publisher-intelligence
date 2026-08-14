@@ -49,8 +49,12 @@ from app.browser.models import (
     PrebidBidderObservation as PrebidBidderObservationModel,
 )
 from app.browser.models import (
+    SyntheticPerformanceObservation as SyntheticPerformanceObservationModel,
+)
+from app.browser.models import (
     VideoPlayerObservation as VideoPlayerObservationModel,
 )
+from app.browser.performance import PERFORMANCE_COLLECTOR_VERSION
 from app.storage.s3 import S3Storage
 
 
@@ -460,6 +464,7 @@ class CheckpointRepository:
             await self._persist_cmp_observations(session, target, evidence)
             await self._persist_prebid_observations(session, target, evidence)
             await self._persist_video_observations(session, target, evidence)
+            await self._persist_synthetic_performance(session, target, evidence)
             attempt.status = evidence.status
             attempt.completed_at = evidence.completed_at
             attempt.failure_class = evidence.failure_class
@@ -901,6 +906,43 @@ class CheckpointRepository:
             )
 
     @staticmethod
+    async def _persist_synthetic_performance(
+        session: AsyncSession,
+        target: BrowserTarget,
+        evidence: BrowserEvidence,
+    ) -> None:
+        observation = evidence.synthetic_performance
+        if observation is None:
+            return
+        metadata = {
+            **observation.metadata,
+            "scenario_code": target.scenario_code,
+            "scenario_version": target.scenario_version,
+            "environment_synthetic": evidence.environment.get("synthetic") is True,
+        }
+        await session.execute(
+            insert(SyntheticPerformanceObservationModel)
+            .values(
+                id=uuid.uuid4(),
+                tenant_id=target.tenant_id,
+                site_id=target.site_id,
+                checkpoint_run_id=target.checkpoint_run_id,
+                lcp_ms=observation.lcp_ms,
+                cls=observation.cls,
+                inp_ms=observation.inp_ms,
+                inp_method=observation.inp_method,
+                ttfb_ms=observation.ttfb_ms,
+                dom_content_loaded_ms=observation.dom_content_loaded_ms,
+                load_event_ms=observation.load_event_ms,
+                long_task_count=observation.long_task_count,
+                long_task_total_ms=observation.long_task_total_ms,
+                collector_version=PERFORMANCE_COLLECTOR_VERSION,
+                metadata_json=metadata,
+            )
+            .on_conflict_do_nothing(index_elements=["checkpoint_run_id"])
+        )
+
+    @staticmethod
     async def _refresh_window_status(
         session: AsyncSession,
         checkpoint_window_id: uuid.UUID,
@@ -1154,6 +1196,18 @@ class CheckpointRepository:
                 ).all()
             )
 
+    async def synthetic_performance_for_tenant(
+        self, *, tenant_id: uuid.UUID, checkpoint_run_id: uuid.UUID
+    ) -> SyntheticPerformanceObservationModel | None:
+        async with self._session_factory() as session:
+            result = await session.scalar(
+                select(SyntheticPerformanceObservationModel).where(
+                    SyntheticPerformanceObservationModel.tenant_id == tenant_id,
+                    SyntheticPerformanceObservationModel.checkpoint_run_id == checkpoint_run_id,
+                )
+            )
+            return result
+
     async def previous_comparable(
         self,
         *,
@@ -1304,7 +1358,7 @@ class EvidencePersister:
     ) -> dict[str, Any]:
         comparison = compare_normalized_state(evidence.normalized_state, previous_manifest)
         return {
-            "schema": "browser-checkpoint-manifest/v7",
+            "schema": "browser-checkpoint-manifest/v8",
             "checkpoint_run_id": str(target.checkpoint_run_id),
             "tenant_id": str(target.tenant_id),
             "site_id": str(target.site_id),
@@ -1376,6 +1430,14 @@ class EvidencePersister:
                 "present": evidence.video_present,
                 "limitations": evidence.video_limitations,
                 "players": [asdict(item) for item in evidence.video_players],
+            },
+            "performance": {
+                "source": "synthetic_browser",
+                "observation": (
+                    asdict(evidence.synthetic_performance)
+                    if evidence.synthetic_performance is not None
+                    else None
+                ),
             },
             "comparison": comparison,
             "started_at": evidence.started_at.isoformat(),
