@@ -34,9 +34,10 @@ from app.browser.normalization import (
 )
 from app.browser.prebid import PrebidCollection, PrebidCollector
 from app.browser.security import BrowserBlockedError, BrowserNetworkGuard, sanitize_url
+from app.browser.video import VideoCollection, VideoPlayerCollector
 from app.config.settings import Settings
 
-COLLECTOR_BUNDLE_VERSION = "b6-v1"
+COLLECTOR_BUNDLE_VERSION = "b7-v1"
 
 
 class BrowserRunner:
@@ -92,6 +93,8 @@ class BrowserRunner:
         gpt_collection: GPTCollection | None = None
         prebid_collector = PrebidCollector()
         prebid_collection: PrebidCollection | None = None
+        video_collector = VideoPlayerCollector()
+        video_collection: VideoCollection | None = None
         artifacts: list[ArtifactContent] = []
         actions: list[dict[str, object]] = []
         browser: Browser | None = None
@@ -128,6 +131,7 @@ class BrowserRunner:
                 await cmp_collector.attach(page)
                 await gpt_collector.attach(page)
                 await prebid_collector.attach(page)
+                await video_collector.attach(page)
                 response = await page.goto(
                     target.url,
                     wait_until="domcontentloaded",
@@ -231,6 +235,11 @@ class BrowserRunner:
                     collector.elapsed_ms(),
                 )
                 collector_results.append(prebid_collection.result)
+                video_collection = await video_collector.collect(
+                    page,
+                    collector.network_observations,
+                )
+                collector_results.append(video_collection.result)
                 consent_phase_dependencies = summarize_consent_dependencies(
                     collector.network_observations,
                     action_boundary_ms=cmp_collection.action_boundary_ms,
@@ -373,6 +382,7 @@ class BrowserRunner:
                     or normalization_failed
                     or gpt_collection.result.status == "ERROR"
                     or prebid_collection.result.status == "ERROR"
+                    or video_collection.result.status == "ERROR"
                     or cmp_collection.required_action_failed
                 ):
                     status = "PARTIAL"
@@ -399,6 +409,7 @@ class BrowserRunner:
                     normalized_entities=normalized_entities,
                     gpt_collection=gpt_collection,
                     prebid_collection=prebid_collection,
+                    video_collection=video_collection,
                     cmp_collection=cmp_collection,
                     consent_phase_dependencies=consent_phase_dependencies,
                 )
@@ -471,6 +482,7 @@ class BrowserRunner:
             collectors=collector_results,
             gpt_collection=gpt_collection,
             prebid_collection=prebid_collection,
+            video_collection=video_collection,
             cmp_collection=cmp_collection,
             failure_class=failure_class,
             failure_message=(failure_message or "")[:1_000] or None,
@@ -497,6 +509,7 @@ class BrowserRunner:
         normalized_entities: list[NormalizedEntityObservation] | None = None,
         gpt_collection: GPTCollection | None = None,
         prebid_collection: PrebidCollection | None = None,
+        video_collection: VideoCollection | None = None,
         cmp_collection: CMPCollection | None = None,
         consent_phase_dependencies: list[ConsentPhaseDependencyObservation] | None = None,
         failure_class: str | None = None,
@@ -544,6 +557,11 @@ class BrowserRunner:
             ),
             prebid_auctions=(prebid_collection.auctions if prebid_collection is not None else []),
             prebid_bidders=(prebid_collection.bidders if prebid_collection is not None else []),
+            video_present=(video_collection.present if video_collection is not None else False),
+            video_limitations=(
+                video_collection.limitations if video_collection is not None else []
+            ),
+            video_players=(video_collection.players if video_collection is not None else []),
             failure_class=failure_class,
             failure_message=failure_message,
         )

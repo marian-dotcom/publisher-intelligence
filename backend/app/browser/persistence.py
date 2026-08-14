@@ -48,6 +48,9 @@ from app.browser.models import (
 from app.browser.models import (
     PrebidBidderObservation as PrebidBidderObservationModel,
 )
+from app.browser.models import (
+    VideoPlayerObservation as VideoPlayerObservationModel,
+)
 from app.storage.s3 import S3Storage
 
 
@@ -456,6 +459,7 @@ class CheckpointRepository:
             await self._persist_gpt_observations(session, target, evidence)
             await self._persist_cmp_observations(session, target, evidence)
             await self._persist_prebid_observations(session, target, evidence)
+            await self._persist_video_observations(session, target, evidence)
             attempt.status = evidence.status
             attempt.completed_at = evidence.completed_at
             attempt.failure_class = evidence.failure_class
@@ -831,6 +835,72 @@ class CheckpointRepository:
             )
 
     @staticmethod
+    async def _persist_video_observations(
+        session: AsyncSession,
+        target: BrowserTarget,
+        evidence: BrowserEvidence,
+    ) -> None:
+        if len(evidence.video_players) == 1:
+            only_player = evidence.video_players[0]
+            network_attribution = (
+                "PAGE_SINGLE_PLAYER"
+                if only_player.vast_request_count > 0 or only_player.media_request_count > 0
+                else "NO_MATCHING_VIDEO_NETWORK"
+            )
+        else:
+            network_attribution = "AMBIGUOUS_NOT_ASSIGNED"
+        for player in evidence.video_players:
+            last_seen = evidence.completed_at if player.present else DomainEntity.last_seen_at
+            player_entity_id = (
+                await session.execute(
+                    insert(DomainEntity)
+                    .values(
+                        id=uuid.uuid4(),
+                        tenant_id=target.tenant_id,
+                        site_id=target.site_id,
+                        entity_kind="VIDEO_PLAYER",
+                        stable_key=player.stable_key,
+                        source_system="BROWSER_VIDEO",
+                        first_seen_at=evidence.completed_at,
+                        last_seen_at=evidence.completed_at if player.present else None,
+                        identity_metadata={"identity_method": "hashed_structural_path_v1"},
+                    )
+                    .on_conflict_do_update(
+                        index_elements=["site_id", "entity_kind", "stable_key"],
+                        set_={"last_seen_at": last_seen},
+                    )
+                    .returning(DomainEntity.id)
+                )
+            ).scalar_one()
+            await session.execute(
+                insert(VideoPlayerObservationModel)
+                .values(
+                    id=uuid.uuid4(),
+                    tenant_id=target.tenant_id,
+                    site_id=target.site_id,
+                    checkpoint_run_id=target.checkpoint_run_id,
+                    player_entity_id=player_entity_id,
+                    present=player.present,
+                    visible=player.visible,
+                    sticky=player.sticky,
+                    fixed=player.fixed,
+                    autoplay=player.autoplay,
+                    muted=player.muted,
+                    controls_present=player.controls_present,
+                    dismiss_control_present=player.dismiss_control_present,
+                    width_px=player.width_px,
+                    height_px=player.height_px,
+                    vast_request_count=player.vast_request_count,
+                    vast_error_count=player.vast_error_count,
+                    media_request_count=player.media_request_count,
+                    playback_started=player.playback_started,
+                    collector_version="video-b7-v1",
+                    metadata_json={"network_attribution": network_attribution},
+                )
+                .on_conflict_do_nothing(index_elements=["checkpoint_run_id", "player_entity_id"])
+            )
+
+    @staticmethod
     async def _refresh_window_status(
         session: AsyncSession,
         checkpoint_window_id: uuid.UUID,
@@ -1062,6 +1132,28 @@ class CheckpointRepository:
                 ).all()
             )
 
+    async def video_players_for_tenant(
+        self, *, tenant_id: uuid.UUID, checkpoint_run_id: uuid.UUID
+    ) -> list[VideoPlayerObservationModel]:
+        async with self._session_factory() as session:
+            return list(
+                (
+                    await session.scalars(
+                        select(VideoPlayerObservationModel)
+                        .join(
+                            DomainEntity,
+                            DomainEntity.id == VideoPlayerObservationModel.player_entity_id,
+                        )
+                        .where(
+                            VideoPlayerObservationModel.tenant_id == tenant_id,
+                            VideoPlayerObservationModel.checkpoint_run_id == checkpoint_run_id,
+                            DomainEntity.tenant_id == tenant_id,
+                        )
+                        .order_by(VideoPlayerObservationModel.player_entity_id)
+                    )
+                ).all()
+            )
+
     async def previous_comparable(
         self,
         *,
@@ -1212,7 +1304,7 @@ class EvidencePersister:
     ) -> dict[str, Any]:
         comparison = compare_normalized_state(evidence.normalized_state, previous_manifest)
         return {
-            "schema": "browser-checkpoint-manifest/v6",
+            "schema": "browser-checkpoint-manifest/v7",
             "checkpoint_run_id": str(target.checkpoint_run_id),
             "tenant_id": str(target.tenant_id),
             "site_id": str(target.site_id),
@@ -1279,6 +1371,11 @@ class EvidencePersister:
                 "limitations": evidence.prebid_limitations,
                 "auctions": [asdict(item) for item in evidence.prebid_auctions],
                 "bidders": [asdict(item) for item in evidence.prebid_bidders],
+            },
+            "video": {
+                "present": evidence.video_present,
+                "limitations": evidence.video_limitations,
+                "players": [asdict(item) for item in evidence.video_players],
             },
             "comparison": comparison,
             "started_at": evidence.started_at.isoformat(),

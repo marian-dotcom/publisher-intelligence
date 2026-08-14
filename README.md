@@ -33,7 +33,7 @@ make scheduler
 make frontend
 ```
 
-## Auction-aware browser checkpoints (B6)
+## Video-aware browser checkpoints (B7)
 
 Register one explicit public pilot URL. The command also enqueues one immediate legacy B1
 diagnostic run so an operator can verify the configuration without waiting for the next window:
@@ -102,6 +102,21 @@ the auction. A visible Prebid Server endpoint without client-side bidder events 
 is an explicit collector outcome and does not make an otherwise successful checkpoint partial.
 Manifest v6 records the bounded Prebid evidence alongside the preserved B1–B5 output.
 
+B7 passively observes native web video elements without invoking playback or modifying player
+state. It records a hash-derived structural identity, final presence/visibility/dimensions,
+observed sticky/fixed transitions during the existing deterministic scroll profile, readable
+autoplay/mute/native-controls state, an accessible dismiss-control signal when present, and
+publisher/browser playback-start evidence. Custom or cross-origin player APIs are not
+reverse-engineered.
+
+Sanitized network metadata is classified into bounded VAST-request, VAST HTTP/failure, and media
+request counts. No VAST XML, response/request body, media bytes, headers, cookies, query values,
+tracking URLs, or player/media identifiers are retained. Page-level network counts are assigned to
+a player only when exactly one observable player makes the correlation unambiguous. Video network
+evidence without an inspectable native player is `NOT_OBSERVABLE`, and a VAST response is never
+reported as proof of playback or impression. Manifest v7 records this B7 evidence alongside the
+preserved B1–B6 output.
+
 Comparison prefers the previous run for the same URL and exact scenario. When an operator retires
 one representative URL and creates another under the same template, lineage may fall back to the
 same tenant/site/template and exact scenario. The manifest records whether comparison used the
@@ -118,10 +133,11 @@ creative and line-item identifiers are observation details and never stable iden
 `BROWSER_ALLOW_PRIVATE_NETWORKS` defaults to `false` and must remain false outside controlled
 tests. The application validates DNS destinations and intercepts browser requests, but production
 deployment still requires network-level egress enforcement to cover DNS rebinding and browser
-runtime failures. B6 does not configure, display, refresh, or click ads; request bids; change ad
-targeting; infer CMP actions; decode or retain raw consent strings; authenticate; bypass paywalls;
-run stealth; discover templates automatically; or make compliance, revenue, event, incident,
-causality, bidder-quality, or AI judgments.
+runtime failures. B7 does not configure, display, refresh, or click ads; request bids; change ad
+targeting; play, seek, mute, dismiss, or otherwise control video; infer CMP actions; decode or
+retain raw consent strings; authenticate; bypass paywalls; run stealth; discover templates
+automatically; or make compliance, revenue, event, incident, causality, player-quality, or AI
+judgments.
 
 Apply or inspect migrations independently:
 
@@ -155,7 +171,7 @@ If Docker is unavailable, run the local unit/lint/build checks and rely on GitHu
 
 ## Repository boundaries
 
-EP-007 adds passive, bounded Prebid auction and bidder evidence on top of the B1–B5 checkpoint
-pipeline. No provider connector, production auction analytics, event promotion, alert, incident,
-LLM, universal CMP discovery, video collector, legal-compliance judgment, or production
-authentication behavior is implemented here.
+EP-008 adds passive, bounded generic video/player evidence on top of the B1–B6 checkpoint pipeline.
+No proprietary player adapter, provider connector, production video/auction analytics, event
+promotion, alert, incident, LLM, policy-compliance judgment, B8 synthetic-performance collector,
+or production authentication behavior is implemented here.

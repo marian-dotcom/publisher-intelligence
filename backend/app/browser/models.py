@@ -243,7 +243,7 @@ class CheckpointRun(Base):
     playwright_version: Mapped[str | None] = mapped_column(String(50))
     chromium_version: Mapped[str | None] = mapped_column(String(100))
     collector_bundle_version: Mapped[str] = mapped_column(
-        String(50), nullable=False, default="b6-v1"
+        String(50), nullable=False, default="b7-v1"
     )
     environment: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     limitations: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
@@ -653,6 +653,59 @@ class PrebidBidderObservation(Base):
     response_time_ms_max: Mapped[float | None] = mapped_column(Float)
     response_time_ms_avg: Mapped[float | None] = mapped_column(Float)
     winning_bid_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    collector_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, nullable=False, default=dict
+    )
+
+
+class VideoPlayerObservation(Base):
+    __tablename__ = "video_player_observations"
+    __table_args__ = (
+        UniqueConstraint(
+            "checkpoint_run_id", "player_entity_id", name="uq_video_player_run_entity"
+        ),
+        CheckConstraint(
+            "vast_request_count >= 0 AND vast_error_count >= 0 AND media_request_count >= 0",
+            name="ck_video_player_counts",
+        ),
+        CheckConstraint(
+            "(width_px IS NULL OR width_px >= 0) AND (height_px IS NULL OR height_px >= 0)",
+            name="ck_video_player_dimensions",
+        ),
+        Index("ix_video_players_tenant_checkpoint", "tenant_id", "checkpoint_run_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    site_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sites.id", ondelete="RESTRICT"), nullable=False
+    )
+    checkpoint_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("checkpoint_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    player_entity_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("domain_entities.id", ondelete="RESTRICT"), nullable=False
+    )
+    present: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    visible: Mapped[bool | None] = mapped_column(Boolean)
+    sticky: Mapped[bool | None] = mapped_column(Boolean)
+    fixed: Mapped[bool | None] = mapped_column(Boolean)
+    autoplay: Mapped[bool | None] = mapped_column(Boolean)
+    muted: Mapped[bool | None] = mapped_column(Boolean)
+    controls_present: Mapped[bool | None] = mapped_column(Boolean)
+    dismiss_control_present: Mapped[bool | None] = mapped_column(Boolean)
+    width_px: Mapped[float | None] = mapped_column(Float)
+    height_px: Mapped[float | None] = mapped_column(Float)
+    vast_request_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    vast_error_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    media_request_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    playback_started: Mapped[bool | None] = mapped_column(Boolean)
     collector_version: Mapped[str] = mapped_column(String(50), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
