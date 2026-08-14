@@ -1,0 +1,18 @@
+{
+  "name": "properties/123456/metadata",
+  "dimensions": [
+    {"apiName": "date"},
+    {"apiName": "dateHour"},
+    {"apiName": "deviceCategory"},
+    {"apiName": "sessionDefaultChannelGroup"}
+  ],
+  "metrics": [
+    {"apiName": "activeUsers"},
+    {"apiName": "sessions"},
+    {"apiName": "screenPageViews"},
+    {"apiName": "engagedSessions"},
+    {"apiName": "screenPageViewsPerUser"},
+    {"apiName": "screenPageViewsPerSession"},
+    {"apiName": "engagementRate"}
+  ]
+}

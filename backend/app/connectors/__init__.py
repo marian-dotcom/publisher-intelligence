@@ -1,0 +1,1 @@
+"""External aggregate-data connectors."""

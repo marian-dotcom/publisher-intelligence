@@ -130,6 +130,25 @@ codes; they are not converted to zero. These values are not real-user p75 Core W
 Lighthouse audit, a performance event, an SEO/ranking conclusion, or causal proof. Manifest v8
 records B8 alongside the preserved B1–B7 evidence.
 
+## GA4 read-only connector (C1/C2)
+
+The first business-data connector uses only the Google Analytics Data API read-only scope and two
+versioned aggregate reports: `GA4_TRAFFIC_HOURLY_V1` and `GA4_BEHAVIOR_DAILY_V1`. Property metadata
+and a small report probe must succeed before a connection becomes `CONNECTED`. The general worker
+handles `GA4_EXTRACT` jobs; the scheduler requests low-cardinality traffic data every two hours and
+separate mature traffic/behavior reconciliations after 03:00 in the GA4 property timezone.
+
+PostgreSQL stores only the property ID, granted scope, a secret reference, connection health,
+immutable extract provenance, canonical metric series, and append-only points. The worker resolves
+an access token only at execution time. Job payloads, source extracts, metric rows, errors, and logs
+never contain the token. The included `env:NAME` resolver is limited to local/test; production
+rejects it until a managed secret provider and OAuth onboarding flow are implemented.
+
+Connector tests use sanitized metadata, complete, behavior, and thresholded fixtures and never
+call Google. A missing row produces no point. Thresholding, sampling, restrictions, and
+`dataLossFromOtherRow` remain extract limitations; they do not become zero traffic or an incident
+conclusion. Preliminary operational data and later mature reconciliation remain separate extracts.
+
 Comparison prefers the previous run for the same URL and exact scenario. When an operator retires
 one representative URL and creates another under the same template, lineage may fall back to the
 same tenant/site/template and exact scenario. The manifest records whether comparison used the
@@ -184,7 +203,7 @@ If Docker is unavailable, run the local unit/lint/build checks and rely on GitHu
 
 ## Repository boundaries
 
-EP-009 completes Browser v1 with passive, bounded synthetic performance evidence on top of the
-B1–B7 checkpoint pipeline. No proprietary player adapter, provider connector, field/RUM ingestion,
-Lighthouse clone, performance threshold/event promotion, alert, incident, LLM, SEO causality,
-policy-compliance judgment, or production authentication behavior is implemented here.
+EP-009 completes Browser v1. EP-010 adds the C1 persistence contract and GA4 C2 aggregate
+read-only connector, but not production OAuth onboarding, a managed secret provider, GSC, GAM,
+cross-source derivation, provider write access, event promotion, alerts, incident conclusions,
+LLM-selected queries, or production rollout.
