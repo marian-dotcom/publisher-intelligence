@@ -42,6 +42,12 @@ from app.browser.models import (
 from app.browser.models import (
     ConsentPhaseDependencyObservation as ConsentPhaseDependencyObservationModel,
 )
+from app.browser.models import (
+    PrebidAuctionObservation as PrebidAuctionObservationModel,
+)
+from app.browser.models import (
+    PrebidBidderObservation as PrebidBidderObservationModel,
+)
 from app.storage.s3 import S3Storage
 
 
@@ -449,6 +455,7 @@ class CheckpointRepository:
             await self._persist_normalized_observations(session, target, evidence)
             await self._persist_gpt_observations(session, target, evidence)
             await self._persist_cmp_observations(session, target, evidence)
+            await self._persist_prebid_observations(session, target, evidence)
             attempt.status = evidence.status
             attempt.completed_at = evidence.completed_at
             attempt.failure_class = evidence.failure_class
@@ -728,6 +735,102 @@ class CheckpointRepository:
             )
 
     @staticmethod
+    async def _persist_prebid_observations(
+        session: AsyncSession,
+        target: BrowserTarget,
+        evidence: BrowserEvidence,
+    ) -> None:
+        auction_ids: dict[str, uuid.UUID] = {}
+        for auction in evidence.prebid_auctions:
+            auction_id = (
+                await session.execute(
+                    insert(PrebidAuctionObservationModel)
+                    .values(
+                        id=uuid.uuid4(),
+                        tenant_id=target.tenant_id,
+                        site_id=target.site_id,
+                        checkpoint_run_id=target.checkpoint_run_id,
+                        auction_key=auction.auction_key,
+                        started_at_ms=auction.started_at_ms,
+                        ended_at_ms=auction.ended_at_ms,
+                        configured_timeout_ms=auction.configured_timeout_ms,
+                        ad_unit_count=auction.ad_unit_count,
+                        bidder_request_count=auction.bidder_request_count,
+                        bid_response_count=auction.bid_response_count,
+                        no_bid_count=auction.no_bid_count,
+                        timeout_count=auction.timeout_count,
+                        collector_version="prebid-b6-v1",
+                        metadata_json={
+                            "first_ad_server_request_at_ms": (auction.first_ad_server_request_at_ms)
+                        },
+                    )
+                    .on_conflict_do_update(
+                        index_elements=["checkpoint_run_id", "auction_key"],
+                        set_={
+                            "ended_at_ms": auction.ended_at_ms,
+                            "bidder_request_count": auction.bidder_request_count,
+                            "bid_response_count": auction.bid_response_count,
+                            "no_bid_count": auction.no_bid_count,
+                            "timeout_count": auction.timeout_count,
+                        },
+                    )
+                    .returning(PrebidAuctionObservationModel.id)
+                )
+            ).scalar_one()
+            auction_ids[auction.auction_key] = auction_id
+
+        for bidder in evidence.prebid_bidders:
+            bidder_auction_id = auction_ids.get(bidder.auction_key)
+            if bidder_auction_id is None:
+                continue
+            stable_key = f"prebid-bidder|{bidder.bidder_code}"
+            bidder_entity_id = (
+                await session.execute(
+                    insert(DomainEntity)
+                    .values(
+                        id=uuid.uuid4(),
+                        tenant_id=target.tenant_id,
+                        site_id=target.site_id,
+                        entity_kind="PREBID_BIDDER",
+                        stable_key=stable_key,
+                        display_name=bidder.bidder_code,
+                        source_system="PREBID",
+                        first_seen_at=evidence.completed_at,
+                        last_seen_at=evidence.completed_at,
+                        identity_metadata={"bidder_code": bidder.bidder_code},
+                    )
+                    .on_conflict_do_update(
+                        index_elements=["site_id", "entity_kind", "stable_key"],
+                        set_={"last_seen_at": evidence.completed_at},
+                    )
+                    .returning(DomainEntity.id)
+                )
+            ).scalar_one()
+            await session.execute(
+                insert(PrebidBidderObservationModel)
+                .values(
+                    id=uuid.uuid4(),
+                    tenant_id=target.tenant_id,
+                    site_id=target.site_id,
+                    checkpoint_run_id=target.checkpoint_run_id,
+                    auction_observation_id=bidder_auction_id,
+                    bidder_entity_id=bidder_entity_id,
+                    bidder_code=bidder.bidder_code,
+                    request_count=bidder.request_count,
+                    response_count=bidder.response_count,
+                    no_bid_count=bidder.no_bid_count,
+                    timeout_count=bidder.timeout_count,
+                    response_time_ms_min=bidder.response_time_ms_min,
+                    response_time_ms_max=bidder.response_time_ms_max,
+                    response_time_ms_avg=bidder.response_time_ms_avg,
+                    winning_bid_count=bidder.winning_bid_count,
+                    collector_version="prebid-b6-v1",
+                    metadata_json={},
+                )
+                .on_conflict_do_nothing(index_elements=["auction_observation_id", "bidder_code"])
+            )
+
+    @staticmethod
     async def _refresh_window_status(
         session: AsyncSession,
         checkpoint_window_id: uuid.UUID,
@@ -919,6 +1022,46 @@ class CheckpointRepository:
                 ).all()
             )
 
+    async def prebid_auctions_for_tenant(
+        self, *, tenant_id: uuid.UUID, checkpoint_run_id: uuid.UUID
+    ) -> list[PrebidAuctionObservationModel]:
+        async with self._session_factory() as session:
+            return list(
+                (
+                    await session.scalars(
+                        select(PrebidAuctionObservationModel)
+                        .where(
+                            PrebidAuctionObservationModel.tenant_id == tenant_id,
+                            PrebidAuctionObservationModel.checkpoint_run_id == checkpoint_run_id,
+                        )
+                        .order_by(PrebidAuctionObservationModel.auction_key)
+                    )
+                ).all()
+            )
+
+    async def prebid_bidders_for_tenant(
+        self, *, tenant_id: uuid.UUID, checkpoint_run_id: uuid.UUID
+    ) -> list[PrebidBidderObservationModel]:
+        async with self._session_factory() as session:
+            return list(
+                (
+                    await session.scalars(
+                        select(PrebidBidderObservationModel)
+                        .join(
+                            PrebidAuctionObservationModel,
+                            PrebidAuctionObservationModel.id
+                            == PrebidBidderObservationModel.auction_observation_id,
+                        )
+                        .where(
+                            PrebidBidderObservationModel.tenant_id == tenant_id,
+                            PrebidBidderObservationModel.checkpoint_run_id == checkpoint_run_id,
+                            PrebidAuctionObservationModel.tenant_id == tenant_id,
+                        )
+                        .order_by(PrebidBidderObservationModel.bidder_code)
+                    )
+                ).all()
+            )
+
     async def previous_comparable(
         self,
         *,
@@ -1069,7 +1212,7 @@ class EvidencePersister:
     ) -> dict[str, Any]:
         comparison = compare_normalized_state(evidence.normalized_state, previous_manifest)
         return {
-            "schema": "browser-checkpoint-manifest/v5",
+            "schema": "browser-checkpoint-manifest/v6",
             "checkpoint_run_id": str(target.checkpoint_run_id),
             "tenant_id": str(target.tenant_id),
             "site_id": str(target.site_id),
@@ -1127,6 +1270,15 @@ class EvidencePersister:
                 "phase_dependencies": [
                     asdict(item) for item in evidence.consent_phase_dependencies
                 ],
+            },
+            "prebid": {
+                "present": evidence.prebid_present,
+                "version": evidence.prebid_version,
+                "server_side_configured": evidence.prebid_server_side_configured,
+                "targeting_keys": evidence.prebid_targeting_keys,
+                "limitations": evidence.prebid_limitations,
+                "auctions": [asdict(item) for item in evidence.prebid_auctions],
+                "bidders": [asdict(item) for item in evidence.prebid_bidders],
             },
             "comparison": comparison,
             "started_at": evidence.started_at.isoformat(),

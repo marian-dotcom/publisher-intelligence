@@ -31,6 +31,7 @@ class BrowserObservationCollector:
         self.console_errors: list[JavaScriptError] = []
         self.redirect_chain: list[str] = []
         self.network_observations: list[NetworkObservation] = []
+        self._request_started_at: dict[int, int] = {}
 
     def attach(self, page: Page) -> None:
         page.on("request", self._on_request)
@@ -41,6 +42,7 @@ class BrowserObservationCollector:
         page.on("framenavigated", self._on_frame_navigated)
 
     def _on_request(self, request: Request) -> None:
+        self._request_started_at[id(request)] = self.elapsed_ms()
         hostname = urlsplit(request.url).hostname
         if hostname:
             try:
@@ -63,6 +65,7 @@ class BrowserObservationCollector:
                 method=request.method[:20],
                 resource_type=request.resource_type[:50],
                 error_text=error_text,
+                request_started_at_ms=self._request_started_at.pop(id(request), None),
                 observed_at_ms=self.elapsed_ms(),
             )
         )
@@ -75,6 +78,7 @@ class BrowserObservationCollector:
                 method=request.method[:20],
                 resource_type=request.resource_type[:50],
                 status=response.status,
+                request_started_at_ms=self._request_started_at.pop(id(request), None),
                 observed_at_ms=self.elapsed_ms(),
             )
         )

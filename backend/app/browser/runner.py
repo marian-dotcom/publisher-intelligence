@@ -32,10 +32,11 @@ from app.browser.normalization import (
     normalized_dom_artifact,
     state_hash,
 )
+from app.browser.prebid import PrebidCollection, PrebidCollector
 from app.browser.security import BrowserBlockedError, BrowserNetworkGuard, sanitize_url
 from app.config.settings import Settings
 
-COLLECTOR_BUNDLE_VERSION = "b5-v1"
+COLLECTOR_BUNDLE_VERSION = "b6-v1"
 
 
 class BrowserRunner:
@@ -89,6 +90,8 @@ class BrowserRunner:
         cmp_collection: CMPCollection | None = None
         gpt_collector = GPTLifecycleCollector()
         gpt_collection: GPTCollection | None = None
+        prebid_collector = PrebidCollector()
+        prebid_collection: PrebidCollection | None = None
         artifacts: list[ArtifactContent] = []
         actions: list[dict[str, object]] = []
         browser: Browser | None = None
@@ -124,6 +127,7 @@ class BrowserRunner:
                 collector.attach(page)
                 await cmp_collector.attach(page)
                 await gpt_collector.attach(page)
+                await prebid_collector.attach(page)
                 response = await page.goto(
                     target.url,
                     wait_until="domcontentloaded",
@@ -221,6 +225,12 @@ class BrowserRunner:
                 )
                 gpt_collection = await gpt_collector.collect(page, target.expected_gpt_slots)
                 collector_results.append(gpt_collection.result)
+                prebid_collection = await prebid_collector.collect(
+                    page,
+                    collector.network_observations,
+                    collector.elapsed_ms(),
+                )
+                collector_results.append(prebid_collection.result)
                 consent_phase_dependencies = summarize_consent_dependencies(
                     collector.network_observations,
                     action_boundary_ms=cmp_collection.action_boundary_ms,
@@ -362,6 +372,7 @@ class BrowserRunner:
                     or interaction.failed
                     or normalization_failed
                     or gpt_collection.result.status == "ERROR"
+                    or prebid_collection.result.status == "ERROR"
                     or cmp_collection.required_action_failed
                 ):
                     status = "PARTIAL"
@@ -387,6 +398,7 @@ class BrowserRunner:
                     normalized_state=normalized_state,
                     normalized_entities=normalized_entities,
                     gpt_collection=gpt_collection,
+                    prebid_collection=prebid_collection,
                     cmp_collection=cmp_collection,
                     consent_phase_dependencies=consent_phase_dependencies,
                 )
@@ -458,6 +470,7 @@ class BrowserRunner:
             artifacts=artifacts,
             collectors=collector_results,
             gpt_collection=gpt_collection,
+            prebid_collection=prebid_collection,
             cmp_collection=cmp_collection,
             failure_class=failure_class,
             failure_message=(failure_message or "")[:1_000] or None,
@@ -483,6 +496,7 @@ class BrowserRunner:
         normalized_state: dict[str, object] | None = None,
         normalized_entities: list[NormalizedEntityObservation] | None = None,
         gpt_collection: GPTCollection | None = None,
+        prebid_collection: PrebidCollection | None = None,
         cmp_collection: CMPCollection | None = None,
         consent_phase_dependencies: list[ConsentPhaseDependencyObservation] | None = None,
         failure_class: str | None = None,
@@ -517,6 +531,19 @@ class BrowserRunner:
             gpt_slots=gpt_collection.slots if gpt_collection is not None else [],
             cmp_observation=(cmp_collection.observation if cmp_collection is not None else None),
             consent_phase_dependencies=consent_phase_dependencies or [],
+            prebid_present=(prebid_collection.present if prebid_collection is not None else False),
+            prebid_version=(prebid_collection.version if prebid_collection is not None else None),
+            prebid_server_side_configured=(
+                prebid_collection.server_side_configured if prebid_collection is not None else False
+            ),
+            prebid_targeting_keys=(
+                prebid_collection.targeting_keys if prebid_collection is not None else []
+            ),
+            prebid_limitations=(
+                prebid_collection.limitations if prebid_collection is not None else []
+            ),
+            prebid_auctions=(prebid_collection.auctions if prebid_collection is not None else []),
+            prebid_bidders=(prebid_collection.bidders if prebid_collection is not None else []),
             failure_class=failure_class,
             failure_message=failure_message,
         )

@@ -24,6 +24,8 @@ from app.browser.models import (
     InteractionProfile,
     JavaScriptErrorObservation,
     MonitoredUrl,
+    PrebidAuctionObservation,
+    PrebidBidderObservation,
     Publisher,
     Site,
     Template,
@@ -64,6 +66,18 @@ class FixtureHandler(BaseHTTPRequestHandler):
             return
         if self.path.startswith("/cmp"):
             self._send(200, "text/html", _cmp_fixture_html())
+            return
+        if self.path.startswith("/gampad/ads"):
+            self._send(200, "application/json", b'{"adserver":"ok"}')
+            return
+        if self.path.startswith("/openrtb2/auction"):
+            self._send(200, "application/json", b'{"seatbid":[]}')
+            return
+        if self.path.startswith("/prebid-client"):
+            self._send(200, "text/html", _prebid_fixture_html())
+            return
+        if self.path.startswith("/prebid-server"):
+            self._send(200, "text/html", _prebid_server_fixture_html())
             return
         html = b"""<!doctype html><html><body><h1>Fixture</h1>
         <script src="/asset.js?token=manifest-secret"></script>
@@ -207,6 +221,62 @@ def _cmp_fixture_html() -> bytes:
     </script></body></html>"""
 
 
+def _prebid_fixture_html() -> bytes:
+    return b"""<!doctype html><html><body>
+    <h1>Deterministic Prebid fixture</h1>
+    <script>
+    (() => {
+      const started = performance.now();
+      const events = [];
+      const auctionId = 'raw-auction-secret-123';
+      const emit = (eventType, args) => events.push({
+        eventType, args, elapsedTime: Math.round(performance.now() - started)
+      });
+      window.pbjs = {
+        version: 'fixture-prebid-11',
+        installedModules: ['consentManagementTcf', 'floors'],
+        adUnits: [{
+          code: 'slot-secret-code',
+          bids: [{bidder: 'fast-bidder'}, {bidder: 'slow-bidder'}]
+        }],
+        getEvents: () => events,
+        getConfig: (name) => name === 'bidderTimeout' ? 120 : null,
+        getAdserverTargeting: () => ({
+          'slot-secret-code': {
+            hb_bidder: 'fast-bidder', hb_pb: '9.99', hb_adid: 'raw-bid-secret'
+          }
+        })
+      };
+      setTimeout(() => emit('auctionInit', {
+        auctionId, timeout: 120, adUnits: window.pbjs.adUnits
+      }), 20);
+      setTimeout(() => emit('bidRequested', {
+        auctionId,
+        bids: [{bidder: 'fast-bidder'}, {bidder: 'slow-bidder'}]
+      }), 35);
+      setTimeout(() => emit('bidResponse', {
+        auctionId, bidderCode: 'fast-bidder', timeToRespond: 45,
+        cpm: 9.99, requestId: 'raw-bid-secret'
+      }), 80);
+      setTimeout(() => emit('bidTimeout', [
+        {auctionId, bidder: 'slow-bidder', bidId: 'timeout-secret'}
+      ]), 155);
+      setTimeout(() => emit('bidWon', {
+        auctionId, bidderCode: 'fast-bidder', cpm: 9.99
+      }), 165);
+      setTimeout(() => emit('auctionEnd', {auctionId}), 170);
+      setTimeout(() => fetch('/gampad/ads?auctionId=raw-auction-secret-123'), 180);
+    })();
+    </script></body></html>"""
+
+
+def _prebid_server_fixture_html() -> bytes:
+    return b"""<!doctype html><html><body>
+    <h1>Prebid Server hidden fixture</h1>
+    <script>fetch('/openrtb2/auction?auctionId=server-secret');</script>
+    </body></html>"""
+
+
 @pytest.fixture
 def fixture_site() -> Iterator[str]:
     server = ThreadingHTTPServer(("127.0.0.1", 0), FixtureHandler)
@@ -236,6 +306,8 @@ async def _cleanup_tenant(tenant_id: uuid.UUID, storage: S3Storage) -> None:
         for model in (
             Artifact,
             CollectorRun,
+            PrebidBidderObservation,
+            PrebidAuctionObservation,
             ConsentPhaseDependencyObservation,
             CMPObservation,
             EntityObservation,
@@ -326,8 +398,8 @@ async def test_gpt_lifecycle_persists_eager_lazy_and_expected_absent_slots(
         )
         assert run is not None
         assert run.status == "COMPLETE"
-        assert run.collector_bundle_version == "b5-v1"
-        assert run.manifest["schema"] == "browser-checkpoint-manifest/v5"
+        assert run.collector_bundle_version == "b6-v1"
+        assert run.manifest["schema"] == "browser-checkpoint-manifest/v6"
         assert run.manifest["gpt"]["present"] is True
         assert run.manifest["gpt"]["version"] == "fixture-gpt-1"
 
@@ -385,6 +457,168 @@ async def test_gpt_lifecycle_persists_eager_lazy_and_expected_absent_slots(
             assert collector.status == "OK"
             assert collector.collector_version == "gpt-b4-v1"
             assert collector.summary["expected_slot_count"] == 3
+    finally:
+        await _cleanup_tenant(registered.tenant_id, storage)
+
+
+async def test_prebid_client_auction_persists_safe_timing_and_bidder_evidence(
+    fixture_site: str,
+) -> None:
+    settings = get_settings()
+    assert settings.browser_allow_private_networks
+    factory = get_session_factory()
+    queue = JobQueue(factory)
+    service = CheckpointService(factory, queue, settings)
+    repository = CheckpointRepository(factory)
+    storage = S3Storage(settings)
+    registered = await service.register_and_enqueue(
+        tenant_slug=f"prebid-client-{uuid.uuid4().hex}",
+        tenant_name="Prebid Client Tenant",
+        publisher_name="Prebid Publisher",
+        site_name="Prebid Client Site",
+        url=f"{fixture_site}/prebid-client",
+    )
+    try:
+        await run_browser_worker(once=True)
+
+        run = await repository.get_for_tenant(
+            tenant_id=registered.tenant_id,
+            checkpoint_run_id=registered.checkpoint_run_id,
+        )
+        assert run is not None
+        assert run.status == "COMPLETE"
+        assert run.collector_bundle_version == "b6-v1"
+        assert run.manifest["schema"] == "browser-checkpoint-manifest/v6"
+        prebid = run.manifest["prebid"]
+        assert prebid["present"] is True
+        assert prebid["version"] == "fixture-prebid-11"
+        assert prebid["server_side_configured"] is False
+        assert prebid["targeting_keys"] == ["hb_adid", "hb_bidder", "hb_pb"]
+        assert prebid["limitations"] == []
+
+        auctions = await repository.prebid_auctions_for_tenant(
+            tenant_id=registered.tenant_id,
+            checkpoint_run_id=registered.checkpoint_run_id,
+        )
+        assert len(auctions) == 1
+        auction = auctions[0]
+        assert auction.auction_key == "auction-001"
+        assert auction.configured_timeout_ms == 120
+        assert auction.ad_unit_count == 1
+        assert auction.bidder_request_count == 2
+        assert auction.bid_response_count == 1
+        assert auction.no_bid_count == 0
+        assert auction.timeout_count == 1
+        assert auction.started_at_ms is not None
+        assert auction.ended_at_ms is not None
+        first_gam_request = auction.metadata_json["first_ad_server_request_at_ms"]
+        assert first_gam_request is not None
+        assert first_gam_request >= auction.ended_at_ms
+
+        bidders = await repository.prebid_bidders_for_tenant(
+            tenant_id=registered.tenant_id,
+            checkpoint_run_id=registered.checkpoint_run_id,
+        )
+        assert len(bidders) == 2
+        by_bidder = {item.bidder_code: item for item in bidders}
+        fast = by_bidder["fast-bidder"]
+        assert fast.request_count == 1
+        assert fast.response_count == 1
+        assert fast.timeout_count == 0
+        assert fast.response_time_ms_min == 45
+        assert fast.response_time_ms_max == 45
+        assert fast.response_time_ms_avg == 45
+        assert fast.winning_bid_count == 1
+        slow = by_bidder["slow-bidder"]
+        assert slow.request_count == 1
+        assert slow.response_count == 0
+        assert slow.timeout_count == 1
+        assert slow.winning_bid_count == 0
+
+        serialized_manifest = str(run.manifest)
+        for forbidden in (
+            "raw-auction-secret-123",
+            "raw-bid-secret",
+            "timeout-secret",
+            "slot-secret-code",
+            "9.99",
+        ):
+            assert forbidden not in serialized_manifest
+        assert (
+            await repository.prebid_auctions_for_tenant(
+                tenant_id=uuid.uuid4(),
+                checkpoint_run_id=registered.checkpoint_run_id,
+            )
+            == []
+        )
+        assert (
+            await repository.prebid_bidders_for_tenant(
+                tenant_id=uuid.uuid4(),
+                checkpoint_run_id=registered.checkpoint_run_id,
+            )
+            == []
+        )
+        async with factory() as session:
+            collector = await session.scalar(
+                select(CollectorRun).where(
+                    CollectorRun.checkpoint_run_id == registered.checkpoint_run_id,
+                    CollectorRun.collector_type == "PREBID_AUCTION",
+                )
+            )
+            assert collector is not None
+            assert collector.status == "OK"
+            assert collector.collector_version == "prebid-b6-v1"
+            assert collector.summary["auction_count"] == 1
+            assert collector.summary["bidder_count"] == 2
+    finally:
+        await _cleanup_tenant(registered.tenant_id, storage)
+
+
+async def test_prebid_server_endpoint_is_explicitly_not_observable(
+    fixture_site: str,
+) -> None:
+    settings = get_settings()
+    assert settings.browser_allow_private_networks
+    factory = get_session_factory()
+    queue = JobQueue(factory)
+    service = CheckpointService(factory, queue, settings)
+    repository = CheckpointRepository(factory)
+    storage = S3Storage(settings)
+    registered = await service.register_and_enqueue(
+        tenant_slug=f"prebid-server-{uuid.uuid4().hex}",
+        tenant_name="Prebid Server Tenant",
+        publisher_name="Prebid Publisher",
+        site_name="Prebid Server Site",
+        url=f"{fixture_site}/prebid-server",
+    )
+    try:
+        await run_browser_worker(once=True)
+
+        run = await repository.get_for_tenant(
+            tenant_id=registered.tenant_id,
+            checkpoint_run_id=registered.checkpoint_run_id,
+        )
+        assert run is not None
+        assert run.status == "COMPLETE"
+        prebid = run.manifest["prebid"]
+        assert prebid["present"] is False
+        assert prebid["auctions"] == []
+        assert prebid["bidders"] == []
+        assert prebid["limitations"] == ["prebid_server_bidder_details_not_observable"]
+        assert "server-secret" not in str(run.manifest)
+
+        async with factory() as session:
+            collector = await session.scalar(
+                select(CollectorRun).where(
+                    CollectorRun.checkpoint_run_id == registered.checkpoint_run_id,
+                    CollectorRun.collector_type == "PREBID_AUCTION",
+                )
+            )
+            assert collector is not None
+            assert collector.status == "NOT_OBSERVABLE"
+            assert collector.summary["server_endpoint_observed"] is True
+            assert collector.summary["auction_count"] == 0
+            assert collector.summary["bidder_count"] == 0
     finally:
         await _cleanup_tenant(registered.tenant_id, storage)
 
@@ -450,7 +684,7 @@ async def test_cmp_action_persists_tcf_and_phase_evidence(
         )
         assert run is not None
         assert run.status == "COMPLETE"
-        assert run.manifest["schema"] == "browser-checkpoint-manifest/v5"
+        assert run.manifest["schema"] == "browser-checkpoint-manifest/v6"
         consent = run.manifest["consent"]
         assert consent["path"] == ("PRIMARY" if decision == "accept" else "REJECT")
         observation = consent["observation"]
@@ -604,7 +838,7 @@ async def test_real_browser_checkpoint_persists_evidence_and_site_error(
         assert run.final_url == f"{fixture_site}/complete"
         assert run.playwright_version
         assert run.chromium_version
-        assert run.manifest["schema"] == "browser-checkpoint-manifest/v5"
+        assert run.manifest["schema"] == "browser-checkpoint-manifest/v6"
         assert run.manifest["normalized_state"]["dom"]["normalizer_version"] == "dom-b3-v1"
         assert "manifest-secret" not in str(run.manifest)
         assert "network-secret" not in str(run.manifest)
@@ -731,7 +965,7 @@ async def test_scheduler_produces_repeatable_desktop_and_mobile_runs(
                 ).all()
             )
             assert len(first_runs) == 2
-            assert {run.collector_bundle_version for run in first_runs} == {"b5-v1"}
+            assert {run.collector_bundle_version for run in first_runs} == {"b6-v1"}
             first_run_ids = {run.id for run in first_runs}
             scheduled_jobs = list(
                 (
