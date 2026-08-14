@@ -1,6 +1,6 @@
 # EP-009 — Synthetic Performance Evidence B8
 
-**Status:** IN_PROGRESS
+**Status:** COMPLETE
 **Owner:** Codex / Engineering
 **Created:** 2026-08-14
 **Updated:** 2026-08-14
@@ -13,8 +13,8 @@
 - [x] M0 — Verify B7 integration and close the B8 measurement contract
 - [x] M1 — Add a lightweight PerformanceObserver collector and strict parser
 - [x] M2 — Persist canonical synthetic performance evidence and manifest v8
-- [ ] M3 — Prove deterministic performance, absence, failure, migration, and tenancy behavior
-- [ ] M4 — Complete documentation, final CI, and retrospective
+- [x] M3 — Prove deterministic performance, absence, failure, migration, and tenancy behavior
+- [x] M4 — Complete documentation, final CI, and retrospective
 
 ## 1. Purpose and User Outcome
 
@@ -227,9 +227,9 @@ Acceptance:
 - [x] schema matches `DATA_MODEL.md` section 44;
 - [x] source is always `synthetic_browser` and cannot be mistaken for field p75;
 - [x] unavailable values remain nullable;
-- [ ] wrong-tenant reads return no performance evidence;
-- [ ] migration upgrade/downgrade/re-upgrade succeeds;
-- [ ] older manifest/checkpoint rows remain immutable.
+- [x] wrong-tenant reads return no performance evidence;
+- [x] migration upgrade/downgrade/re-upgrade succeeds;
+- [x] older manifest/checkpoint rows remain immutable.
 
 ### M3 — Deterministic validation
 
@@ -246,12 +246,12 @@ Implementation:
 
 Acceptance:
 
-- [ ] EVAL-BR-010 observes non-zero synthetic CLS without a field-CWV claim;
-- [ ] navigation, LCP candidate, long-task, resource summary, and DOM count are bounded;
-- [ ] INP proxy is null and explicitly limited when no qualifying interaction exists;
-- [ ] collector failure preserves the rest of the checkpoint as `PARTIAL`;
-- [ ] tenant isolation and migration inventory pass;
-- [ ] format, lint, typecheck, unit, integration, migration, build, and secret checks pass.
+- [x] EVAL-BR-010 observes non-zero synthetic CLS without a field-CWV claim;
+- [x] navigation, LCP candidate, long-task, resource summary, and DOM count are bounded;
+- [x] INP proxy is null and explicitly limited when no qualifying interaction exists;
+- [x] collector failure preserves the rest of the checkpoint as `PARTIAL`;
+- [x] tenant isolation and migration inventory pass;
+- [x] format, lint, typecheck, unit, integration, migration, build, and secret checks pass.
 
 ### M4 — Completion
 
@@ -265,20 +265,20 @@ Implementation:
 
 Acceptance:
 
-- [ ] plan becomes `COMPLETE` only after local and remote validation pass;
-- [ ] PR states behavior, limitations, safety, tests, and rollback;
-- [ ] no unrelated change, accidental secret, or hidden blocker remains.
+- [x] plan becomes `COMPLETE` only after local and remote validation pass;
+- [x] PR states behavior, limitations, safety, tests, and rollback;
+- [x] no unrelated change, accidental secret, or hidden blocker remains.
 
 ## 9. Final Acceptance Criteria
 
-- [ ] every collectable checkpoint has one versioned synthetic performance observation;
-- [ ] navigation/LCP/CLS/interaction proxy/long tasks preserve null-versus-zero semantics;
-- [ ] resource timing is aggregate-only and contains no resource identity;
-- [ ] synthetic provenance and scenario/environment metadata are explicit;
-- [ ] performance collector failure retains B1–B7 evidence as `PARTIAL`;
-- [ ] tenant ownership, migration round trip, and regressions pass;
-- [ ] manifest v8 and bundle `b8-v1` are documented and tested;
-- [ ] no field p75, ranking, causality, or Lighthouse claim is introduced.
+- [x] every collectable checkpoint has one versioned synthetic performance observation;
+- [x] navigation/LCP/CLS/interaction proxy/long tasks preserve null-versus-zero semantics;
+- [x] resource timing is aggregate-only and contains no resource identity;
+- [x] synthetic provenance and scenario/environment metadata are explicit;
+- [x] performance collector failure retains B1–B7 evidence as `PARTIAL`;
+- [x] tenant ownership, migration round trip, and regressions pass;
+- [x] manifest v8 and bundle `b8-v1` are documented and tested;
+- [x] no field p75, ranking, causality, or Lighthouse claim is introduced.
 
 ## 10. Final Validation
 
@@ -415,6 +415,9 @@ attribution, and explicit diagnostic interactions remain future, separately appr
 - 2026-08-14 — Local Ruff, mypy, all 63 backend unit tests, frontend
   lint/typecheck/test/build, secret scan, and diff check passed. Real browser/database integration
   remains for GitHub Actions.
+- 2026-08-14 — Draft PR #10 published. GitHub Actions CI run 62 passed repository safety,
+  frontend, backend unit/integration tests, deterministic performance/failure fixtures, migration
+  round trip, scheduler, and worker; M3–M4 and EP-009 complete.
 
 ## 21. Validation Results
 
@@ -426,14 +429,25 @@ Local validation on 2026-08-14:
 - `pytest tests/unit` — passed (63 tests; one upstream Starlette deprecation warning);
 - frontend lint, typecheck, Vitest, and production build — passed;
 - repository secret scan and `git diff --check` — passed;
-- Playwright/PostgreSQL/MinIO integration and migration round trip — pending GitHub Actions because
-  Docker is unavailable and the local Playwright driver cannot initialize in this workspace.
+- GitHub Actions CI run 62 — passed on 2026-08-14;
+- Playwright/PostgreSQL/MinIO integration, deterministic CLS/LCP/long-task fixture,
+  failure-to-partial path, tenant isolation, migration round trip, scheduler, and worker — passed;
+- Draft PR: https://github.com/marian-dotcom/publisher-intelligence/pull/10;
+- CI: https://github.com/marian-dotcom/publisher-intelligence/actions/runs/31759692971.
 
 ## 22. Final Outcome / Retrospective
 
-Pending implementation and validation.
+B8 and Browser v1 are complete. The collector adds bounded, scenario-versioned synthetic
+navigation/LCP/CLS/interaction-proxy/long-task evidence without URLs, DOM identity, traces, or a
+new dependency. Deterministic integration proved a real unexpected layout shift and long task,
+null INP behavior without qualifying interaction, atomic persistence, tenant isolation, and
+partial-checkpoint retention when the collector fails.
+
+The provenance boundary remains explicit: these are short controlled synthetic observations, not
+field p75 Core Web Vitals, CrUX/RUM, Lighthouse scores, performance events, or ranking/incident
+causality. This closes Phase B while leaving event thresholds and field comparison to later phases.
 
 ## 23. Next Step
 
-Commit the B8 implementation, publish a Draft PR, and use GitHub Actions to validate the real
-layout-shift/long-task fixture, collector failure, tenancy, and migration round trip.
+Review and merge Draft PR #10. After merge, begin Phase C with the read-only GA4 connector in a
+separate ExecPlan.
