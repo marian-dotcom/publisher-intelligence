@@ -1,6 +1,6 @@
 # EP-010 — GA4 Read-Only Connector C1/C2
 
-**Status:** IN_PROGRESS
+**Status:** COMPLETE
 **Owner:** Codex / Engineering
 **Created:** 2026-08-14
 **Updated:** 2026-08-14
@@ -14,7 +14,7 @@
 - [x] M1 — Add connection, immutable extract, series, and point persistence
 - [x] M2 — Add the strict read-only GA4 provider adapter and versioned report definitions
 - [x] M3 — Add execution, reconciliation, health, and bounded retry behavior
-- [ ] M4 — Prove fixtures, migrations, tenancy, documentation, and final CI
+- [x] M4 — Prove fixtures, migrations, tenancy, documentation, and final CI
 
 ## 1. Purpose and User Outcome
 
@@ -210,23 +210,24 @@ introduced.
 
 ### M4 — Evidence and release gate
 
-- [ ] sanitized fixtures cover complete, thresholded/other-row, malformed, and quota responses;
-- [ ] tests cover contract, parsing, connection validation, idempotency, reconciliation, migration,
+- [x] sanitized fixtures cover complete, thresholded/other-row, and malformed responses; provider
+  tests cover classified quota failures;
+- [x] tests cover contract, parsing, connection validation, idempotency, reconciliation, migration,
   and tenant isolation;
-- [ ] README explains the connector boundary and no-credential fixture workflow;
-- [ ] locked install, lint, format, type checking, unit, integration, frontend, secret scan,
+- [x] README explains the connector boundary and no-credential fixture workflow;
+- [x] locked install, lint, format, type checking, unit, integration, frontend, secret scan,
   Compose config, and `git diff --check` pass.
 
 ## 9. Final Acceptance Criteria
 
-- [ ] C1 persistence and C2 GA4 reports are end-to-end through the existing job queue/worker.
-- [ ] Every point traces to an immutable extract and exact canonical query definition.
-- [ ] Only aggregate read-only GA4 data is accepted; no token reaches durable evidence/logs/jobs.
-- [ ] Property timezone, freshness, source fields, connector/semantics versions, and quality limits
+- [x] C1 persistence and C2 GA4 reports are end-to-end through the existing job queue/worker.
+- [x] Every point traces to an immutable extract and exact canonical query definition.
+- [x] Only aggregate read-only GA4 data is accepted; no token reaches durable evidence/logs/jobs.
+- [x] Property timezone, freshness, source fields, connector/semantics versions, and quality limits
   are retained.
-- [ ] Preliminary and mature extracts coexist; missing/failed/thresholded data is never silently
+- [x] Preliminary and mature extracts coexist; missing/failed/thresholded data is never silently
   zero.
-- [ ] All deterministic and CI checks pass.
+- [x] All deterministic and CI checks pass.
 
 ## 10. Final Validation
 
@@ -340,7 +341,7 @@ OAuth lifecycle before pilot credentials are connected.
   connector/security/data/architecture contracts, and validated current official GA4 references.
 - 2026-08-14: Added migration 0010, C1 repositories, strict GA4 metadata/report adapter, hourly and
   daily normalizers, local/test-only execution-time token resolver, scheduler/worker integration,
-  sanitized fixtures, and 35 new unit tests. Ruff, mypy strict, 98 unit tests, frontend checks,
+  sanitized fixtures, and 36 new unit tests. Ruff, mypy strict, 99 unit tests, frontend checks,
   secret scan, locked dependency sync, offline PostgreSQL DDL generation, and diff checks pass.
   Docker is unavailable in the local runner, so live PostgreSQL/MinIO integration and migration
   round-trip remain the GitHub Actions release gate.
@@ -350,7 +351,36 @@ OAuth lifecycle before pilot credentials are connected.
 - 2026-08-14: CI run 69 passed the fixture and reached connection registration, identifying the
   reserved ORM `metadata` keyword. Updated the insert to `connection_metadata`, added a direct
   SQLAlchemy compilation regression test, and republished.
+- 2026-08-14: CI run 71 passed all release gates: repository safety, frontend, 99 unit tests,
+  migration 0010, 23 PostgreSQL/MinIO/browser/GA4 integration tests, scheduler, and worker. M4 and
+  EP-010 complete.
 
 ## 21. Final Outcome / Retrospective
 
-Pending.
+EP-010 completes C1 and the GA4 C2 aggregate read-only connector. A validated property can now
+produce hourly traffic and daily behavior evidence through the existing queue, worker, scheduler,
+PostgreSQL, and tenant boundary. Every point retains exact definition, source time/timezone,
+freshness, connector/semantics version, response limitations, and immutable extract provenance.
+
+The implementation never introduces a provider write method, write scope, live test credential,
+user-level export, arbitrary report builder, or causal conclusion. Missing/thresholded data remains
+missing or limited, and a provider failure degrades connector health without inventing business
+zeros. Production OAuth onboarding and a managed secret provider remain explicit future work.
+
+## 22. Validation Results
+
+- Ruff format/check — passed (95 files);
+- mypy strict — passed (85 source files);
+- backend unit — 99 passed;
+- backend integration — 23 passed, including GA4 queue/worker/persistence, tenant isolation,
+  preliminary→mature reconciliation, migration round trip, Chromium, PostgreSQL, and MinIO;
+- frontend lint/typecheck/Vitest/build — passed;
+- repository secret scan, Docker Compose config, and `git diff --check` — passed;
+- scheduler and general worker smoke checks — passed;
+- Draft PR #11: https://github.com/marian-dotcom/publisher-intelligence/pull/11;
+- final CI run 71: https://github.com/marian-dotcom/publisher-intelligence/actions/runs/31788207373.
+
+## 23. Next Step
+
+Review and merge Draft PR #11. After merge, begin GSC C3 in a separate ExecPlan, reusing the C1
+connection/extract/metric lifecycle while preserving Search and Discover as distinct surfaces.
