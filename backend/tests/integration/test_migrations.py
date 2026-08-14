@@ -52,6 +52,7 @@ async def test_schema_is_minimal_and_rejects_cancelled_status() -> None:
             "templates",
             "template_expected_entities",
             "tenants",
+            "video_player_observations",
         }
         constraints = (
             (

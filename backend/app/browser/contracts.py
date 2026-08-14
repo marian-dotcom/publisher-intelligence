@@ -191,6 +191,25 @@ class PrebidBidderObservation:
 
 
 @dataclass(frozen=True, slots=True)
+class VideoPlayerObservation:
+    stable_key: str
+    present: bool
+    visible: bool | None
+    sticky: bool | None
+    fixed: bool | None
+    autoplay: bool | None
+    muted: bool | None
+    controls_present: bool | None
+    dismiss_control_present: bool | None
+    width_px: float | None
+    height_px: float | None
+    vast_request_count: int
+    vast_error_count: int
+    media_request_count: int
+    playback_started: bool | None
+
+
+@dataclass(frozen=True, slots=True)
 class CollectorResult:
     collector_type: str
     collector_version: str
@@ -250,6 +269,9 @@ class BrowserEvidence:
     prebid_limitations: list[str] = field(default_factory=list)
     prebid_auctions: list[PrebidAuctionObservation] = field(default_factory=list)
     prebid_bidders: list[PrebidBidderObservation] = field(default_factory=list)
+    video_present: bool = False
+    video_limitations: list[str] = field(default_factory=list)
+    video_players: list[VideoPlayerObservation] = field(default_factory=list)
     failure_class: str | None = None
     failure_message: str | None = None
 

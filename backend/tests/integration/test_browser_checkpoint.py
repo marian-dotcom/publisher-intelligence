@@ -30,6 +30,7 @@ from app.browser.models import (
     Site,
     Template,
     TemplateExpectedEntity,
+    VideoPlayerObservation,
 )
 from app.browser.persistence import CheckpointRepository
 from app.browser.scheduling import CheckpointSchedulingService, resolve_six_hour_window
@@ -78,6 +79,19 @@ class FixtureHandler(BaseHTTPRequestHandler):
             return
         if self.path.startswith("/prebid-server"):
             self._send(200, "text/html", _prebid_server_fixture_html())
+            return
+        if self.path.startswith("/vast/"):
+            status = 502 if "wrapper-error" in self.path else 200
+            self._send(status, "application/xml", b"<VAST version='4.3'></VAST>")
+            return
+        if self.path.startswith("/media/"):
+            self._send(200, "video/mp4", b"fixture-media-not-retained")
+            return
+        if self.path.startswith("/video-native"):
+            self._send(200, "text/html", _video_fixture_html())
+            return
+        if self.path.startswith("/video-opaque"):
+            self._send(200, "text/html", _opaque_video_fixture_html())
             return
         html = b"""<!doctype html><html><body><h1>Fixture</h1>
         <script src="/asset.js?token=manifest-secret"></script>
@@ -277,6 +291,51 @@ def _prebid_server_fixture_html() -> bytes:
     </body></html>"""
 
 
+def _video_fixture_html() -> bytes:
+    return b"""<!doctype html><html><body style="height:5000px;margin:0">
+    <h1>Deterministic native video fixture</h1>
+    <div id="player-shell" style="width:360px;margin-top:400px;background:#111"></div>
+    <script>
+    (() => {
+      const shell = document.querySelector('#player-shell');
+      const video = document.createElement('video');
+      video.id = 'fixture-sensitive-id';
+      video.width = 360;
+      video.height = 202;
+      video.autoplay = true;
+      video.muted = true;
+      video.controls = true;
+      const close = document.createElement('button');
+      close.setAttribute('aria-label', 'Close player');
+      close.textContent = 'X';
+      setTimeout(() => { shell.append(video, close); }, 50);
+      setTimeout(() => video.dispatchEvent(new Event('playing')), 200);
+      setTimeout(() => fetch('/vast/adtag?token=vast-secret'), 220);
+      setTimeout(() => fetch('/vast/wrapper-error?token=wrapper-secret'), 240);
+      setTimeout(() => fetch('/media/video.mp4?token=media-secret'), 260);
+      const makeSticky = () => {
+        if (window.scrollY < 500) return;
+        shell.style.position = 'fixed';
+        shell.style.top = '20px';
+        shell.style.right = '20px';
+        shell.style.marginTop = '0';
+        shell.style.zIndex = '1000';
+      };
+      window.addEventListener('scroll', makeSticky);
+      setInterval(makeSticky, 50);
+    })();
+    </script></body></html>"""
+
+
+def _opaque_video_fixture_html() -> bytes:
+    return b"""<!doctype html><html><body>
+    <h1>Opaque video network fixture</h1>
+    <script>
+    fetch('/vast/opaque-adtag?token=opaque-vast-secret');
+    fetch('/media/opaque.mp4?token=opaque-media-secret');
+    </script></body></html>"""
+
+
 @pytest.fixture
 def fixture_site() -> Iterator[str]:
     server = ThreadingHTTPServer(("127.0.0.1", 0), FixtureHandler)
@@ -308,6 +367,7 @@ async def _cleanup_tenant(tenant_id: uuid.UUID, storage: S3Storage) -> None:
             CollectorRun,
             PrebidBidderObservation,
             PrebidAuctionObservation,
+            VideoPlayerObservation,
             ConsentPhaseDependencyObservation,
             CMPObservation,
             EntityObservation,
@@ -398,8 +458,8 @@ async def test_gpt_lifecycle_persists_eager_lazy_and_expected_absent_slots(
         )
         assert run is not None
         assert run.status == "COMPLETE"
-        assert run.collector_bundle_version == "b6-v1"
-        assert run.manifest["schema"] == "browser-checkpoint-manifest/v6"
+        assert run.collector_bundle_version == "b7-v1"
+        assert run.manifest["schema"] == "browser-checkpoint-manifest/v7"
         assert run.manifest["gpt"]["present"] is True
         assert run.manifest["gpt"]["version"] == "fixture-gpt-1"
 
@@ -487,8 +547,8 @@ async def test_prebid_client_auction_persists_safe_timing_and_bidder_evidence(
         )
         assert run is not None
         assert run.status == "COMPLETE"
-        assert run.collector_bundle_version == "b6-v1"
-        assert run.manifest["schema"] == "browser-checkpoint-manifest/v6"
+        assert run.collector_bundle_version == "b7-v1"
+        assert run.manifest["schema"] == "browser-checkpoint-manifest/v7"
         prebid = run.manifest["prebid"]
         assert prebid["present"] is True
         assert prebid["version"] == "fixture-prebid-11"
@@ -623,6 +683,169 @@ async def test_prebid_server_endpoint_is_explicitly_not_observable(
         await _cleanup_tenant(registered.tenant_id, storage)
 
 
+async def test_native_video_player_persists_sticky_playback_and_network_evidence(
+    fixture_site: str,
+) -> None:
+    settings = get_settings()
+    assert settings.browser_allow_private_networks
+    factory = get_session_factory()
+    queue = JobQueue(factory)
+    service = CheckpointService(factory, queue, settings)
+    repository = CheckpointRepository(factory)
+    storage = S3Storage(settings)
+    registered = await service.register_and_enqueue(
+        tenant_slug=f"video-native-{uuid.uuid4().hex}",
+        tenant_name="Native Video Tenant",
+        publisher_name="Video Publisher",
+        site_name="Native Video Site",
+        url=f"{fixture_site}/video-native",
+    )
+    try:
+        async with factory() as session, session.begin():
+            run = await session.get(CheckpointRun, registered.checkpoint_run_id)
+            assert run is not None
+            scenario = await session.scalar(
+                select(BrowserScenario).where(
+                    BrowserScenario.tenant_id == registered.tenant_id,
+                    BrowserScenario.site_id == run.site_id,
+                    BrowserScenario.code == B2_DESKTOP_SCENARIO_CODE,
+                )
+            )
+            assert scenario is not None
+            run.scenario_id = scenario.id
+
+        await run_browser_worker(once=True)
+
+        run = await repository.get_for_tenant(
+            tenant_id=registered.tenant_id,
+            checkpoint_run_id=registered.checkpoint_run_id,
+        )
+        assert run is not None
+        assert run.status == "COMPLETE"
+        assert run.collector_bundle_version == "b7-v1"
+        assert run.manifest["schema"] == "browser-checkpoint-manifest/v7"
+        video = run.manifest["video"]
+        assert video["present"] is True
+        assert video["limitations"] == ["vast_payload_not_inspected"]
+        assert len(video["players"]) == 1
+
+        players = await repository.video_players_for_tenant(
+            tenant_id=registered.tenant_id,
+            checkpoint_run_id=registered.checkpoint_run_id,
+        )
+        assert len(players) == 1
+        player = players[0]
+        assert player.present is True
+        assert player.visible is True
+        assert player.sticky is True
+        assert player.fixed is True
+        assert player.autoplay is True
+        assert player.muted is True
+        assert player.controls_present is True
+        assert player.dismiss_control_present is True
+        assert player.width_px == 360
+        assert player.height_px == 202
+        assert player.vast_request_count == 2
+        assert player.vast_error_count == 1
+        assert player.media_request_count == 1
+        assert player.playback_started is True
+        assert player.collector_version == "video-b7-v1"
+
+        serialized_manifest = str(run.manifest)
+        for forbidden in (
+            "fixture-sensitive-id",
+            "vast-secret",
+            "wrapper-secret",
+            "media-secret",
+            "fixture-media-not-retained",
+        ):
+            assert forbidden not in serialized_manifest
+        assert (
+            await repository.video_players_for_tenant(
+                tenant_id=uuid.uuid4(),
+                checkpoint_run_id=registered.checkpoint_run_id,
+            )
+            == []
+        )
+        async with factory() as session:
+            collector = await session.scalar(
+                select(CollectorRun).where(
+                    CollectorRun.checkpoint_run_id == registered.checkpoint_run_id,
+                    CollectorRun.collector_type == "VIDEO_PLAYER",
+                )
+            )
+            assert collector is not None
+            assert collector.status == "OK"
+            assert collector.collector_version == "video-b7-v1"
+            assert collector.summary["player_count"] == 1
+            assert collector.summary["sticky_player_count"] == 1
+            assert collector.summary["playback_started_count"] == 1
+            assert collector.summary["vast_request_count"] == 2
+            assert collector.summary["vast_http_error_count"] == 1
+            assert collector.summary["media_request_count"] == 1
+    finally:
+        await _cleanup_tenant(registered.tenant_id, storage)
+
+
+async def test_video_network_without_native_player_is_not_observable(
+    fixture_site: str,
+) -> None:
+    settings = get_settings()
+    assert settings.browser_allow_private_networks
+    factory = get_session_factory()
+    queue = JobQueue(factory)
+    service = CheckpointService(factory, queue, settings)
+    repository = CheckpointRepository(factory)
+    storage = S3Storage(settings)
+    registered = await service.register_and_enqueue(
+        tenant_slug=f"video-opaque-{uuid.uuid4().hex}",
+        tenant_name="Opaque Video Tenant",
+        publisher_name="Video Publisher",
+        site_name="Opaque Video Site",
+        url=f"{fixture_site}/video-opaque",
+    )
+    try:
+        await run_browser_worker(once=True)
+
+        run = await repository.get_for_tenant(
+            tenant_id=registered.tenant_id,
+            checkpoint_run_id=registered.checkpoint_run_id,
+        )
+        assert run is not None
+        assert run.status == "COMPLETE"
+        assert run.manifest["video"] == {
+            "present": False,
+            "limitations": [
+                "vast_payload_not_inspected",
+                "video_network_player_not_observable",
+            ],
+            "players": [],
+        }
+        assert "opaque-vast-secret" not in str(run.manifest)
+        assert "opaque-media-secret" not in str(run.manifest)
+        assert (
+            await repository.video_players_for_tenant(
+                tenant_id=registered.tenant_id,
+                checkpoint_run_id=registered.checkpoint_run_id,
+            )
+            == []
+        )
+        async with factory() as session:
+            collector = await session.scalar(
+                select(CollectorRun).where(
+                    CollectorRun.checkpoint_run_id == registered.checkpoint_run_id,
+                    CollectorRun.collector_type == "VIDEO_PLAYER",
+                )
+            )
+            assert collector is not None
+            assert collector.status == "NOT_OBSERVABLE"
+            assert collector.summary["player_count"] == 0
+            assert collector.summary["vast_request_count"] == 1
+            assert collector.summary["media_request_count"] == 1
+    finally:
+        await _cleanup_tenant(registered.tenant_id, storage)
+
+
 @pytest.mark.parametrize(
     ("scenario_code", "decision", "expected_phase"),
     [
@@ -684,7 +907,7 @@ async def test_cmp_action_persists_tcf_and_phase_evidence(
         )
         assert run is not None
         assert run.status == "COMPLETE"
-        assert run.manifest["schema"] == "browser-checkpoint-manifest/v6"
+        assert run.manifest["schema"] == "browser-checkpoint-manifest/v7"
         consent = run.manifest["consent"]
         assert consent["path"] == ("PRIMARY" if decision == "accept" else "REJECT")
         observation = consent["observation"]
@@ -838,7 +1061,7 @@ async def test_real_browser_checkpoint_persists_evidence_and_site_error(
         assert run.final_url == f"{fixture_site}/complete"
         assert run.playwright_version
         assert run.chromium_version
-        assert run.manifest["schema"] == "browser-checkpoint-manifest/v6"
+        assert run.manifest["schema"] == "browser-checkpoint-manifest/v7"
         assert run.manifest["normalized_state"]["dom"]["normalizer_version"] == "dom-b3-v1"
         assert "manifest-secret" not in str(run.manifest)
         assert "network-secret" not in str(run.manifest)
@@ -965,7 +1188,7 @@ async def test_scheduler_produces_repeatable_desktop_and_mobile_runs(
                 ).all()
             )
             assert len(first_runs) == 2
-            assert {run.collector_bundle_version for run in first_runs} == {"b6-v1"}
+            assert {run.collector_bundle_version for run in first_runs} == {"b7-v1"}
             first_run_ids = {run.id for run in first_runs}
             scheduled_jobs = list(
                 (
