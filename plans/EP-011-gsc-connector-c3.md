@@ -1,6 +1,6 @@
 # EP-011 — Google Search Console Read-Only Connector C3
 
-**Status:** IN_PROGRESS
+**Status:** COMPLETE
 **Owner:** Codex / Engineering
 **Created:** 2026-08-14
 **Updated:** 2026-08-14
@@ -14,7 +14,7 @@
 - [x] M1 — Generalize the C1 repository boundary without changing GA4 semantics
 - [x] M2 — Add strict read-only GSC definitions, client, and normalization
 - [x] M3 — Add validation, schedules, worker execution, and URL Inspection on demand
-- [ ] M4 — Prove fixtures, tenancy, idempotency, maturity, and final CI
+- [x] M4 — Prove fixtures, tenancy, idempotency, maturity, and final CI
 
 ## 1. Purpose and User Outcome
 
@@ -143,18 +143,18 @@ ExecPlan. No dependency, table, service, or infrastructure category is added.
 
 ### M4 — Release gate
 
-- [ ] unit/integration tests prove happy paths, counterexamples, tenant isolation, and history;
-- [ ] full lint, format, typing, backend/frontend, migration, security, and CI gates pass;
-- [ ] plan and README match the validated implementation.
+- [x] unit/integration tests prove happy paths, counterexamples, tenant isolation, and history;
+- [x] full lint, format, typing, backend/frontend, migration, security, and CI gates pass;
+- [x] plan and README match the validated implementation.
 
 ## 9. Final Acceptance Criteria
 
-- [ ] Search and Discover are separate, versioned source metric series.
-- [ ] `final/all/hourly_all`, incomplete metadata, and Pacific/UTC intervals are correct.
-- [ ] pagination is bounded and completeness limitations are explicit.
-- [ ] retry/reconciliation is idempotent and preliminary history is never overwritten.
-- [ ] connector/token/tenant failures cannot become business zeros or cross-tenant evidence.
-- [ ] URL Inspection is read-only, on demand, quota-isolated, and provenance-preserving.
+- [x] Search and Discover are separate, versioned source metric series.
+- [x] `final/all/hourly_all`, incomplete metadata, and Pacific/UTC intervals are correct.
+- [x] pagination is bounded and completeness limitations are explicit.
+- [x] retry/reconciliation is idempotent and preliminary history is never overwritten.
+- [x] connector/token/tenant failures cannot become business zeros or cross-tenant evidence.
+- [x] URL Inspection is read-only, on demand, quota-isolated, and provenance-preserving.
 
 ## 10. Validation Commands
 
@@ -253,23 +253,39 @@ slice, as already recorded in EP-010.
   tests, locked sync, frontend lint/typecheck/test/build, secret scan, offline migration DDL, and
   diff checks pass. Docker/PostgreSQL is unavailable locally, so the integration and migration
   round-trip remain the GitHub Actions release gate.
+- 2026-08-14: Draft PR #12 CI run 76 passed repository safety, frontend, migration 0011, 141 unit
+  tests, 24 PostgreSQL/MinIO/browser/GA4/GSC integration tests, scheduler, and worker. M4 and
+  EP-011 are complete.
 
 ## 21. Final Outcome / Retrospective
 
-Local validation is green. PostgreSQL/MinIO/browser integration and the migration round-trip are
-pending the GitHub Actions environment.
+EP-011 completes the GSC C3 aggregate read-only connector. A validated Search Console property can
+now produce separate Search and Discover evidence through the existing scheduler, queue, worker,
+PostgreSQL, and tenant boundary. Final, fresh daily, and hourly data states retain source-native
+incomplete boundaries, Pacific labels, explicit UTC intervals, row-level maturity, pagination,
+and completeness warnings. Missing rows remain missing.
+
+The implementation adds no provider write method, broad scope, live test credential, continuous
+query warehouse, arbitrary report builder, or causal conclusion. URL Inspection remains bounded,
+on demand, and current-view-only; its quota failure cannot disable routine Search Analytics.
 
 ## 22. Validation Results
 
 - Ruff format/check — passed (110 backend files);
 - mypy strict — passed (99 source/test files);
 - backend unit — 141 passed;
-- migration 0011 offline PostgreSQL DDL generation — passed;
+- backend integration — 24 passed, including GSC queue/worker/persistence, Search/Discover
+  separation, row maturity, URL Inspection, tenant isolation, migration round trip, Chromium,
+  PostgreSQL, and MinIO;
+- migration 0011 clean upgrade and upgrade/downgrade/upgrade round trip — passed;
 - frontend lint/typecheck/Vitest/build — passed;
-- locked dependency sync, secret scan, and `git diff --check` — passed;
-- local integration — blocked by unavailable Docker/PostgreSQL, reserved for CI.
+- locked dependency sync, secret scan, Docker Compose config, and `git diff --check` — passed;
+- scheduler and general worker smoke checks — passed;
+- Draft PR #12: https://github.com/marian-dotcom/publisher-intelligence/pull/12;
+- CI run 76: https://github.com/marian-dotcom/publisher-intelligence/actions/runs/31790267249.
 
 ## 23. Next Step
 
-Publish Draft PR, run the full GitHub Actions integration gate, repair any failure, then complete
-M4 and this ExecPlan.
+Review and merge Draft PR #12. After merge, begin GAM C4 in a separate ExecPlan, reusing the C1
+lifecycle while preserving network timezone, currency, report compatibility, async execution,
+pagination, and direct/programmatic composition.
