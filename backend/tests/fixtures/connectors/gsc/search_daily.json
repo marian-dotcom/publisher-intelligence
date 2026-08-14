@@ -1,0 +1,27 @@
+{
+  "rows": [
+    {
+      "keys": ["2026-08-12", "MOBILE"],
+      "clicks": 120,
+      "impressions": 2400,
+      "ctr": 0.05,
+      "position": 6.4
+    },
+    {
+      "keys": ["2026-08-12", "DESKTOP"],
+      "clicks": 30,
+      "impressions": 1000,
+      "ctr": 0.03,
+      "position": 8.2
+    }
+  ],
+  "responseAggregationType": "byProperty",
+  "metadata": {},
+  "pagination": {
+    "pagesRequested": 1,
+    "returnedRows": 2,
+    "rowLimit": 25000,
+    "maxRows": 50000,
+    "capReached": false
+  }
+}

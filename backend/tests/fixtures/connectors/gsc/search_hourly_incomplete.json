@@ -1,0 +1,29 @@
+{
+  "rows": [
+    {
+      "keys": ["2026-08-13T09:00:00-07:00", "MOBILE"],
+      "clicks": 20,
+      "impressions": 400,
+      "ctr": 0.05,
+      "position": 5.5
+    },
+    {
+      "keys": ["2026-08-13T10:00:00-07:00", "MOBILE"],
+      "clicks": 4,
+      "impressions": 100,
+      "ctr": 0.04,
+      "position": 6.1
+    }
+  ],
+  "responseAggregationType": "byProperty",
+  "metadata": {
+    "first_incomplete_hour": "2026-08-13T10:00:00-07:00"
+  },
+  "pagination": {
+    "pagesRequested": 1,
+    "returnedRows": 2,
+    "rowLimit": 25000,
+    "maxRows": 50000,
+    "capReached": false
+  }
+}
