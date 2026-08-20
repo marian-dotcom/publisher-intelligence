@@ -1,6 +1,6 @@
 # EP-012 — Google Ad Manager Read-Only Connector C4
 
-**Status:** IN_PROGRESS
+**Status:** COMPLETE
 **Owner:** Codex / Engineering
 **Created:** 2026-08-20
 **Updated:** 2026-08-20
@@ -14,7 +14,7 @@
 - [x] M1 — Add fixed GAM definitions and strict read-only capability validation
 - [x] M2 — Add asynchronous run, polling, pagination, and normalization
 - [x] M3 — Add scheduler/worker execution and tenant-owned persistence
-- [ ] M4 — Prove fixtures, failure paths, idempotency, and final validation
+- [x] M4 — Prove fixtures, failure paths, idempotency, and final validation
 
 ## 1. Purpose and User Outcome
 
@@ -143,10 +143,8 @@ dependency, table, migration, service, or infrastructure category is added.
 
 ### M4 — Release gate
 
-- [ ] unit/integration tests prove happy paths, counterexamples, pagination, and tenant isolation
-  (unit green; PostgreSQL integration collected locally and awaits CI);
-- [ ] full lint, format, typing, backend/frontend, migration, security, and CI gates pass (all
-  available local gates green; Docker/CI pending);
+- [x] unit/integration tests prove happy paths, counterexamples, pagination, and tenant isolation;
+- [x] full lint, format, typing, backend/frontend, migration, security, and CI gates pass;
 - [x] plan and README match the validated implementation.
 
 ## 9. Final Acceptance Criteria
@@ -257,21 +255,33 @@ but it must remain outside the connector credential and C4 runtime.
 - 2026-08-20: Locked sync, Ruff, mypy strict, 158 unit tests, frontend lint/typecheck/test/build,
   secret scan, offline migration DDL, integration collection, and diff checks pass. Docker is not
   installed locally, so the PostgreSQL execution and CI release gate remain pending.
+- 2026-08-20: Draft PR #13 CI run 81 passed repository safety, frontend, migration 0011, 158 unit
+  tests, 25 PostgreSQL/MinIO/browser/GA4/GSC/GAM integration tests, scheduler, and worker. M4 and
+  EP-012 are complete.
 
 ## 21. Final Outcome / Retrospective
 
-Locally ready for the GitHub review cycle. The narrow read-only connector can validate and run
+EP-012 completes the GAM C4 aggregate read-only connector. The connector can validate and run
 three factual aggregate evidence cubes without report mutation, preserve complete asynchronous
-provenance, and prevent empty/partial responses from becoming business zeros. Final completion is
-pending the PostgreSQL integration and remaining GitHub CI gates.
+provenance, and prevent empty/partial responses from becoming business zeros. Network timezone,
+currency, row-level maturity, report definition identity, and complete pagination remain attached
+to immutable source evidence without introducing provider writes or causal conclusions.
 
 ## 22. Validation Results
 
 - Ruff format/check — passed (123 backend files);
 - mypy strict — passed (112 source/test files);
 - backend unit — 158 passed, with one dependency deprecation warning;
-- GAM PostgreSQL integration — collected successfully; execution pending Docker/CI;
+- backend integration — 25 passed, including GAM queue/worker/persistence, reconciliation,
+  idempotency, and tenant isolation;
 - frontend ESLint/typecheck/Vitest/production build — passed;
 - locked dependency sync, secret scan, offline migration DDL, and `git diff --check` — passed;
-- Docker Compose config and full integration suite — unavailable locally because Docker is not
-  installed; retained as the GitHub Actions release gate.
+- Docker Compose config, scheduler, worker, migration, and repository safety — passed in CI;
+- Draft PR #13: https://github.com/marian-dotcom/publisher-intelligence/pull/13;
+- final CI run 81: https://github.com/marian-dotcom/publisher-intelligence/actions/runs/32399091458.
+
+## 23. Next Step
+
+Review and merge Draft PR #13. After merge, begin C5 cross-source derivation in a separate
+ExecPlan, reusing Browser, GA4, GSC, and GAM evidence without promoting raw observations directly
+to causal conclusions.
