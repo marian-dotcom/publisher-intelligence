@@ -32,6 +32,7 @@ from app.browser.models import (
     InteractionProfile,
     JavaScriptErrorObservation,
     MonitoredUrl,
+    SeoObservation,
     Site,
     Template,
     TemplateExpectedEntity,
@@ -55,6 +56,7 @@ from app.browser.models import (
     VideoPlayerObservation as VideoPlayerObservationModel,
 )
 from app.browser.performance import PERFORMANCE_COLLECTOR_VERSION
+from app.db.models import Job
 from app.storage.s3 import S3Storage
 
 
@@ -465,6 +467,7 @@ class CheckpointRepository:
             await self._persist_prebid_observations(session, target, evidence)
             await self._persist_video_observations(session, target, evidence)
             await self._persist_synthetic_performance(session, target, evidence)
+            await self._persist_seo_and_javascript_error_observations(session, target, evidence)
             attempt.status = evidence.status
             attempt.completed_at = evidence.completed_at
             attempt.failure_class = evidence.failure_class
@@ -479,6 +482,19 @@ class CheckpointRepository:
             run.environment = evidence.environment
             run.limitations = evidence.limitations
             run.manifest = manifest
+            await session.execute(
+                insert(Job)
+                .values(
+                    id=uuid.uuid4(),
+                    tenant_id=target.tenant_id,
+                    job_type="DERIVE_BROWSER_EVENTS",
+                    payload={"checkpoint_run_id": str(target.checkpoint_run_id)},
+                    priority=-10,
+                    max_attempts=3,
+                    idempotency_key=f"derive-browser-events:{target.checkpoint_run_id}:e1-v1",
+                )
+                .on_conflict_do_nothing()
+            )
             await self._refresh_window_status(
                 session, run.checkpoint_window_id, evidence.completed_at
             )
@@ -531,6 +547,31 @@ class CheckpointRepository:
                         "observation_type",
                     ]
                 )
+            )
+
+    @staticmethod
+    async def _persist_seo_and_javascript_error_observations(
+        session: AsyncSession, target: BrowserTarget, evidence: BrowserEvidence
+    ) -> None:
+        observation = evidence.seo_observation
+        if observation is not None:
+            await session.execute(
+                insert(SeoObservation)
+                .values(
+                    id=uuid.uuid4(),
+                    tenant_id=target.tenant_id,
+                    site_id=target.site_id,
+                    checkpoint_run_id=target.checkpoint_run_id,
+                    final_url=observation.final_url,
+                    http_status=observation.http_status,
+                    title_hash=observation.title_hash,
+                    meta_robots=observation.meta_robots,
+                    canonical_url=observation.canonical_url,
+                    redirect_count=observation.redirect_count,
+                    collector_version=observation.collector_version,
+                    metadata_json={},
+                )
+                .on_conflict_do_nothing(index_elements=["checkpoint_run_id"])
             )
 
         error_state = evidence.normalized_state.get("javascript_errors")

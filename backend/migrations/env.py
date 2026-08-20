@@ -11,6 +11,7 @@ from app.config.settings import get_settings
 from app.connectors import models as connector_models  # noqa: F401
 from app.db import models  # noqa: F401
 from app.db.base import Base
+from app.events import models as event_models  # noqa: F401
 from app.metrics import models as metric_models  # noqa: F401
 
 config = context.config

@@ -27,6 +27,7 @@ from app.browser.models import (
     PrebidAuctionObservation,
     PrebidBidderObservation,
     Publisher,
+    SeoObservation,
     Site,
     SyntheticPerformanceObservation,
     Template,
@@ -40,6 +41,7 @@ from app.browser_worker import run as run_browser_worker
 from app.config.settings import get_settings
 from app.db.models import Job, Tenant
 from app.db.session import get_session_factory
+from app.events.models import Event, EventEvidenceRef
 from app.jobs.queue import JobQueue
 from app.storage.s3 import S3Storage
 
@@ -413,6 +415,9 @@ async def _cleanup_tenant(tenant_id: uuid.UUID, storage: S3Storage) -> None:
         storage.delete(key=key)
     async with factory() as session, session.begin():
         for model in (
+            EventEvidenceRef,
+            Event,
+            SeoObservation,
             Artifact,
             CollectorRun,
             PrebidBidderObservation,

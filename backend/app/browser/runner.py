@@ -21,6 +21,7 @@ from app.browser.contracts import (
     CollectorStatus,
     ConsentPhaseDependencyObservation,
     NormalizedEntityObservation,
+    SEOObservation,
 )
 from app.browser.gpt import GPTCollection, GPTLifecycleCollector
 from app.browser.interactions import execute_interaction_steps
@@ -35,6 +36,7 @@ from app.browser.normalization import (
 from app.browser.performance import PerformanceCollection, SyntheticPerformanceCollector
 from app.browser.prebid import PrebidCollection, PrebidCollector
 from app.browser.security import BrowserBlockedError, BrowserNetworkGuard, sanitize_url
+from app.browser.seo import SEO_COLLECTOR_VERSION, normalize_seo
 from app.browser.video import VideoCollection, VideoPlayerCollector
 from app.config.settings import Settings
 
@@ -252,6 +254,27 @@ class BrowserRunner:
                     consent_path=target.consent_path,
                 )
                 raw_dom = (await page.content()).encode("utf-8")
+                seo_started = datetime.now(UTC)
+                normalized_seo = normalize_seo(raw_dom.decode("utf-8"), final_url=final_url)
+                seo_observation = SEOObservation(
+                    title_hash=normalized_seo.title_hash,
+                    meta_robots=normalized_seo.meta_robots,
+                    canonical_url=normalized_seo.canonical_url,
+                    final_url=final_url,
+                    http_status=http_status,
+                    redirect_count=len(collector.redirect_chain),
+                    collector_version=SEO_COLLECTOR_VERSION,
+                )
+                collector_results.append(
+                    CollectorResult(
+                        collector_type="SEO_OBSERVATION",
+                        collector_version=SEO_COLLECTOR_VERSION,
+                        status="OK",
+                        started_at=seo_started,
+                        completed_at=datetime.now(UTC),
+                        summary={"canonical_present": normalized_seo.canonical_url is not None},
+                    )
+                )
                 artifacts.append(
                     ArtifactContent(
                         artifact_type="RAW_DOM",
@@ -338,6 +361,7 @@ class BrowserRunner:
                     "scripts": normalized_scripts,
                     "network": normalized_network,
                     "javascript_errors": normalized_errors,
+                    "seo": normalized_seo.as_state(),
                     "template_expectation": {
                         "fingerprint_version": target.template_fingerprint_version,
                         "expected_features": target.template_expected_features,
@@ -420,6 +444,7 @@ class BrowserRunner:
                     performance_collection=performance_collection,
                     cmp_collection=cmp_collection,
                     consent_phase_dependencies=consent_phase_dependencies,
+                    seo_observation=seo_observation,
                 )
         except BrowserBlockedError as error:
             status = "BLOCKED"
@@ -522,6 +547,7 @@ class BrowserRunner:
         performance_collection: PerformanceCollection | None = None,
         cmp_collection: CMPCollection | None = None,
         consent_phase_dependencies: list[ConsentPhaseDependencyObservation] | None = None,
+        seo_observation: SEOObservation | None = None,
         failure_class: str | None = None,
         failure_message: str | None = None,
     ) -> BrowserEvidence:
@@ -575,6 +601,7 @@ class BrowserRunner:
             synthetic_performance=(
                 performance_collection.observation if performance_collection is not None else None
             ),
+            seo_observation=seo_observation,
             failure_class=failure_class,
             failure_message=failure_message,
         )

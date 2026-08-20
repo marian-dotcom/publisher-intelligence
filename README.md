@@ -4,6 +4,10 @@ Repository foundation for a publisher operational-memory and incident-intelligen
 
 The product contracts live in the root Markdown files. Engineering work follows `AGENTS.md`, `DECISIONS.md`, `PLANS.md`, and the active ExecPlan under `plans/`.
 
+Completed browser checkpoints persist compact rendered SEO evidence and atomically enqueue
+deterministic E1 semantic-event derivation. E1 records only exact-URL dependency add/remove and
+canonical transitions; noisy JS-error, noindex, and missing-slot signals await E2 confirmation.
+
 ## Prerequisites
 
 - Python 3.12

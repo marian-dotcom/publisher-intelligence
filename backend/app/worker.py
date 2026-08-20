@@ -23,6 +23,8 @@ from app.connectors.gam.service import GAMConnectorService
 from app.connectors.gsc.client import GSCClient, HttpxGSCTransport
 from app.connectors.gsc.service import GSCConnectorService
 from app.db.session import get_session_factory
+from app.events.persistence import EventRepository, EventStateError
+from app.events.service import EventService
 from app.jobs.queue import JobLease, JobQueue
 from app.metrics.contracts import CROSS_SOURCE_RULE_VERSION
 from app.metrics.persistence import MetricDerivationRepository, MetricDerivationStateError
@@ -39,6 +41,7 @@ async def handle_job(
     gsc_service: GSCConnectorService | None = None,
     gam_service: GAMConnectorService | None = None,
     metric_service: CrossSourceMetricService | None = None,
+    event_service: EventService | None = None,
 ) -> None:
     context: dict[str, object] = {
         "job_id": str(lease.id),
@@ -78,6 +81,9 @@ async def handle_job(
     if lease.job_type == "DERIVE_CROSS_SOURCE" and metric_service is not None:
         await _handle_cross_source_job(queue, lease, backoff_seconds, metric_service, context)
         return
+    if lease.job_type == "DERIVE_BROWSER_EVENTS" and event_service is not None:
+        await _handle_browser_events_job(queue, lease, backoff_seconds, event_service, context)
+        return
     failed = await queue.fail_or_retry(
         job_id=lease.id,
         lock_token=lease.lock_token,
@@ -87,6 +93,74 @@ async def handle_job(
         backoff_seconds=backoff_seconds,
     )
     logger.error("job failed", extra={"context": {**context, "fenced_update": failed}})
+
+
+async def _handle_browser_events_job(
+    queue: JobQueue,
+    lease: JobLease,
+    backoff_seconds: int,
+    service: EventService,
+    context: dict[str, object],
+) -> None:
+    if lease.tenant_id is None or set(lease.payload) != {"checkpoint_run_id"}:
+        failed = await queue.fail_or_retry(
+            job_id=lease.id,
+            lock_token=lease.lock_token,
+            retryable=False,
+            error_class="INVALID_BROWSER_EVENT_JOB",
+            error_message="INVALID_JOB_PAYLOAD",
+            backoff_seconds=backoff_seconds,
+        )
+        logger.error(
+            "browser event job failed", extra={"context": {**context, "fenced_update": failed}}
+        )
+        return
+    try:
+        checkpoint_run_id = uuid.UUID(str(lease.payload["checkpoint_run_id"]))
+        result = await service.derive(
+            tenant_id=lease.tenant_id, checkpoint_run_id=checkpoint_run_id
+        )
+    except (ValueError, EventStateError):
+        failed = await queue.fail_or_retry(
+            job_id=lease.id,
+            lock_token=lease.lock_token,
+            retryable=False,
+            error_class="BROWSER_EVENT_STATE_ERROR",
+            error_message="TENANT_OR_STATE_INVALID",
+            backoff_seconds=backoff_seconds,
+        )
+        logger.error(
+            "browser event job failed", extra={"context": {**context, "fenced_update": failed}}
+        )
+        return
+    except Exception:
+        failed = await queue.fail_or_retry(
+            job_id=lease.id,
+            lock_token=lease.lock_token,
+            retryable=True,
+            error_class="BROWSER_EVENT_RUNTIME_ERROR",
+            error_message="BROWSER_EVENT_RUNTIME_ERROR",
+            backoff_seconds=backoff_seconds,
+        )
+        logger.exception(
+            "browser event job failed", extra={"context": {**context, "fenced_update": failed}}
+        )
+        return
+    completed = await queue.complete(job_id=lease.id, lock_token=lease.lock_token)
+    logger.info(
+        "browser event job completed",
+        extra={
+            "context": {
+                **context,
+                "checkpoint_run_id": str(checkpoint_run_id),
+                "candidate_count": result.candidate_count,
+                "persisted_count": result.persisted_count,
+                "unsupported_count": result.unsupported_count,
+                "skip_reasons": list(result.skip_reasons),
+                "fenced_update": completed,
+            }
+        },
+    )
 
 
 async def _handle_ga4_job(
@@ -879,6 +953,7 @@ async def run(*, once: bool) -> None:
         EnvironmentAccessTokenResolver(environment=settings.environment),
     )
     metric_service = CrossSourceMetricService(MetricDerivationRepository(factory))
+    event_service = EventService(EventRepository(factory))
     worker_id = f"{socket.gethostname()}:{id(asyncio.current_task())}"
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -909,6 +984,7 @@ async def run(*, once: bool) -> None:
                 gsc_service,
                 gam_service,
                 metric_service,
+                event_service,
             )
         if once:
             return
