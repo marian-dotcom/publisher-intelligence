@@ -224,6 +224,17 @@ class SyntheticPerformanceObservation:
 
 
 @dataclass(frozen=True, slots=True)
+class SEOObservation:
+    title_hash: str | None
+    meta_robots: str | None
+    canonical_url: str | None
+    final_url: str | None
+    http_status: int | None
+    redirect_count: int
+    collector_version: str
+
+
+@dataclass(frozen=True, slots=True)
 class CollectorResult:
     collector_type: str
     collector_version: str
@@ -287,6 +298,7 @@ class BrowserEvidence:
     video_limitations: list[str] = field(default_factory=list)
     video_players: list[VideoPlayerObservation] = field(default_factory=list)
     synthetic_performance: SyntheticPerformanceObservation | None = None
+    seo_observation: SEOObservation | None = None
     failure_class: str | None = None
     failure_message: str | None = None
 

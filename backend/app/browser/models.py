@@ -794,3 +794,38 @@ class JavaScriptErrorObservation(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
+
+
+class SeoObservation(Base):
+    __tablename__ = "seo_observations"
+    __table_args__ = (
+        UniqueConstraint("checkpoint_run_id", name="uq_seo_observations_checkpoint"),
+        CheckConstraint("redirect_count >= 0", name="ck_seo_observations_redirect_count"),
+        Index("ix_seo_observations_tenant_checkpoint", "tenant_id", "checkpoint_run_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    site_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sites.id", ondelete="RESTRICT"), nullable=False
+    )
+    checkpoint_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("checkpoint_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    final_url: Mapped[str | None] = mapped_column(Text)
+    http_status: Mapped[int | None] = mapped_column(Integer)
+    title_hash: Mapped[str | None] = mapped_column(String(64))
+    meta_robots: Mapped[str | None] = mapped_column(String(1000))
+    canonical_url: Mapped[str | None] = mapped_column(Text)
+    important_content_present: Mapped[bool | None] = mapped_column(Boolean)
+    redirect_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    mobile_render_ok: Mapped[bool | None] = mapped_column(Boolean)
+    collector_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, nullable=False, default=dict
+    )
