@@ -4,13 +4,18 @@ import logging
 import signal
 import socket
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 from app.common.logging import configure_logging
 from app.config.settings import get_settings
 from app.connectors.core.contracts import ConnectorError, ExtractPeriod, FreshnessStatus
 from app.connectors.core.persistence import ConnectorRepository, ConnectorStateError
 from app.connectors.core.secrets import EnvironmentAccessTokenResolver
+from app.connectors.drilldown.catalog import (
+    DRILLDOWN_CATALOG_VERSION,
+    get_drilldown_definition,
+    validate_drilldown_scope,
+)
 from app.connectors.ga4.client import GA4Client, HttpxGA4Transport
 from app.connectors.ga4.service import GA4ConnectorService
 from app.connectors.gam.client import GAMClient, HttpxGAMTransport
@@ -53,6 +58,22 @@ async def handle_job(
         return
     if lease.job_type == "GAM_EXTRACT" and gam_service is not None:
         await _handle_gam_job(queue, lease, backoff_seconds, gam_service, context)
+        return
+    if (
+        lease.job_type == "CONNECTOR_DRILLDOWN"
+        and ga4_service is not None
+        and gsc_service is not None
+        and gam_service is not None
+    ):
+        await _handle_drilldown_job(
+            queue,
+            lease,
+            backoff_seconds,
+            ga4_service,
+            gsc_service,
+            gam_service,
+            context,
+        )
         return
     if lease.job_type == "DERIVE_CROSS_SOURCE" and metric_service is not None:
         await _handle_cross_source_job(queue, lease, backoff_seconds, metric_service, context)
@@ -487,6 +508,206 @@ async def _fail_gam_job(
     )
 
 
+async def _handle_drilldown_job(
+    queue: JobQueue,
+    lease: JobLease,
+    backoff_seconds: int,
+    ga4_service: GA4ConnectorService,
+    gsc_service: GSCConnectorService,
+    gam_service: GAMConnectorService,
+    context: dict[str, object],
+) -> None:
+    required = {
+        "catalog_version",
+        "connection_id",
+        "definition_code",
+        "end_date",
+        "investigation_id",
+        "parameters",
+        "profile",
+        "request_key",
+        "site_id",
+        "start_date",
+    }
+    if lease.tenant_id is None or set(lease.payload) != required:
+        await _fail_drilldown_job(
+            queue,
+            lease,
+            backoff_seconds,
+            retryable=False,
+            error_class="INVALID_DRILLDOWN_JOB",
+            error_code="INVALID_JOB_PAYLOAD",
+            context=context,
+        )
+        return
+    try:
+        catalog_version = _payload_string(lease.payload["catalog_version"])
+        if catalog_version != DRILLDOWN_CATALOG_VERSION:
+            raise ValueError("unsupported catalog version")
+        connection_id = uuid.UUID(_payload_string(lease.payload["connection_id"]))
+        site_id = uuid.UUID(_payload_string(lease.payload["site_id"]))
+        investigation_id = uuid.UUID(_payload_string(lease.payload["investigation_id"]))
+        definition_code = _payload_string(lease.payload["definition_code"])
+        request_key = _payload_string(lease.payload["request_key"])
+        start_date = _optional_payload_date(lease.payload["start_date"])
+        end_date = _optional_payload_date(lease.payload["end_date"])
+        profile = _optional_payload_string(lease.payload["profile"], 30)
+        parameters = _payload_parameters(lease.payload["parameters"])
+        definition = get_drilldown_definition(definition_code, catalog_version=catalog_version)
+        validate_drilldown_scope(
+            definition,
+            start_date=start_date,
+            end_date=end_date,
+            profile=profile,
+            parameters=parameters,
+            today=datetime.now(UTC).date(),
+        )
+    except (ConnectorError, TypeError, ValueError, AttributeError):
+        await _fail_drilldown_job(
+            queue,
+            lease,
+            backoff_seconds,
+            retryable=False,
+            error_class="INVALID_DRILLDOWN_JOB",
+            error_code="INVALID_JOB_PAYLOAD",
+            context=context,
+        )
+        return
+
+    run_key = f"tier-c:{request_key}"
+    try:
+        if definition.provider == "GA4":
+            if start_date is None or end_date is None:
+                raise ConnectorError(
+                    "DRILLDOWN_WINDOW_INVALID",
+                    retryable=False,
+                    message="GA4 drill-down date window is unavailable",
+                )
+            normalized = await ga4_service.run_drilldown(
+                tenant_id=lease.tenant_id,
+                site_id=site_id,
+                connection_id=connection_id,
+                investigation_id=investigation_id,
+                definition_code=definition_code,
+                period=ExtractPeriod(start_date, end_date),
+                scheduled_run_key=run_key,
+            )
+        elif definition.provider == "GSC":
+            if start_date is None or end_date is None:
+                raise ConnectorError(
+                    "DRILLDOWN_WINDOW_INVALID",
+                    retryable=False,
+                    message="GSC drill-down date window is unavailable",
+                )
+            normalized = await gsc_service.run_drilldown(
+                tenant_id=lease.tenant_id,
+                site_id=site_id,
+                connection_id=connection_id,
+                investigation_id=investigation_id,
+                definition_code=definition_code,
+                period=ExtractPeriod(start_date, end_date),
+                parameters=parameters,
+                scheduled_run_key=run_key,
+            )
+        else:
+            if profile is None:
+                raise ConnectorError(
+                    "DRILLDOWN_WINDOW_INVALID",
+                    retryable=False,
+                    message="GAM drill-down profile is unavailable",
+                )
+            normalized = await gam_service.run_drilldown(
+                tenant_id=lease.tenant_id,
+                site_id=site_id,
+                connection_id=connection_id,
+                investigation_id=investigation_id,
+                definition_code=definition_code,
+                profile=profile,
+                scheduled_run_key=run_key,
+            )
+    except ConnectorError as error:
+        await _fail_drilldown_job(
+            queue,
+            lease,
+            backoff_seconds,
+            retryable=error.retryable,
+            error_class=type(error).__name__,
+            error_code=error.code,
+            context=context,
+        )
+        return
+    except ConnectorStateError:
+        await _fail_drilldown_job(
+            queue,
+            lease,
+            backoff_seconds,
+            retryable=False,
+            error_class="CONNECTOR_STATE_ERROR",
+            error_code="TENANT_OR_STATE_INVALID",
+            context=context,
+        )
+        return
+    except Exception:
+        await _fail_drilldown_job(
+            queue,
+            lease,
+            backoff_seconds,
+            retryable=True,
+            error_class="DRILLDOWN_RUNTIME_ERROR",
+            error_code="DRILLDOWN_RUNTIME_ERROR",
+            context=context,
+        )
+        return
+    completed = await queue.complete(job_id=lease.id, lock_token=lease.lock_token)
+    logger.info(
+        "connector drill-down job completed",
+        extra={
+            "context": {
+                **context,
+                "connection_id": str(connection_id),
+                "definition": definition_code,
+                "provider": definition.provider,
+                "point_count": len(normalized.points) if normalized is not None else 0,
+                "idempotent_reuse": normalized is None,
+                "fenced_update": completed,
+            }
+        },
+    )
+
+
+async def _fail_drilldown_job(
+    queue: JobQueue,
+    lease: JobLease,
+    backoff_seconds: int,
+    *,
+    retryable: bool,
+    error_class: str,
+    error_code: str,
+    context: dict[str, object],
+) -> None:
+    bounded_backoff = min(3600, max(1, backoff_seconds) * (2 ** max(0, lease.attempt - 1)))
+    failed = await queue.fail_or_retry(
+        job_id=lease.id,
+        lock_token=lease.lock_token,
+        retryable=retryable,
+        error_class=error_class,
+        error_message=error_code,
+        backoff_seconds=bounded_backoff,
+    )
+    logger.error(
+        "connector drill-down job failed",
+        extra={
+            "context": {
+                **context,
+                "error_class": error_class,
+                "error_code": error_code,
+                "retryable": retryable,
+                "fenced_update": failed,
+            }
+        },
+    )
+
+
 async def _handle_cross_source_job(
     queue: JobQueue,
     lease: JobLease,
@@ -607,6 +828,33 @@ async def _fail_cross_source_job(
 def _payload_string(value: object) -> str:
     if not isinstance(value, str) or not value or len(value) > 255:
         raise ValueError("invalid job string")
+    return value
+
+
+def _optional_payload_string(value: object, max_length: int) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value or len(value) > max_length:
+        raise ValueError("invalid optional job string")
+    return value
+
+
+def _optional_payload_date(value: object) -> date | None:
+    raw = _optional_payload_string(value, 10)
+    return date.fromisoformat(raw) if raw is not None else None
+
+
+def _payload_parameters(value: object) -> dict[str, str]:
+    if not isinstance(value, dict) or not all(
+        isinstance(key, str)
+        and isinstance(item, str)
+        and key
+        and len(key) <= 50
+        and item
+        and len(item) <= 2048
+        for key, item in value.items()
+    ):
+        raise ValueError("invalid drill-down parameters")
     return value
 
 
