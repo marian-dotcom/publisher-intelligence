@@ -1,0 +1,22 @@
+{
+  "rows": [
+    {
+      "dimensionValues": [
+        {"stringValue": "2026-08-20"},
+        {"intValue": "11"},
+        {"intValue": "2001"},
+        {"stringValue": "Desktop"},
+        {"stringValue": "Banner"}
+      ],
+      "metricValueGroups": [
+        {
+          "primaryValues": [
+            {"intValue": "1300"},
+            {"intValue": "1010"},
+            {"intValue": "1045"}
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -38,6 +38,7 @@ class ConnectorRepository:
         property_id: str,
         scopes: tuple[str, ...],
         secret_reference: str,
+        connection_metadata: dict[str, Any] | None = None,
     ) -> uuid.UUID:
         async with self._session_factory() as session, session.begin():
             site = await session.scalar(
@@ -57,7 +58,7 @@ class ConnectorRepository:
                     status="PENDING",
                     scopes=list(scopes),
                     secret_reference=secret_reference,
-                    connection_metadata={},
+                    connection_metadata=connection_metadata or {},
                 )
                 .on_conflict_do_nothing(constraint="uq_data_connections_property")
                 .returning(DataConnection.id)

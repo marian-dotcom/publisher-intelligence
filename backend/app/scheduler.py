@@ -8,6 +8,7 @@ from app.common.logging import configure_logging
 from app.config.settings import get_settings
 from app.connectors.core.persistence import ConnectorRepository
 from app.connectors.ga4.scheduling import GA4SchedulingService
+from app.connectors.gam.scheduling import GAMSchedulingService
 from app.connectors.gsc.scheduling import GSCSchedulingService
 from app.db.session import get_session_factory
 from app.jobs.queue import JobQueue
@@ -47,6 +48,16 @@ async def run_once() -> None:
             "context": {
                 "connection_count": gsc_result.connection_count,
                 "job_count": gsc_result.job_count,
+            }
+        },
+    )
+    gam_result = await GAMSchedulingService(ConnectorRepository(factory), queue).schedule_due()
+    logger.info(
+        "GAM scheduling pass completed",
+        extra={
+            "context": {
+                "connection_count": gam_result.connection_count,
+                "job_count": gam_result.job_count,
             }
         },
     )
