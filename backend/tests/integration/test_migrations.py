@@ -29,6 +29,7 @@ async def test_schema_is_minimal_and_rejects_cancelled_status() -> None:
             ).scalars()
         )
         assert tables == {
+            "ads_txt_records",
             "alembic_version",
             "artifacts",
             "browser_scenarios",
@@ -57,6 +58,7 @@ async def test_schema_is_minimal_and_rejects_cancelled_status() -> None:
             "seo_observations",
             "prebid_auction_observations",
             "prebid_bidder_observations",
+            "public_config_snapshots",
             "sites",
             "source_extracts",
             "synthetic_performance_observations",

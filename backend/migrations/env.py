@@ -13,6 +13,7 @@ from app.db import models  # noqa: F401
 from app.db.base import Base
 from app.events import models as event_models  # noqa: F401
 from app.metrics import models as metric_models  # noqa: F401
+from app.public_config import models as public_config_models  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:
