@@ -170,6 +170,29 @@ on-demand, stores only a bounded sanitized current-index view, never claims a li
 URL Inspection quota error does not disable routine Search Analytics extraction. Tests use only
 sanitized fixtures and never call Google.
 
+## Google Ad Manager read-only connector (C4)
+
+The GAM connector accepts only the exact `admanager.readonly` scope, discovers the configured
+numeric network, and preserves its reporting timezone and ISO-4217 currency. Before a connection
+becomes `CONNECTED`, it verifies six reusable report resources: TODAY and LAST_7_DAYS profiles for
+`GAM_INVENTORY_HEALTH_V1`, `GAM_DEMAND_HEALTH_V1`, and
+`GAM_DELIVERY_COMPOSITION_V1`. Every report must match the fixed dimension/metric order, use
+historical reporting and publisher time, and keep expanded compatibility disabled.
+
+The current REST API permits report list/get/run/result reads under the narrow scope, while report
+creation still requires the broad write scope. A GAM administrator therefore preconfigures the
+reusable reports; this connector never creates, patches, or deletes one. Runs are asynchronous,
+poll with bounded exponential backoff, fetch every page at up to 10,000 rows, and verify the
+provider's total row count before an extract can become COMPLETE. A partial result remains a
+connector failure, not zero inventory.
+
+Operational TODAY cubes run every two hours. LAST_7_DAYS reconciliation runs after 06:00 in the
+network timezone. Recent network-local hours remain PRELIMINARY; older rows become MATURE in later
+extracts rather than overwriting history. Currency is part of GAM series identity and
+provenance, but eCPM/value is diagnostic context rather than publisher invoicing truth. Routine
+cubes do not collect order or advertiser names, create events, or label direct/programmatic mix as
+good or bad. Tests use only sanitized fixtures and never call Google.
+
 Comparison prefers the previous run for the same URL and exact scenario. When an operator retires
 one representative URL and creates another under the same template, lineage may fall back to the
 same tenant/site/template and exact scenario. The manifest records whether comparison used the
@@ -224,8 +247,8 @@ If Docker is unavailable, run the local unit/lint/build checks and rely on GitHu
 
 ## Repository boundaries
 
-EP-009 completes Browser v1. EP-010 adds C1 persistence and GA4 C2. EP-011 adds the GSC C3
-aggregate read-only connector, including separate Search/Discover evidence and bounded on-demand
-URL Inspection. The repository still excludes production OAuth onboarding, a managed secret
-provider, GAM, cross-source derivation, provider write access, event promotion, alerts, incident
-conclusions, LLM-selected queries, and production rollout.
+EP-009 completes Browser v1. EP-010 adds C1 persistence and GA4 C2. EP-011 adds GSC C3. EP-012
+adds GAM C4 with three capability-validated aggregate cubes, asynchronous report execution, full
+pagination, and network timezone/currency provenance. The repository still excludes production
+OAuth onboarding, a managed secret provider, cross-source C5 derivation, provider write access,
+event promotion, alerts, incident conclusions, LLM-selected queries, and production rollout.

@@ -1,0 +1,32 @@
+{
+  "rows": [
+    {
+      "dimensionValues": [
+        {"stringValue": "2026-08-20"},
+        {"intValue": "10"},
+        {"intValue": "2001"},
+        {"stringValue": "Desktop"},
+        {"stringValue": "Banner"}
+      ],
+      "metricValueGroups": [
+        {
+          "primaryValues": [
+            {"intValue": "1200"},
+            {"intValue": "940"},
+            {"intValue": "970"}
+          ]
+        }
+      ]
+    }
+  ],
+  "runTime": "2026-08-20T10:15:00Z",
+  "dateRanges": [
+    {
+      "startDate": {"year": 2026, "month": 8, "day": 20},
+      "endDate": {"year": 2026, "month": 8, "day": 20}
+    }
+  ],
+  "comparisonDateRanges": [],
+  "totalRowCount": 2,
+  "nextPageToken": "sanitized-page-2"
+}

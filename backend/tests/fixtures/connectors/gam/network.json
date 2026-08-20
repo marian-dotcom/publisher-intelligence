@@ -1,0 +1,11 @@
+{
+  "name": "networks/1234567",
+  "displayName": "Sanitized Publisher Network",
+  "networkCode": "1234567",
+  "propertyCode": "sanitized",
+  "timeZone": "Europe/Bucharest",
+  "currencyCode": "EUR",
+  "effectiveRootAdUnit": "networks/1234567/adUnits/1000",
+  "testNetwork": true,
+  "networkId": "987654321"
+}

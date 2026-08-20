@@ -1,0 +1,14 @@
+{
+  "name": "networks/1234567/reports/101",
+  "displayName": "Publisher Intelligence - Inventory Today v1",
+  "visibility": "HIDDEN",
+  "reportDefinition": {
+    "dimensions": ["DATE", "HOUR", "AD_UNIT_ID", "DEVICE_CATEGORY_NAME", "INVENTORY_FORMAT_NAME"],
+    "metrics": ["AD_REQUESTS", "AD_SERVER_IMPRESSIONS", "AD_SERVER_RESPONSES_SERVED"],
+    "timeZoneSource": "PUBLISHER",
+    "currencyCode": "EUR",
+    "dateRange": {"relative": "TODAY"},
+    "reportType": "HISTORICAL",
+    "expandedCompatibility": false
+  }
+}

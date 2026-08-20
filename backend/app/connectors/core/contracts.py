@@ -65,7 +65,7 @@ class ExtractPeriod:
 class MetricDefinition:
     api_name: str
     metric_code: str
-    unit: Literal["COUNT", "RATIO", "NUMBER"]
+    unit: Literal["COUNT", "RATIO", "NUMBER", "CURRENCY"]
 
 
 @dataclass(frozen=True, slots=True)
