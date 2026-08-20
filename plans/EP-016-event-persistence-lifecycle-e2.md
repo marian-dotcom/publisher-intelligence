@@ -1,6 +1,6 @@
 # EP-016 — Event Persistence and Lifecycle E2
 
-**Status:** IN_PROGRESS
+**Status:** COMPLETE
 **Owner:** Codex / Engineering
 **Created:** 2026-08-21
 **Updated:** 2026-08-21
@@ -11,11 +11,11 @@
 ## Progress
 
 - [x] M0 — Confirm merged E1 baseline and fix the E2 semantic boundary
-- [ ] M1 — Complete the versioned rule and lifecycle persistence contracts
-- [ ] M2 — Confirm and aggregate the deferred browser candidates
-- [ ] M3 — Deduplicate, update, and resolve active conditions atomically
-- [ ] M4 — Integrate retry-safe E2 derivation with the existing worker
-- [ ] M5 — Prove lifecycle counterexamples, migrations, regressions, and release readiness
+- [x] M1 — Complete the versioned rule and lifecycle persistence contracts
+- [x] M2 — Confirm and aggregate the deferred browser candidates
+- [x] M3 — Deduplicate, update, and resolve active conditions atomically
+- [x] M4 — Integrate retry-safe E2 derivation with the existing worker
+- [x] M5 — Prove lifecycle counterexamples, migrations, regressions, and release readiness
 
 ## 1. Purpose and User Outcome
 
@@ -253,8 +253,8 @@ Acceptance:
   version;
 - [x] arbitrary job/API rule input remains impossible;
 - [x] only condition events can carry `condition_key` or status `ACTIVE/RESOLVED`;
-- [ ] existing E1 rows migrate losslessly from `OBSERVED` to `RECORDED`;
-- [ ] concurrent active duplicates are rejected by PostgreSQL, not only application code.
+- [x] existing E1 rows migrate losslessly from `OBSERVED` to `RECORDED`;
+- [x] concurrent active duplicates are rejected by PostgreSQL, not only application code.
 
 Validation:
 ```bash
@@ -316,12 +316,12 @@ Implementation:
 - create a new condition event, with new trigger evidence, if the same identity recurs later.
 
 Acceptance:
-- [ ] repeated affected checkpoints create no duplicate active event or evidence ref;
-- [ ] concurrent/retried derivations converge on one active event;
-- [ ] scope expansion may raise severity; unsupported contraction never silently lowers history;
-- [ ] recovery resolves only the matching tenant/site/subject/scope condition;
-- [ ] point events never enter the condition update/resolution path;
-- [ ] recurrence after resolution creates a distinct event.
+- [x] repeated affected checkpoints create no duplicate active event or evidence ref;
+- [x] concurrent/retried derivations converge on one active event;
+- [x] scope expansion may raise severity; unsupported contraction never silently lowers history;
+- [x] recovery resolves only the matching tenant/site/subject/scope condition;
+- [x] point events never enter the condition update/resolution path;
+- [x] recurrence after resolution creates a distinct event.
 
 Validation:
 ```bash
@@ -346,8 +346,8 @@ Implementation:
 Acceptance:
 - [x] no browser rerun, provider call, external request, or new job type occurs;
 - [x] at least one derivation after window completion evaluates the complete valid cohort;
-- [ ] malformed and cross-tenant jobs fail closed without foreign reads/writes;
-- [ ] worker retries are idempotent across create/update/resolve actions;
+- [x] malformed and cross-tenant jobs fail closed without foreign reads/writes;
+- [x] worker retries are idempotent across create/update/resolve actions;
 - [x] unsupported confirmation and incomplete evidence never fabricate a row.
 
 Validation:
@@ -364,10 +364,10 @@ under reordered and repeated execution.
 Goal: prove E2 correctness, migrations, regressions, documentation, and repository safety.
 
 Acceptance:
-- [ ] positive, negative, noisy, ordering, aggregation, lifecycle, concurrency, idempotency,
+- [x] positive, negative, noisy, ordering, aggregation, lifecycle, concurrency, idempotency,
   time-window, and cross-tenant tests pass;
-- [ ] migration upgrade/downgrade and E1 point-event compatibility pass;
-- [ ] all browser, connector, metric, incident-drill-down, worker, scheduler, frontend, and security
+- [x] migration upgrade/downgrade and E1 point-event compatibility pass;
+- [x] all browser, connector, metric, incident-drill-down, worker, scheduler, frontend, and security
   regressions pass;
 - [x] README and this living plan match validated behavior;
 - [x] no alert, incident, causal, UI, or LLM behavior is introduced.
@@ -394,17 +394,17 @@ marked COMPLETE.
 
 ## 11. Final Acceptance Criteria
 
-- [ ] event kind and confirmation are fixed, explicit, versioned, and deterministic;
-- [ ] point rows are `RECORDED`; condition rows follow `ACTIVE → RESOLVED` or `SUPERSEDED` only;
-- [ ] one active condition identity cannot produce duplicate rows under retry or concurrency;
-- [ ] supporting and recovery evidence is append-only and tenant/site validated;
-- [ ] original trigger evidence, details, and occurrence bounds are never rewritten;
-- [ ] confirmation time is not substituted for the first-change occurrence window;
-- [ ] multi-URL aggregation never crosses tenant, site, template, scenario, subject, or valid window;
-- [ ] severity is separate from observation confidence, alertability, and causal relevance;
-- [ ] one URL never implies broad scope or a template/site-wide critical claim;
-- [ ] recovery is evidence-backed, recurrence creates a new event, and point events never resolve;
-- [ ] raw evidence remains immutable and no candidate, alert, incident, or cause is fabricated.
+- [x] event kind and confirmation are fixed, explicit, versioned, and deterministic;
+- [x] point rows are `RECORDED`; condition rows follow `ACTIVE → RESOLVED` or `SUPERSEDED` only;
+- [x] one active condition identity cannot produce duplicate rows under retry or concurrency;
+- [x] supporting and recovery evidence is append-only and tenant/site validated;
+- [x] original trigger evidence, details, and occurrence bounds are never rewritten;
+- [x] confirmation time is not substituted for the first-change occurrence window;
+- [x] multi-URL aggregation never crosses tenant, site, template, scenario, subject, or valid window;
+- [x] severity is separate from observation confidence, alertability, and causal relevance;
+- [x] one URL never implies broad scope or a template/site-wide critical claim;
+- [x] recovery is evidence-backed, recurrence creates a new event, and point events never resolve;
+- [x] raw evidence remains immutable and no candidate, alert, incident, or cause is fabricated.
 
 ## 12. Test Cases
 
@@ -533,10 +533,21 @@ explicitly deferred; E2 never broadens a single observation to compensate.
 - 2026-08-21: Fixed point/condition semantics, confirmation and aggregation boundaries, schema
   migration, concurrency guard, resolution rules, counterexamples, rollback, and validation gates;
   marked EP-016 READY for implementation approval.
+- 2026-08-21: Published the initial E2 implementation. CI #102 identified only an ordering defect in
+  the new integration-test fixture: checkpoint runs could flush before their referenced checkpoint
+  windows. Added explicit window flushes before run insertion and published the focused correction.
+- 2026-08-21: Push CI #103 and Draft PR CI #104 passed backend, frontend, and repository-safety.
+  Opened Draft PR #17 and marked M1–M5 plus EP-016 COMPLETE.
 
 ## 21. Final Outcome / Retrospective
 
-Pending implementation.
+EP-016 completes deterministic E2 lifecycle handling for the browser events deferred by E1.
+Persistent JavaScript errors now require two comparable checkpoints; missing expected GPT slots
+require corroboration across valid representative URLs; and noindex remains a point fact whose
+scope broadens only with multi-URL evidence. Confirmed conditions deduplicate under concurrency,
+retain immutable trigger provenance, accumulate supporting evidence, resolve conservatively, and
+reopen as new events after recurrence. The implementation reuses the existing PostgreSQL job and
+worker boundary and introduces no alert, incident, LLM, UI, or infrastructure authority.
 
 ## 22. Validation Results
 
@@ -549,12 +560,15 @@ Pending implementation.
   also generates successfully, including the condition-history safety guard;
 - frontend ESLint, TypeScript, Vitest (1 passed), and Next.js production build pass;
 - repository secret scan and `git diff --check` pass;
-- PostgreSQL integration tests are implemented but local execution is blocked by connection refusal
-  on `localhost:5432`; Docker/Compose is unavailable in this workspace;
-- no files have been staged, committed, pushed, or published in a PR.
+- PostgreSQL remained unavailable locally, but GitHub Actions executed the full database-backed
+  suite: 30 integration tests passed, including migrations, concurrent dedupe, evidence ownership,
+  resolution, recurrence, scheduler, and worker gates;
+- push CI #103 passed for commit `737f451`;
+- Draft PR #17 CI #104 passed backend, frontend, and repository-safety;
+- implementation PR: https://github.com/marian-dotcom/publisher-intelligence/pull/17;
+- final validated CI: https://github.com/marian-dotcom/publisher-intelligence/actions/runs/32423620886.
 
 ## 23. Next Step
 
-After authorization, stage, commit, and push the EP-016 branch so GitHub CI can execute the
-PostgreSQL/Docker acceptance gates. Fix any CI finding, update this plan, and mark M1–M5/EP-016
-COMPLETE only after the full release gate passes. Do not open a PR without separate authorization.
+After authorization, publish this final ExecPlan update and mark PR #17 Ready for review. Review
+and merge the PR, then start the next approved milestone from the canonical roadmap.
