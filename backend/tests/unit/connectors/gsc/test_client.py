@@ -89,6 +89,30 @@ async def test_pagination_stops_at_documented_daily_type_cap() -> None:
     assert [call["json_body"]["startRow"] for call in transport.calls] == [0, 2]
 
 
+async def test_fixed_page_filter_is_forwarded_without_arbitrary_query_fields() -> None:
+    transport = Transport([{"rows": []}])
+    fixed_filter = {
+        "groupType": "and",
+        "filters": [
+            {
+                "dimension": "page",
+                "operator": "equals",
+                "expression": "https://www.example.com/article/",
+            }
+        ],
+    }
+    await GSCClient(transport).run_query(
+        property_id="sc-domain:example.com",
+        access_token="fixture-token",
+        definition=GSC_SEARCH_DAILY_V1,
+        period=ExtractPeriod(date(2026, 8, 12), date(2026, 8, 12)),
+        dimension_filter=fixed_filter,
+    )
+    body = transport.calls[0]["json_body"]
+    assert body["dimensionFilterGroups"] == [fixed_filter]
+    assert "access_token" not in str(body).lower()
+
+
 def test_inspection_url_must_belong_to_property() -> None:
     with pytest.raises(GSCProviderError) as raised:
         GSCClient.validate_inspection_url(

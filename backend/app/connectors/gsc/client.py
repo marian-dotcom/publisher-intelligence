@@ -133,6 +133,7 @@ class GSCClient:
         access_token: str,
         definition: GSCExtractDefinition,
         period: ExtractPeriod,
+        dimension_filter: Mapping[str, Any] | None = None,
     ) -> Mapping[str, Any]:
         property_id = self.canonical_property(property_id)
         query = definition.query_definition(period)
@@ -151,6 +152,8 @@ class GSCClient:
                 "rowLimit": definition.row_limit,
                 "startRow": len(rows),
             }
+            if dimension_filter is not None:
+                body["dimensionFilterGroups"] = [dimension_filter]
             page = await self._transport.request(
                 method="POST",
                 url=(f"{GSC_API_ROOT}/sites/{quote(property_id, safe='')}/searchAnalytics/query"),

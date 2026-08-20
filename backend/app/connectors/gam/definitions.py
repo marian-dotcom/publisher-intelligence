@@ -21,7 +21,7 @@ class GAMExtractDefinition:
     granularity: Literal["HOUR"]
     dimensions: tuple[str, ...]
     metrics: tuple[MetricDefinition, ...]
-    report_type: Literal["HISTORICAL"] = "HISTORICAL"
+    report_type: Literal["HISTORICAL", "ADS_TRAFFIC_NAVIGATOR"] = "HISTORICAL"
 
     def query_definition(self, *, report_resource: str, profile: GAMProfile) -> dict[str, Any]:
         return {

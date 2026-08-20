@@ -213,6 +213,29 @@ both GA4 and GAM connections. These jobs run below connector extraction priority
 divergence helper compares aligned numeric movement only; it does not create an event, incident,
 alert, threshold, or causal conclusion.
 
+## Validated incident drill-downs (C6)
+
+Tier C is on-demand only. The versioned catalog maps twelve semantic requests to fixed GA4, GSC,
+or GAM dimensions and metrics; callers and LLM output cannot provide a provider endpoint, query
+JSON, dimension, metric, filter operator, or report resource. GA4 exposes only definitions whose
+fields passed property metadata validation, GSC uses the fixed Search/Discover shapes proven by
+connection validation, and GAM requires optional administrator-created report/profile bindings
+whose exact fingerprints passed the same read-only compatibility checks as routine reports.
+
+GA4/GSC requests use explicit windows of at most seven inclusive days. GAM requests use only the
+prevalidated `TODAY` or `LAST_7_DAYS` profile. The sole dynamic query value is an exact GSC page
+URL for `web_top_queries_for_page`; it is validated as belonging to the configured property and
+is placed into a fixed equality filter. Query-level rows remain confidential, top-row/cardinality
+limitations remain visible, and absent rows never become zero.
+
+`CONNECTOR_DRILLDOWN` jobs are inserted idempotently under a locked tenant/site/connection gate.
+One investigation may request at most four distinct drill-downs and one connection may run at
+most eight per UTC day. Jobs contain no credentials or arbitrary query fragments, Tier C has no
+scheduler path, and every result remains an immutable `source_extract` with catalog version,
+investigation correlation, cost units, exact provider definition, and limitations. The opaque
+investigation UUID is correlation only until the incident lifecycle tables land; it grants no
+authorization and is never used to access incident data.
+
 Comparison prefers the previous run for the same URL and exact scenario. When an operator retires
 one representative URL and creates another under the same template, lineage may fall back to the
 same tenant/site/template and exact scenario. The manifest records whether comparison used the

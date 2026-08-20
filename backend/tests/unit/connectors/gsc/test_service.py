@@ -105,6 +105,11 @@ async def test_validation_requires_property_permission_and_probes_both_surfaces(
     assert snapshot["propertyType"] == "DOMAIN"
     assert snapshot["permissionLevel"] == "siteFullUser"
     assert snapshot["discoverAvailable"] is False
+    assert snapshot["validatedDrilldowns"] == [
+        "discover_by_page_device",
+        "web_by_page_device",
+        "web_top_queries_for_page",
+    ]
     assert repository.validated == snapshot
     assert resolver.calls == 1
     assert len(transport.calls) == 3

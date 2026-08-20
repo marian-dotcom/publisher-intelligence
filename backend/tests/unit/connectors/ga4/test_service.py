@@ -97,6 +97,7 @@ async def test_connection_validation_probes_metadata_schema_and_property_timezon
 
     assert snapshot["propertyTimezone"] == "Europe/Bucharest"
     assert snapshot["definitions"] == ["GA4_TRAFFIC_HOURLY_V1", "GA4_BEHAVIOR_DAILY_V1"]
+    assert snapshot["validatedDrilldowns"] == ["traffic_by_hour_device_channel"]
     assert repository.validated == snapshot
     assert resolver.calls == 1
     assert len(transport.calls) == 2
