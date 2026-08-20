@@ -50,13 +50,43 @@ class Event(Base):
             "observation_confidence IN ('LOW', 'MEDIUM', 'HIGH')",
             name="ck_events_observation_confidence",
         ),
-        CheckConstraint("status IN ('OBSERVED', 'SUPERSEDED')", name="ck_events_status"),
+        CheckConstraint(
+            "status IN ('RECORDED', 'ACTIVE', 'RESOLVED', 'SUPERSEDED')",
+            name="ck_events_status",
+        ),
+        CheckConstraint(
+            "(status = 'RECORDED' AND condition_key IS NULL) OR "
+            "(status IN ('ACTIVE', 'RESOLVED') AND condition_key IS NOT NULL) OR "
+            "status = 'SUPERSEDED'",
+            name="ck_events_condition_lifecycle",
+        ),
+        CheckConstraint(
+            "status != 'ACTIVE' OR ended_at IS NULL", name="ck_events_active_has_no_end"
+        ),
+        CheckConstraint(
+            "status != 'RESOLVED' OR ended_at IS NOT NULL", name="ck_events_resolved_has_end"
+        ),
         CheckConstraint(
             "occurred_after_at IS NULL OR occurred_before_at IS NULL OR "
             "occurred_before_at >= occurred_after_at",
             name="ck_events_occurrence_bounds",
         ),
         Index("ix_events_tenant_site_detected", "tenant_id", "site_id", "detected_at"),
+        Index("ix_events_tenant_site_started", "tenant_id", "site_id", "started_at"),
+        Index(
+            "ix_events_tenant_site_status_started",
+            "tenant_id",
+            "site_id",
+            "status",
+            "started_at",
+        ),
+        Index(
+            "uq_events_active_condition",
+            "tenant_id",
+            "condition_key",
+            unique=True,
+            postgresql_where=text("status = 'ACTIVE' AND condition_key IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
@@ -86,6 +116,7 @@ class Event(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     source_kind: Mapped[str] = mapped_column(String(50), nullable=False)
     source_version: Mapped[str | None] = mapped_column(String(50))
+    condition_key: Mapped[str | None] = mapped_column(String(64))
     risk_score: Mapped[float | None] = mapped_column(Float)
     scope: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     summary: Mapped[str] = mapped_column(String(500), nullable=False)

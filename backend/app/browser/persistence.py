@@ -491,7 +491,7 @@ class CheckpointRepository:
                     payload={"checkpoint_run_id": str(target.checkpoint_run_id)},
                     priority=-10,
                     max_attempts=3,
-                    idempotency_key=f"derive-browser-events:{target.checkpoint_run_id}:e1-v1",
+                    idempotency_key=f"derive-browser-events:{target.checkpoint_run_id}:e2-v1",
                 )
                 .on_conflict_do_nothing()
             )
