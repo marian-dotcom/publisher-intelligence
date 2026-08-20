@@ -80,3 +80,31 @@ async def test_schema_is_minimal_and_rejects_cancelled_status() -> None:
         assert len(constraints) == 1
         assert "CANCELLED" not in constraints[0]
         assert "job_attempts" not in tables
+        event_status = (
+            (
+                await connection.execute(
+                    text(
+                        "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                        "WHERE conname = 'ck_events_status'"
+                    )
+                )
+            )
+            .scalars()
+            .one()
+        )
+        assert "RECORDED" in event_status
+        assert "ACTIVE" in event_status
+        assert "RESOLVED" in event_status
+        assert "OBSERVED" not in event_status
+        active_index = (
+            await connection.execute(
+                text(
+                    "SELECT indexdef FROM pg_indexes "
+                    "WHERE schemaname = 'public' "
+                    "AND indexname = 'uq_events_active_condition'"
+                )
+            )
+        ).scalar_one()
+        assert "UNIQUE INDEX" in active_index
+        assert "ACTIVE" in active_index
+        assert "condition_key IS NOT NULL" in active_index

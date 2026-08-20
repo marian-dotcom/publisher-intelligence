@@ -155,6 +155,8 @@ async def _handle_browser_events_job(
                 "checkpoint_run_id": str(checkpoint_run_id),
                 "candidate_count": result.candidate_count,
                 "persisted_count": result.persisted_count,
+                "updated_count": result.updated_count,
+                "resolved_count": result.resolved_count,
                 "unsupported_count": result.unsupported_count,
                 "skip_reasons": list(result.skip_reasons),
                 "fenced_update": completed,
