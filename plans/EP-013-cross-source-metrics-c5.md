@@ -1,6 +1,6 @@
 # EP-013 — Cross-Source Normalized Metrics C5
 
-**Status:** IN PROGRESS
+**Status:** COMPLETE
 **Owner:** Codex / Engineering
 **Created:** 2026-08-20
 **Updated:** 2026-08-20
@@ -14,7 +14,7 @@
 - [x] M1 — Add versioned derivation provenance and aligned input selection
 - [x] M2 — Persist requests/view and impressions/view without inventing missing values
 - [x] M3 — Add factual divergence helpers and background execution
-- [ ] M4 — Prove migrations, counterexamples, idempotency, and final validation
+- [x] M4 — Prove migrations, counterexamples, idempotency, and final validation
 
 ## 1. Purpose and User Outcome
 
@@ -122,18 +122,18 @@ needed. No new dependency, external service, secret, or infrastructure category 
 
 ### M4 — Release gate
 
-- [ ] unit/integration tests prove success, counterexamples, provenance, and isolation;
-- [ ] lint, format, typing, migrations, backend/frontend, security, and CI gates pass;
-- [ ] plan and README match the validated implementation.
+- [x] unit/integration tests prove success, counterexamples, provenance, and isolation;
+- [x] lint, format, typing, migrations, backend/frontend, security, and CI gates pass;
+- [x] plan and README match the validated implementation.
 
 ## 9. Final Acceptance Criteria
 
-- [ ] time alignment is explicit and uses period bounds rather than source labels;
-- [ ] source metric names and semantics remain namespaced/versioned;
-- [ ] every derived point is traceable to all selected source points and their extracts;
-- [ ] limitations and freshness are conservative and visible;
-- [ ] no connector absence or missing bucket produces a false business conclusion;
-- [ ] no Event Engine or causal inference is introduced.
+- [x] time alignment is explicit and uses period bounds rather than source labels;
+- [x] source metric names and semantics remain namespaced/versioned;
+- [x] every derived point is traceable to all selected source points and their extracts;
+- [x] limitations and freshness are conservative and visible;
+- [x] no connector absence or missing bucket produces a false business conclusion;
+- [x] no Event Engine or causal inference is introduced.
 
 ## 10. Validation Commands
 
@@ -224,11 +224,16 @@ documented mixed maturity, but v1 will not silently combine it.
 - 2026-08-20: Ruff, mypy, 168 unit tests, frontend lint/typecheck/test/build, secret scan, offline
   migration DDL, integration collection, and diff checks pass. PostgreSQL is unavailable locally,
   so migration round-trip and the new integration test remain for GitHub Actions.
+- 2026-08-20: Draft PR #14 CI run 86 passed repository safety, frontend, migration 0012, 168 unit
+  tests, 26 PostgreSQL/MinIO/browser/GA4/GSC/GAM/C5 integration tests, scheduler, and worker. M4 and
+  EP-013 are complete.
 
 ## 21. Final Outcome / Retrospective
 
-C5 is implemented locally with versioned, append-only cross-source ratio evidence and complete
-point-level provenance. Final completion remains pending the PostgreSQL and repository CI gates.
+EP-013 completes C5 with versioned, append-only cross-source ratio evidence and exact point-level
+provenance. The platform now derives requests/view and impressions/view only from aligned,
+compatible GA4/GAM evidence, keeps missingness and limitations explicit, and exposes factual
+movement comparisons without promoting them into events or causal conclusions.
 
 ## 22. Validation Results
 
@@ -237,5 +242,8 @@ point-level provenance. Final completion remains pending the PostgreSQL and repo
 - backend unit — 168 passed, with one dependency deprecation warning;
 - frontend ESLint/typecheck/Vitest/production build — passed;
 - secret scan, offline migration DDL, integration collection, and `git diff --check` — passed;
-- PostgreSQL migration round-trip/integration and CI process gates — pending remote CI because
-  PostgreSQL and Docker are unavailable locally.
+- backend integration — 26 passed, including migration round-trip, cross-source provenance,
+  idempotency, reconciliation, tenant isolation, and C1–C4 regressions;
+- Docker Compose config, scheduler, worker, migration, and repository safety — passed in CI;
+- Draft PR #14: https://github.com/marian-dotcom/publisher-intelligence/pull/14;
+- final CI run 86: https://github.com/marian-dotcom/publisher-intelligence/actions/runs/32405800663.
