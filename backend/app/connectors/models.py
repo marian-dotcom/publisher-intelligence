@@ -163,6 +163,17 @@ class MetricPoint(Base):
             "source_extract_id",
             name="uq_metric_points_extract_period",
         ),
+        UniqueConstraint(
+            "series_id",
+            "period_start",
+            "derivation_id",
+            name="uq_metric_points_derivation_period",
+        ),
+        CheckConstraint(
+            "(source_extract_id IS NOT NULL AND derivation_id IS NULL) OR "
+            "(source_extract_id IS NULL AND derivation_id IS NOT NULL)",
+            name="ck_metric_points_exactly_one_provenance",
+        ),
         Index("ix_metric_points_tenant_site_period", "tenant_id", "site_id", "period_start"),
         Index("ix_metric_points_series_period", "series_id", "period_start"),
     )
@@ -177,8 +188,11 @@ class MetricPoint(Base):
     series_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("metric_series.id", ondelete="RESTRICT"), nullable=False
     )
-    source_extract_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("source_extracts.id", ondelete="RESTRICT"), nullable=False
+    source_extract_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("source_extracts.id", ondelete="RESTRICT")
+    )
+    derivation_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("metric_derivations.id", ondelete="RESTRICT")
     )
     source_time: Mapped[str] = mapped_column(String(64), nullable=False)
     period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

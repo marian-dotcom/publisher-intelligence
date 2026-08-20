@@ -46,6 +46,8 @@ async def test_schema_is_minimal_and_rejects_cancelled_status() -> None:
             "jobs",
             "js_error_observations",
             "metric_points",
+            "metric_derivation_inputs",
+            "metric_derivations",
             "metric_series",
             "monitored_urls",
             "publishers",

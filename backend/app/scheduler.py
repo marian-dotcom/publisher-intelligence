@@ -12,6 +12,8 @@ from app.connectors.gam.scheduling import GAMSchedulingService
 from app.connectors.gsc.scheduling import GSCSchedulingService
 from app.db.session import get_session_factory
 from app.jobs.queue import JobQueue
+from app.metrics.persistence import MetricDerivationRepository
+from app.metrics.scheduling import CrossSourceSchedulingService
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +60,18 @@ async def run_once() -> None:
             "context": {
                 "connection_count": gam_result.connection_count,
                 "job_count": gam_result.job_count,
+            }
+        },
+    )
+    derived_result = await CrossSourceSchedulingService(
+        MetricDerivationRepository(factory), queue
+    ).schedule_due()
+    logger.info(
+        "cross-source metric scheduling pass completed",
+        extra={
+            "context": {
+                "site_count": derived_result.site_count,
+                "job_count": derived_result.job_count,
             }
         },
     )

@@ -4,7 +4,7 @@ import logging
 import signal
 import socket
 import uuid
-from datetime import date
+from datetime import date, datetime
 
 from app.common.logging import configure_logging
 from app.config.settings import get_settings
@@ -19,6 +19,9 @@ from app.connectors.gsc.client import GSCClient, HttpxGSCTransport
 from app.connectors.gsc.service import GSCConnectorService
 from app.db.session import get_session_factory
 from app.jobs.queue import JobLease, JobQueue
+from app.metrics.contracts import CROSS_SOURCE_RULE_VERSION
+from app.metrics.persistence import MetricDerivationRepository, MetricDerivationStateError
+from app.metrics.service import CrossSourceMetricService
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +33,7 @@ async def handle_job(
     ga4_service: GA4ConnectorService | None = None,
     gsc_service: GSCConnectorService | None = None,
     gam_service: GAMConnectorService | None = None,
+    metric_service: CrossSourceMetricService | None = None,
 ) -> None:
     context: dict[str, object] = {
         "job_id": str(lease.id),
@@ -49,6 +53,9 @@ async def handle_job(
         return
     if lease.job_type == "GAM_EXTRACT" and gam_service is not None:
         await _handle_gam_job(queue, lease, backoff_seconds, gam_service, context)
+        return
+    if lease.job_type == "DERIVE_CROSS_SOURCE" and metric_service is not None:
+        await _handle_cross_source_job(queue, lease, backoff_seconds, metric_service, context)
         return
     failed = await queue.fail_or_retry(
         job_id=lease.id,
@@ -480,6 +487,123 @@ async def _fail_gam_job(
     )
 
 
+async def _handle_cross_source_job(
+    queue: JobQueue,
+    lease: JobLease,
+    backoff_seconds: int,
+    service: CrossSourceMetricService,
+    context: dict[str, object],
+) -> None:
+    required = {"site_id", "window_start", "window_end", "rule_version"}
+    if lease.tenant_id is None or set(lease.payload) != required:
+        await _fail_cross_source_job(
+            queue,
+            lease,
+            backoff_seconds,
+            retryable=False,
+            error_class="INVALID_DERIVATION_JOB",
+            error_code="INVALID_JOB_PAYLOAD",
+            context=context,
+        )
+        return
+    try:
+        site_id = uuid.UUID(_payload_string(lease.payload["site_id"]))
+        window_start = datetime.fromisoformat(_payload_string(lease.payload["window_start"]))
+        window_end = datetime.fromisoformat(_payload_string(lease.payload["window_end"]))
+        rule_version = _payload_string(lease.payload["rule_version"])
+        if rule_version != CROSS_SOURCE_RULE_VERSION:
+            raise ValueError("unsupported rule version")
+        if window_start.tzinfo is None or window_end.tzinfo is None:
+            raise ValueError("derivation times must have offsets")
+    except (TypeError, ValueError, AttributeError):
+        await _fail_cross_source_job(
+            queue,
+            lease,
+            backoff_seconds,
+            retryable=False,
+            error_class="INVALID_DERIVATION_JOB",
+            error_code="INVALID_JOB_PAYLOAD",
+            context=context,
+        )
+        return
+    try:
+        result = await service.derive_site(
+            tenant_id=lease.tenant_id,
+            site_id=site_id,
+            window_start=window_start,
+            window_end=window_end,
+        )
+    except (MetricDerivationStateError, ValueError):
+        await _fail_cross_source_job(
+            queue,
+            lease,
+            backoff_seconds,
+            retryable=False,
+            error_class="DERIVATION_STATE_ERROR",
+            error_code="TENANT_OR_STATE_INVALID",
+            context=context,
+        )
+        return
+    except Exception:
+        await _fail_cross_source_job(
+            queue,
+            lease,
+            backoff_seconds,
+            retryable=True,
+            error_class="DERIVATION_RUNTIME_ERROR",
+            error_code="DERIVATION_RUNTIME_ERROR",
+            context=context,
+        )
+        return
+    completed = await queue.complete(job_id=lease.id, lock_token=lease.lock_token)
+    logger.info(
+        "cross-source derivation job completed",
+        extra={
+            "context": {
+                **context,
+                "site_id": str(site_id),
+                "candidate_count": result.candidate_count,
+                "created_count": result.created_count,
+                "skipped_counts": result.skipped_counts,
+                "fenced_update": completed,
+            }
+        },
+    )
+
+
+async def _fail_cross_source_job(
+    queue: JobQueue,
+    lease: JobLease,
+    backoff_seconds: int,
+    *,
+    retryable: bool,
+    error_class: str,
+    error_code: str,
+    context: dict[str, object],
+) -> None:
+    bounded_backoff = min(3600, max(1, backoff_seconds) * (2 ** max(0, lease.attempt - 1)))
+    failed = await queue.fail_or_retry(
+        job_id=lease.id,
+        lock_token=lease.lock_token,
+        retryable=retryable,
+        error_class=error_class,
+        error_message=error_code,
+        backoff_seconds=bounded_backoff,
+    )
+    logger.error(
+        "cross-source derivation job failed",
+        extra={
+            "context": {
+                **context,
+                "error_class": error_class,
+                "error_code": error_code,
+                "retryable": retryable,
+                "fenced_update": failed,
+            }
+        },
+    )
+
+
 def _payload_string(value: object) -> str:
     if not isinstance(value, str) or not value or len(value) > 255:
         raise ValueError("invalid job string")
@@ -506,6 +630,7 @@ async def run(*, once: bool) -> None:
         GAMClient(HttpxGAMTransport()),
         EnvironmentAccessTokenResolver(environment=settings.environment),
     )
+    metric_service = CrossSourceMetricService(MetricDerivationRepository(factory))
     worker_id = f"{socket.gethostname()}:{id(asyncio.current_task())}"
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -535,6 +660,7 @@ async def run(*, once: bool) -> None:
                 ga4_service,
                 gsc_service,
                 gam_service,
+                metric_service,
             )
         if once:
             return
