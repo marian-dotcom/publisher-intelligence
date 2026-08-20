@@ -174,7 +174,9 @@ async def test_js_condition_deduplicates_resolves_and_reopens(
                 previous_id=previous_id,
                 errors=("js-fingerprint",) if affected else (),
             )
-            session.add_all([run.window, run.run])
+            session.add(run.window)
+            await session.flush()
+            session.add(run.run)
             if affected:
                 session.add(
                     JavaScriptErrorObservation(
@@ -301,6 +303,7 @@ async def test_gpt_multi_url_condition_aggregates_and_requires_corroborated_reco
                 current_window_id = current.window.id
                 recovery_window_id = recovery.window.id
                 session.add_all([previous.window, current.window, recovery.window])
+                await session.flush()
             else:
                 assert (
                     previous_window_id is not None
@@ -395,6 +398,7 @@ async def test_noindex_uses_one_aggregated_recorded_point(
                 previous_window_id = previous.window.id
                 current_window_id = current.window.id
                 session.add_all([previous.window, current.window])
+                await session.flush()
             else:
                 assert previous_window_id is not None and current_window_id is not None
                 previous.run.checkpoint_window_id = previous_window_id
