@@ -193,6 +193,26 @@ provenance, but eCPM/value is diagnostic context rather than publisher invoicing
 cubes do not collect order or advertiser names, create events, or label direct/programmatic mix as
 good or bad. Tests use only sanitized fixtures and never call Google.
 
+## Cross-source normalized metrics (C5)
+
+The metrics service aligns only exact UTC hourly intervals from the fixed GA4 traffic and GAM
+inventory definitions. It persists `derived.requests_per_view_v1` and
+`derived.impressions_per_view_v1` with their numerator and denominator, strict equal non-stale
+freshness, versioned rule/engine/alignment policies, and links to every selected source metric
+point. GA4 measured screen/page views remain a measurement denominator, not physical pageview
+truth.
+
+Overlapping preliminary and reconciled extracts are not summed twice: one best current observation
+is selected per source series and interval, preferring mature evidence and then the latest
+retrieval. Re-running identical inputs is idempotent; changed reconciled inputs create a new
+immutable derivation. Missing inputs, zero measured views, stale/unknown data, incompatible
+freshness, and unequal intervals produce no derived point rather than a fabricated zero.
+
+The scheduler queues a bounded 48-hour `DERIVE_CROSS_SOURCE` pass every two hours for sites with
+both GA4 and GAM connections. These jobs run below connector extraction priority. The included
+divergence helper compares aligned numeric movement only; it does not create an event, incident,
+alert, threshold, or causal conclusion.
+
 Comparison prefers the previous run for the same URL and exact scenario. When an operator retires
 one representative URL and creates another under the same template, lineage may fall back to the
 same tenant/site/template and exact scenario. The manifest records whether comparison used the
@@ -249,6 +269,7 @@ If Docker is unavailable, run the local unit/lint/build checks and rely on GitHu
 
 EP-009 completes Browser v1. EP-010 adds C1 persistence and GA4 C2. EP-011 adds GSC C3. EP-012
 adds GAM C4 with three capability-validated aggregate cubes, asynchronous report execution, full
-pagination, and network timezone/currency provenance. The repository still excludes production
-OAuth onboarding, a managed secret provider, cross-source C5 derivation, provider write access,
-event promotion, alerts, incident conclusions, LLM-selected queries, and production rollout.
+pagination, and network timezone/currency provenance. EP-013 adds C5 cross-source ratios, explicit
+multi-source provenance, and factual divergence helpers. The repository still excludes production
+OAuth onboarding, a managed secret provider, provider write access, event promotion, alerts,
+incident conclusions, LLM-selected queries, and production rollout.
