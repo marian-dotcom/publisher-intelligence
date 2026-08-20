@@ -11,8 +11,8 @@
 ## Progress
 
 - [x] M0 — Verify the merged E2 baseline and fix the E3 semantic boundary
-- [ ] M1 — Add immutable public-configuration snapshots and ads.txt records
-- [ ] M2 — Implement bounded, SSRF-safe public fetches and semantic parsers
+- [x] M1 — Add immutable public-configuration snapshots and ads.txt records
+- [x] M2 — Implement bounded, SSRF-safe public fetches and semantic parsers
 - [ ] M3 — Schedule routine observations and immediate high-risk validation
 - [ ] M4 — Derive deterministic robots.txt and ads.txt events
 - [ ] M5 — Prove security, lifecycle, migration, regression, and release readiness
@@ -363,12 +363,12 @@ Implementation:
 
 Acceptance:
 
-- [ ] scheduled and validation snapshots are immutable and distinguishable;
-- [ ] every ads.txt record belongs to one snapshot and repeats tenant/site lineage;
-- [ ] invalid cross-tenant/site references fail closed;
-- [ ] retries and concurrent inserts converge on one observation;
-- [ ] HTTP 200 empty is representable only as `EMPTY`, never `VALID`;
-- [ ] upgrade/downgrade/upgrade passes and downgrade preserves evidence safety.
+- [x] scheduled and validation snapshots are immutable and distinguishable;
+- [x] every ads.txt record belongs to one snapshot and repeats tenant/site lineage;
+- [x] invalid cross-tenant/site references fail closed;
+- [x] retries and concurrent inserts converge on one observation;
+- [x] HTTP 200 empty is representable only as `EMPTY`, never `VALID`;
+- [x] upgrade/downgrade/upgrade passes and downgrade preserves evidence safety.
 
 Validation:
 
@@ -394,15 +394,15 @@ Implementation:
 
 Acceptance:
 
-- [ ] IP literals, credentials, non-HTTP(S), metadata hosts, private/reserved DNS answers, invalid
+- [x] IP literals, credentials, non-HTTP(S), metadata hosts, private/reserved DNS answers, invalid
   ports, cross-site redirects, redirect loops, oversized bodies, and timeouts fail closed;
-- [ ] every redirect is authorized before the transport follows it;
-- [ ] the robots parser processes at least 500 KiB and retains parseable rules despite bad lines;
-- [ ] robots grouping, wildcard/end-marker, case, and longest-match fixtures follow RFC 9309;
-- [ ] ads.txt accepts valid three/four-field rows and v1.1 directives while preserving bounded
+- [x] every redirect is authorized before the transport follows it;
+- [x] the robots parser processes at least 500 KiB and retains parseable rules despite bad lines;
+- [x] robots grouping, wildcard/end-marker, case, and longest-match fixtures follow RFC 9309;
+- [x] ads.txt accepts valid three/four-field rows and v1.1 directives while preserving bounded
   diagnostics for malformed rows;
-- [ ] semantic hashes ignore comments, order, whitespace, line endings, and duplicates;
-- [ ] no file-provided URL causes another fetch.
+- [x] semantic hashes ignore comments, order, whitespace, line endings, and duplicates;
+- [x] no file-provided URL causes another fetch.
 
 Validation:
 
@@ -744,6 +744,25 @@ cross-authority robots redirects or third-party ads.txt delegation.
 **Impact:** Some delegated files may be recorded as blocked until the product supports explicit,
 tenant-configured aliases.
 
+### 2026-08-21 — Bound the M2 transport and summaries
+
+**Decision:** Limit robots.txt to 512,000 response bytes, ads.txt to 2 MiB, redirects to five,
+DNS resolution to two seconds, connect to five seconds, reads to ten seconds, and the complete
+fetch to twenty seconds. Retain at most 20 controlled diagnostics, 100 summarized robots rules,
+20 sitemap references, and 100 summarized manager domains; semantic hashes still cover the full
+accepted normalized state.
+
+**Reason:** These bounds meet RFC 9309's 500 KiB minimum, cover pilot-scale ads.txt files without
+unbounded memory or JSON growth, and keep snapshot summaries below the existing 65,536-byte
+contract. The client counts decompressed streamed bytes and never follows redirects automatically.
+
+**Alternatives:** Use library defaults; share the browser guard directly; retain complete raw files
+or unbounded normalized rows in snapshot JSON.
+
+**Impact:** Oversize observations fail with a controlled state, large semantic states remain
+comparable by full hash, and diagnostic summaries remain safe to persist. Production egress policy
+is still required for DNS-rebinding defense.
+
 ## 19. Discoveries / Surprises
 
 - `event_evidence_refs` is already generic at the database layer, but the Python `EvidencePointer`
@@ -794,6 +813,33 @@ environment.
 Next step: obtain explicit authorization to stage and commit the M1 checkpoint, then use GitHub CI
 to run the pending PostgreSQL validation before M1 is marked complete.
 
+### 2026-08-21 — M1 complete; M2 started
+
+Published M1 and the repository-boundary refresh in Draft PR #18. GitHub Actions CI #111 passed on
+head `cb8e0ad`, including PostgreSQL migrations and integration tests, so M1 is complete. Began M2
+with the approved safe-fetch and semantic-parser boundary; no M2 stage, commit, or push is implied.
+
+Next step: implement and validate the M2 public network guard, bounded HTTP client, RFC 9309 parser,
+ads.txt 1.1 parser, and their deterministic counterexample suites.
+
+### 2026-08-21 — M2 complete
+
+Implemented a transport-independent public-config network guard, fixed-path URL derivation,
+manual redirect authorization, explicit DNS/connect/read/total limits, streamed decompressed byte
+budgets, controlled safe errors, and a cookie/auth/environment-proxy-free production client.
+Implemented deterministic RFC 9309 robots semantics and ads.txt 1.1 seller/directive parsing with
+bounded summaries and diagnostics. Parser-discovered URLs remain inert metadata and cannot trigger
+network access.
+
+Counterexamples cover credentials, IP literals, metadata, mixed public/private DNS answers,
+cross-site and private redirects, loops, redirect limits, response size, timeout, cookie replay,
+robots group boundaries, repeated agents, wildcard/end-marker and longest-match behavior, 512,000
+bytes of robots input, seller fields, v1.1 directives, duplicates, malformed rows, and semantic
+formatting noise. Stage, commit, and publication for this checkpoint require separate explicit
+authorization.
+
+Next step after the local commit: obtain separate authorization to push M2 to Draft PR #18.
+
 ## 21. Validation Results
 
 ### Planning validation — 2026-08-21
@@ -817,6 +863,24 @@ to run the pending PostgreSQL validation before M1 is marked complete.
 - PostgreSQL migration/integration tests: BLOCKED BY ENVIRONMENT; connection refused at
   `localhost:5432`, with no Docker/PostgreSQL runtime available. No test reached an application
   assertion.
+
+### M1 GitHub validation — 2026-08-21
+
+- Draft PR #18 head `cb8e0ad`: PASS.
+- GitHub Actions CI #111: PASS, including backend PostgreSQL integration, frontend, and repository
+  safety jobs.
+- M1 status: COMPLETE.
+
+### M2 local validation — 2026-08-21
+
+- `ruff format --check .`: PASS, 183 files formatted.
+- `ruff check .`: PASS.
+- `mypy app tests scripts migrations/env.py`: PASS, 168 source files.
+- `pytest tests/unit`: PASS, 230 tests; one existing Starlette deprecation warning.
+- M2 parser/client plus browser-security regression suite: PASS, 45 tests.
+- Python compileall: PASS.
+- repository secret scan and whitespace checks: PASS.
+- M2 status: COMPLETE; no PostgreSQL execution is needed for this transport/parser-only milestone.
 
 ## 22. Final Outcome / Retrospective
 
