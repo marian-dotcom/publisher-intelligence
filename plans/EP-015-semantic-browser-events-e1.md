@@ -1,9 +1,9 @@
 # EP-015 — Semantic Browser Events E1
 
-**Status:** IN_PROGRESS
+**Status:** COMPLETE
 **Owner:** Codex / Engineering
 **Created:** 2026-08-20
-**Updated:** 2026-08-20
+**Updated:** 2026-08-21
 **Target milestone:** E1 — Semantic browser diffs
 **MVP scope impact:** NO
 **New infrastructure category:** NO
@@ -15,7 +15,7 @@
 - [x] M2 — Add the versioned E1 registry and deterministic candidate evaluation
 - [x] M3 — Persist only confirmed point events with exact evidence references
 - [x] M4 — Add atomic background execution and tenant-safe reprocessing
-- [ ] M5 — Prove counterexamples, migrations, regressions, and final validation
+- [x] M5 — Prove counterexamples, migrations, regressions, and final validation
 
 ## 1. Purpose and User Outcome
 
@@ -201,7 +201,7 @@ Implementation:
 Acceptance:
 - [x] rendered SEO state is explicit, bounded, versioned, and linked to one checkpoint;
 - [x] events distinguish started/detected/created time and observation confidence from risk;
-- [ ] migration upgrade/downgrade preserves existing checkpoint and connector evidence;
+- [x] migration upgrade/downgrade preserves existing checkpoint and connector evidence;
 - [x] no event rule is editable from tenant data or API input.
 
 Validation:
@@ -305,11 +305,11 @@ without browser execution or external calls.
 Goal: prove E1 correctness, counterexamples, migrations, regressions, and documentation.
 
 Acceptance:
-- [ ] positive, negative, noisy, version-change, truncation, idempotency, time-window, and
+- [x] positive, negative, noisy, version-change, truncation, idempotency, time-window, and
   cross-tenant tests pass;
-- [ ] migration round-trip and all browser/connector/metric regressions pass;
-- [ ] Ruff, mypy, backend/frontend, security, worker, scheduler, and repository safety gates pass;
-- [ ] plan and README match the validated implementation.
+- [x] migration round-trip and all browser/connector/metric regressions pass;
+- [x] Ruff, mypy, backend/frontend, security, worker, scheduler, and repository safety gates pass;
+- [x] plan and README match the validated implementation.
 
 Validation:
 ```bash
@@ -332,16 +332,16 @@ Expected observable result: CI proves E1 without regressions and the plan can be
 
 ## 9. Final Acceptance Criteria
 
-- [ ] raw checkpoint state remains distinct from semantic candidate and persisted event;
-- [ ] every rule and comparator is fixed/versioned in code and mirrored in the registry;
-- [ ] only exact comparable evidence produces a persisted E1 event;
-- [ ] occurrence windows preserve six-hour uncertainty rather than using detection time as fact;
-- [ ] missing/truncated/incompatible/error evidence cannot fabricate a removal or missing condition;
-- [ ] unconfirmed JS/noindex/GPT candidates do not enter operational history prematurely;
-- [ ] persisted events carry narrow scope, factual language, and traceable before/after evidence;
-- [ ] event derivation is tenant-owned, idempotent, retry-safe, and independent of LLM/provider
+- [x] raw checkpoint state remains distinct from semantic candidate and persisted event;
+- [x] every rule and comparator is fixed/versioned in code and mirrored in the registry;
+- [x] only exact comparable evidence produces a persisted E1 event;
+- [x] occurrence windows preserve six-hour uncertainty rather than using detection time as fact;
+- [x] missing/truncated/incompatible/error evidence cannot fabricate a removal or missing condition;
+- [x] unconfirmed JS/noindex/GPT candidates do not enter operational history prematurely;
+- [x] persisted events carry narrow scope, factual language, and traceable before/after evidence;
+- [x] event derivation is tenant-owned, idempotent, retry-safe, and independent of LLM/provider
   authority;
-- [ ] no event is called an incident, cause, alert, or metric anomaly.
+- [x] no event is called an incident, cause, alert, or metric anomaly.
 
 ## 10. Validation Commands
 
@@ -479,10 +479,20 @@ larger event count.
   comparison lineage, persistence, migrations, job workers, security, and event data-model gaps.
 - 2026-08-20: Reviewed the draft against the planning contract, fixed the E1/E2 confirmation
   boundary, validated scope/commands/rollback/security, and marked EP-015 READY.
+- 2026-08-21: CI #96 exposed missing EP-015 rows in browser-integration teardown and an outdated
+  migration table inventory. Added ordered event/SEO cleanup and the four new expected tables.
+- 2026-08-21: CI #98 passed frontend, Ruff, mypy, 186 unit tests, Alembic, all 27 PostgreSQL/MinIO/
+  browser/connector/metric integration tests, scheduler, worker, and repository-safety gates.
+  Marked M5 and EP-015 COMPLETE.
 
 ## 21. Final Outcome / Retrospective
 
-Pending implementation and validation.
+EP-015 completes the E1 semantic browser-event boundary. Completed comparable checkpoints now
+persist compact rendered SEO evidence, enqueue deterministic derivation atomically, and record only
+exact-URL dependency/canonical point changes with bounded time windows and immutable before/after
+evidence. Higher-noise JS, noindex, and missing-slot observations remain non-durable until E2 can
+satisfy their confirmation contracts. No routing, alert, incident, causal, or LLM authority was
+introduced.
 
 ## 22. Validation Results
 
@@ -491,10 +501,11 @@ Pending implementation and validation.
 - Ruff check and mypy pass for the implemented backend and tests;
 - backend unit suite: 186 passed; targeted E1 suite: 9 passed;
 - Alembic offline upgrade SQL generation reaches `0013` and emits all four tables plus six seeds;
-- PostgreSQL integration tests are blocked locally by connection refusal on localhost:5432;
-- Docker validation is unavailable because the Docker CLI is not installed.
+- PostgreSQL integration was unavailable locally, but all 27 integration tests passed in CI #98;
+- CI #98 passed Alembic upgrade/round-trip, scheduler, worker, frontend, and repository safety;
+- PR #16: https://github.com/marian-dotcom/publisher-intelligence/pull/16;
+- final implementation CI: https://github.com/marian-dotcom/publisher-intelligence/actions/runs/32418234490.
 
 ## 23. Next Step
 
-Complete M5 regression and repository safety gates, then run PostgreSQL integration/round-trip in
-CI or an environment with the project services available before marking this plan COMPLETE.
+Review and merge PR #16, then begin the next approved milestone from the canonical roadmap.
