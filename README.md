@@ -296,9 +296,16 @@ If Docker is unavailable, run the local unit/lint/build checks and rely on GitHu
 
 ## Repository boundaries
 
-EP-009 completes Browser v1. EP-010 adds C1 persistence and GA4 C2. EP-011 adds GSC C3. EP-012
-adds GAM C4 with three capability-validated aggregate cubes, asynchronous report execution, full
-pagination, and network timezone/currency provenance. EP-013 adds C5 cross-source ratios, explicit
-multi-source provenance, and factual divergence helpers. The repository still excludes production
-OAuth onboarding, a managed secret provider, provider write access, event promotion, alerts,
-incident conclusions, LLM-selected queries, and production rollout.
+EP-009 completes Browser v1. EP-010 through EP-014 add source persistence, read-only GA4/GSC/GAM
+collection, cross-source ratios, factual divergence helpers, and bounded incident drill-down.
+EP-015 and EP-016 add deterministic semantic browser events, evidence references, confirmation,
+deduplication, active-condition support, and evidence-backed recovery without turning events into
+alerts or causal conclusions. EP-017 is in progress: M1 adds immutable robots.txt/ads.txt snapshot
+and normalized ads.txt-record persistence, but public HTTP fetching, scheduling, second-check
+validation, and E3 event derivation are not implemented yet.
+
+The repository still excludes production OAuth onboarding, a managed secret provider, provider
+write access, alert delivery, Home/Timeline UI, automated incident conclusions, LLM-selected
+queries, and production rollout. Refresh this summary after no more than three completed EPs, and
+earlier whenever an EP materially changes the implemented product or security boundary. Always
+state the latest fully covered EP and distinguish partial work from completed capability.
