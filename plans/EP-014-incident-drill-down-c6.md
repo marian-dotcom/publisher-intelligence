@@ -1,6 +1,6 @@
 # EP-014 — Validated Incident Drill-Down C6
 
-**Status:** IN_PROGRESS
+**Status:** COMPLETE
 **Owner:** Codex / Engineering
 **Created:** 2026-08-20
 **Updated:** 2026-08-20
@@ -14,7 +14,7 @@
 - [x] M1 — Add the versioned Tier C semantic catalog and strict request validation
 - [x] M2 — Add per-connection capability validation and fixed provider execution
 - [x] M3 — Add bounded tenant-owned job planning and worker execution
-- [ ] M4 — Prove counterexamples, regressions, and final validation
+- [x] M4 — Prove counterexamples, regressions, and final validation
 
 ## 1. Purpose and User Outcome
 
@@ -131,18 +131,18 @@ new dependency, database table, external service, secret, or scheduler path is i
 
 ### M4 — Release gate
 
-- [ ] unit/integration tests prove catalog, budgets, tenancy, execution, and counterexamples;
-- [ ] lint, format, typing, migrations, backend/frontend, security, and CI gates pass;
-- [ ] plan and README match the validated implementation.
+- [x] unit/integration tests prove catalog, budgets, tenancy, execution, and counterexamples;
+- [x] lint, format, typing, migrations, backend/frontend, security, and CI gates pass;
+- [x] plan and README match the validated implementation.
 
 ## 9. Final Acceptance Criteria
 
-- [ ] every incident query originates from a current allowlisted catalog entry;
-- [ ] only definitions validated for the exact connection/profile can run;
-- [ ] windows, pagination/rows, daily cost, and investigation fan-out are bounded;
-- [ ] GSC query strings remain exact-page, on-demand, tenant-confidential evidence;
-- [ ] omitted/high-cardinality/thresholded rows remain limitations rather than zeros;
-- [ ] no LLM-generated provider request or automatic causal conclusion exists.
+- [x] every incident query originates from a current allowlisted catalog entry;
+- [x] only definitions validated for the exact connection/profile can run;
+- [x] windows, pagination/rows, daily cost, and investigation fan-out are bounded;
+- [x] GSC query strings remain exact-page, on-demand, tenant-confidential evidence;
+- [x] omitted/high-cardinality/thresholded rows remain limitations rather than zeros;
+- [x] no LLM-generated provider request or automatic causal conclusion exists.
 
 ## 10. Validation Commands
 
@@ -240,10 +240,17 @@ incompatible optional bindings remain unavailable rather than weakening the read
 - 2026-08-20: Ruff, mypy, 177 unit tests, frontend lint/typecheck/test/build, secret scan,
   integration collection, and diff checks pass. Local PostgreSQL is unavailable, so the new budget
   integration test and complete release gate remain pending in GitHub Actions.
+- 2026-08-20: Draft PR #15 CI run 91 passed repository safety, frontend, Alembic, 177 unit tests,
+  27 PostgreSQL/MinIO/browser/connector/C5/C6 integration tests, scheduler, and worker. M4 and EP-014
+  are complete.
 
 ## 21. Final Outcome / Retrospective
 
-Pending implementation and validation.
+EP-014 completes C6 with a fixed, versioned twelve-entry Tier C catalog and bounded on-demand
+execution for GA4, GSC, and GAM. Every request is capability-, ownership-, budget-, and
+definition-validated before enqueue; workers execute only approved provider shapes and retain
+immutable provenance and source limitations. No arbitrary or LLM-generated provider query,
+scheduled Tier C collection, provider write, incident conclusion, or causal claim was introduced.
 
 ## 22. Validation Results
 
@@ -253,5 +260,8 @@ Pending implementation and validation.
 - frontend ESLint/typecheck/Vitest/production build — passed;
 - locked dependency sync, secret scan, integration collection (27 tests), and `git diff --check`
   — passed;
-- PostgreSQL integration execution — pending CI; local `localhost:5432` refused connection;
-- Docker Compose config — pending CI because Docker is not installed locally.
+- PostgreSQL/MinIO/browser/connector/C5/C6 integration — 27 passed in CI, including the new
+  drill-down budget, idempotency, and tenant-isolation coverage;
+- Alembic upgrade, scheduler, worker, Docker Compose config, and repository safety — passed in CI;
+- Draft PR #15: https://github.com/marian-dotcom/publisher-intelligence/pull/15;
+- final CI run 91: https://github.com/marian-dotcom/publisher-intelligence/actions/runs/32409797290.
