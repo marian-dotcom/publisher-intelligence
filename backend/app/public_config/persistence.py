@@ -209,6 +209,34 @@ class PublicConfigRepository:
             )
         return _stored_snapshot(snapshot) if snapshot is not None else None
 
+    async def previous_ads_condition_snapshot(
+        self,
+        *,
+        tenant_id: uuid.UUID,
+        site_id: uuid.UUID,
+        observed_before: datetime,
+        normalizer_version: str,
+    ) -> StoredPublicConfigSnapshot | None:
+        async with self._session_factory() as session:
+            snapshot = await session.scalar(
+                select(PublicConfigSnapshot)
+                .where(
+                    PublicConfigSnapshot.tenant_id == tenant_id,
+                    PublicConfigSnapshot.site_id == site_id,
+                    PublicConfigSnapshot.config_type == "ADS_TXT",
+                    PublicConfigSnapshot.fetch_kind == "SCHEDULED",
+                    PublicConfigSnapshot.parse_status.in_(("MISSING", "EMPTY", "INVALID")),
+                    PublicConfigSnapshot.normalizer_version == normalizer_version,
+                    PublicConfigSnapshot.observed_at < observed_before,
+                )
+                .order_by(
+                    PublicConfigSnapshot.observed_at.desc(),
+                    PublicConfigSnapshot.created_at.desc(),
+                )
+                .limit(1)
+            )
+        return _stored_snapshot(snapshot) if snapshot is not None else None
+
     @staticmethod
     async def _validate_site(
         session: AsyncSession, *, tenant_id: uuid.UUID, site_id: uuid.UUID

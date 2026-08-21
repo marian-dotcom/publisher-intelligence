@@ -778,6 +778,12 @@ is still required for DNS-rebinding defense.
 - The existing artifact table cannot represent public-config evidence without a browser checkpoint,
   while the canonical public-config `artifact_id` is optional. E3 can remain evidence-complete with
   immutable semantic snapshots and records.
+- Validation retries can create more than one linked validation snapshot for the same primary.
+  Point-event identity must therefore use the scheduled primary transition, not the validation
+  snapshot ID; later validation evidence can attach to the same idempotent event.
+- Migration `0013` originally seeded the live `RULES` registry without limiting it to its own
+  milestone. Extending the registry would make a fresh database insert E3 definitions too early
+  and collide with `0016`; the historical seed is now explicitly bounded to the six browser rules.
 
 ## 20. Progress Log
 
@@ -869,6 +875,31 @@ missing locally: migration, complete integration suite, scheduler `--once`, and 
 
 Next step: obtain explicit authorization to implement M4 semantic events and lifecycle behavior.
 
+### 2026-08-21 — M4 implementation complete; PostgreSQL validation pending
+
+Added the fixed 13-rule event registry including seven `e3-v1` public-configuration rules and the
+`IMMEDIATE_SECOND_CHECK` confirmation mode. Generalized evidence pointers without changing the
+browser call shape. Added a public-config evaluator that compares only compatible scheduled
+semantic states, suppresses first-baseline and formatting noise, emits specific robots events,
+requires linked semantic agreement for high-risk states and recovery, and models missing, empty
+HTTP 200, and invalid ads.txt states as distinct E2-style conditions.
+
+Added tenant/site/config-scoped point and condition persistence with controlled
+`PUBLIC_CONFIG_SNAPSHOT` relations, primary-based point idempotency across validation retries,
+active-condition support, confirmed recovery, and recurrence. Wired derivation into scheduled and
+validation observations in the existing general worker; alert delivery remains absent. Added
+migration `0016_public_config_events_e3`, unit counterexamples, and PostgreSQL lifecycle tests.
+
+All local static checks and 253 unit tests pass. Offline Alembic generation reaches the single
+`0016_public_config_events_e3` head. The exact PostgreSQL event and unchanged-browser lifecycle
+suites remain unexecuted locally because this runtime has neither a listener at `localhost:5432`
+nor the Docker executable; their attempts stopped during fixture connection before any application
+assertion. M4 remains unchecked until CI supplies that persistence evidence.
+
+The user authorized staging and committing this local M4 checkpoint. Push and PR changes remain
+separate actions. After the commit, the next step is explicit push authorization so Draft PR #18
+can run CI and close the remaining PostgreSQL validation gate.
+
 ## 21. Validation Results
 
 ### Planning validation — 2026-08-21
@@ -935,6 +966,25 @@ Next step: obtain explicit authorization to implement M4 semantic events and lif
 - Frontend lint, typecheck, test, and production build: PASS.
 - Repository secret scan, Compose validation, and whitespace checks: PASS.
 - M3 status: COMPLETE.
+
+### M4 local validation — 2026-08-21
+
+- `ruff format --check .`: PASS, 193 files formatted.
+- `ruff check .`: PASS.
+- `mypy app tests scripts migrations/env.py`: PASS, 177 source files.
+- `pytest tests/unit/events`: PASS, 17 tests.
+- `pytest tests/unit/public_config/test_evaluator.py`: PASS, 5 tests.
+- `pytest tests/unit`: PASS, 253 tests; one existing Starlette deprecation warning.
+- `alembic heads`: PASS, one head at `0016_public_config_events_e3`.
+- `alembic upgrade head --sql`: PASS, complete PostgreSQL DDL generated offline.
+- Python compileall: PASS.
+- `RUN_INTEGRATION=1 pytest tests/integration/test_public_configuration.py -k event`: BLOCKED
+  during PostgreSQL connection setup; no application assertion ran.
+- `RUN_INTEGRATION=1 pytest tests/integration/test_event_lifecycle.py`: BLOCKED during PostgreSQL
+  connection setup; no browser-event regression assertion ran.
+- Local infrastructure startup: BLOCKED because the `docker` executable is unavailable.
+- M4 status: implementation complete locally; acceptance remains open pending PostgreSQL/CI
+  validation.
 
 ## 22. Final Outcome / Retrospective
 

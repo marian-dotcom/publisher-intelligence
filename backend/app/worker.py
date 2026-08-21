@@ -31,6 +31,8 @@ from app.metrics.persistence import MetricDerivationRepository, MetricDerivation
 from app.metrics.service import CrossSourceMetricService
 from app.public_config.client import PublicConfigClient
 from app.public_config.contracts import PUBLIC_CONFIG_RULE_VERSION, ConfigType
+from app.public_config.event_persistence import PublicConfigEventRepository
+from app.public_config.event_service import PublicConfigEventService
 from app.public_config.persistence import PublicConfigRepository, PublicConfigStateError
 from app.public_config.service import PublicConfigRunError, PublicConfigService
 
@@ -239,7 +241,7 @@ async def _handle_public_config_fetch_job(
             context=context,
         )
         return
-    except (PublicConfigStateError, ValueError):
+    except (EventStateError, PublicConfigStateError, ValueError):
         await _fail_public_config_job(
             queue,
             lease,
@@ -335,7 +337,7 @@ async def _handle_public_config_validation_job(
             context=context,
         )
         return
-    except (PublicConfigStateError, ValueError):
+    except (EventStateError, PublicConfigStateError, ValueError):
         await _fail_public_config_job(
             queue,
             lease,
@@ -1205,8 +1207,15 @@ async def run(*, once: bool) -> None:
     )
     metric_service = CrossSourceMetricService(MetricDerivationRepository(factory))
     event_service = EventService(EventRepository(factory))
+    public_config_repository = PublicConfigRepository(factory)
     public_config_service = PublicConfigService(
-        PublicConfigRepository(factory), queue, PublicConfigClient()
+        public_config_repository,
+        queue,
+        PublicConfigClient(),
+        event_service=PublicConfigEventService(
+            public_config_repository,
+            PublicConfigEventRepository(factory),
+        ),
     )
     worker_id = f"{socket.gethostname()}:{id(asyncio.current_task())}"
     stop = asyncio.Event()

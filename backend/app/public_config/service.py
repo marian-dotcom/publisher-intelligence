@@ -17,6 +17,7 @@ from app.public_config.contracts import (
     StoredPublicConfigSnapshot,
     public_config_observation_key,
 )
+from app.public_config.event_service import PublicConfigEventService
 from app.public_config.persistence import PublicConfigRepository, PublicConfigStateError
 from app.public_config.robots import ROBOTS_NORMALIZER_VERSION, parse_robots_txt
 
@@ -43,11 +44,13 @@ class PublicConfigService:
         client: PublicConfigClient,
         *,
         clock: Callable[[], datetime] | None = None,
+        event_service: PublicConfigEventService | None = None,
     ) -> None:
         self._repository = repository
         self._queue = queue
         self._client = client
         self._clock = clock or (lambda: datetime.now(UTC))
+        self._event_service = event_service
 
     async def run_scheduled(
         self,
@@ -63,12 +66,22 @@ class PublicConfigService:
         target = await self._repository.load_active_site(tenant_id=tenant_id, site_id=site_id)
         observed_at = _aware_now(self._clock())
         normalizer_version = _normalizer_version(config_type)
-        predecessor = await self._repository.previous_healthy_scheduled_snapshot(
+        healthy_predecessor = await self._repository.previous_healthy_scheduled_snapshot(
             tenant_id=tenant_id,
             site_id=site_id,
             config_type=config_type,
             observed_before=observed_at,
             normalizer_version=normalizer_version,
+        )
+        affected_predecessor = (
+            await self._repository.previous_ads_condition_snapshot(
+                tenant_id=tenant_id,
+                site_id=site_id,
+                observed_before=observed_at,
+                normalizer_version=normalizer_version,
+            )
+            if config_type == "ADS_TXT"
+            else None
         )
         result = await self._observe(
             tenant_id=tenant_id,
@@ -86,9 +99,17 @@ class PublicConfigService:
             site_id=site_id,
             snapshot_id=result.snapshot_id,
         )
+        if self._event_service is not None:
+            await self._event_service.derive(
+                tenant_id=tenant_id,
+                site_id=site_id,
+                config_type=config_type,
+                primary_snapshot_id=result.snapshot_id,
+            )
         if not _requires_validation(
             result,
-            predecessor=predecessor,
+            healthy_predecessor=healthy_predecessor,
+            affected_predecessor=affected_predecessor,
             config_type=config_type,
             summary=current.summary,
         ):
@@ -139,12 +160,22 @@ class PublicConfigService:
             or primary.normalizer_version != _normalizer_version(config_type)
         ):
             raise PublicConfigStateError("validation primary is not eligible")
-        predecessor = await self._repository.previous_healthy_scheduled_snapshot(
+        healthy_predecessor = await self._repository.previous_healthy_scheduled_snapshot(
             tenant_id=tenant_id,
             site_id=site_id,
             config_type=config_type,
             observed_before=primary.observed_at,
             normalizer_version=primary.normalizer_version,
+        )
+        affected_predecessor = (
+            await self._repository.previous_ads_condition_snapshot(
+                tenant_id=tenant_id,
+                site_id=site_id,
+                observed_before=primary.observed_at,
+                normalizer_version=primary.normalizer_version,
+            )
+            if config_type == "ADS_TXT"
+            else None
         )
         primary_result = PublicConfigRunResult(
             snapshot_id=primary.id,
@@ -154,7 +185,8 @@ class PublicConfigService:
         )
         if not _requires_validation(
             primary_result,
-            predecessor=predecessor,
+            healthy_predecessor=healthy_predecessor,
+            affected_predecessor=affected_predecessor,
             config_type=config_type,
             summary=primary.summary,
         ):
@@ -162,7 +194,7 @@ class PublicConfigService:
         observed_at = _aware_now(self._clock())
         if observed_at <= primary.observed_at:
             observed_at = primary.observed_at + timedelta(microseconds=1)
-        return await self._observe(
+        result = await self._observe(
             tenant_id=tenant_id,
             site_id=site_id,
             canonical_scheme=target.canonical_scheme,
@@ -173,6 +205,15 @@ class PublicConfigService:
             source_key=(f"primary:{primary.id}:{rule_version}:attempt:{attempt}"),
             observed_at=observed_at,
         )
+        if self._event_service is not None:
+            await self._event_service.derive(
+                tenant_id=tenant_id,
+                site_id=site_id,
+                config_type=config_type,
+                primary_snapshot_id=primary.id,
+                validation_snapshot_id=result.snapshot_id,
+            )
+        return result
 
     async def _observe(
         self,
@@ -303,18 +344,25 @@ def _normalize_response(
 def _requires_validation(
     current: PublicConfigRunResult,
     *,
-    predecessor: StoredPublicConfigSnapshot | None,
+    healthy_predecessor: StoredPublicConfigSnapshot | None,
+    affected_predecessor: StoredPublicConfigSnapshot | None,
     config_type: ConfigType,
     summary: dict[str, object] | None = None,
 ) -> bool:
-    if predecessor is None:
+    if healthy_predecessor is None:
         return False
     current_summary = summary or {}
     if config_type == "ROBOTS_TXT":
         return bool(current_summary.get("broad_blocked")) and not bool(
-            predecessor.summary.get("broad_blocked")
+            healthy_predecessor.summary.get("broad_blocked")
         )
-    return current.parse_status in {"MISSING", "EMPTY", "INVALID"}
+    if current.parse_status in {"MISSING", "EMPTY", "INVALID"}:
+        return True
+    return bool(
+        current.parse_status in {"VALID", "VALID_WITH_WARNINGS"}
+        and affected_predecessor is not None
+        and affected_predecessor.observed_at > healthy_predecessor.observed_at
+    )
 
 
 def _normalizer_version(config_type: ConfigType) -> str:

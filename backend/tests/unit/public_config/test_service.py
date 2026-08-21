@@ -112,6 +112,48 @@ class Repository:
         ]
         return max(candidates, key=lambda item: item.observed_at) if candidates else None
 
+    async def previous_scheduled_snapshot(
+        self,
+        *,
+        tenant_id: uuid.UUID,
+        site_id: uuid.UUID,
+        config_type: str,
+        observed_before: datetime,
+        normalizer_version: str,
+    ) -> StoredPublicConfigSnapshot | None:
+        candidates = [
+            snapshot
+            for snapshot in self.snapshots
+            if snapshot.tenant_id == tenant_id
+            and snapshot.site_id == site_id
+            and snapshot.config_type == config_type
+            and snapshot.fetch_kind == "SCHEDULED"
+            and snapshot.normalizer_version == normalizer_version
+            and snapshot.observed_at < observed_before
+        ]
+        return max(candidates, key=lambda item: item.observed_at) if candidates else None
+
+    async def previous_ads_condition_snapshot(
+        self,
+        *,
+        tenant_id: uuid.UUID,
+        site_id: uuid.UUID,
+        observed_before: datetime,
+        normalizer_version: str,
+    ) -> StoredPublicConfigSnapshot | None:
+        candidates = [
+            snapshot
+            for snapshot in self.snapshots
+            if snapshot.tenant_id == tenant_id
+            and snapshot.site_id == site_id
+            and snapshot.config_type == "ADS_TXT"
+            and snapshot.fetch_kind == "SCHEDULED"
+            and snapshot.normalizer_version == normalizer_version
+            and snapshot.parse_status in {"MISSING", "EMPTY", "INVALID"}
+            and snapshot.observed_at < observed_before
+        ]
+        return max(candidates, key=lambda item: item.observed_at) if candidates else None
+
 
 class Queue:
     def __init__(self) -> None:
@@ -276,6 +318,122 @@ async def test_previously_valid_ads_missing_requests_validation() -> None:
     assert result.parse_status == "MISSING"
     assert result.validation_requested is True
     assert len(queue.jobs) == 1
+
+
+async def test_ads_recovery_requests_independent_validation() -> None:
+    repository, queue = Repository(), Queue()
+    subject = service(
+        repository,
+        queue,
+        Client(
+            [
+                response(200, b"example.net, account-1, DIRECT\n"),
+                response(404),
+                response(404),
+                response(200, b"example.net, account-1, DIRECT\n"),
+            ]
+        ),
+    )
+    await subject.run_scheduled(
+        tenant_id=TENANT_ID,
+        site_id=SITE_ID,
+        config_type="ADS_TXT",
+        scheduled_for=datetime(2026, 8, 21, tzinfo=UTC),
+        attempt=1,
+        rule_version=PUBLIC_CONFIG_RULE_VERSION,
+    )
+    missing = await subject.run_scheduled(
+        tenant_id=TENANT_ID,
+        site_id=SITE_ID,
+        config_type="ADS_TXT",
+        scheduled_for=datetime(2026, 8, 21, 6, tzinfo=UTC),
+        attempt=1,
+        rule_version=PUBLIC_CONFIG_RULE_VERSION,
+    )
+    await subject.run_validation(
+        tenant_id=TENANT_ID,
+        site_id=SITE_ID,
+        config_type="ADS_TXT",
+        primary_snapshot_id=missing.snapshot_id,
+        attempt=1,
+        rule_version=PUBLIC_CONFIG_RULE_VERSION,
+    )
+
+    recovery = await subject.run_scheduled(
+        tenant_id=TENANT_ID,
+        site_id=SITE_ID,
+        config_type="ADS_TXT",
+        scheduled_for=datetime(2026, 8, 21, 12, tzinfo=UTC),
+        attempt=1,
+        rule_version=PUBLIC_CONFIG_RULE_VERSION,
+    )
+
+    assert recovery.parse_status == "VALID"
+    assert recovery.validation_requested is True
+    assert len(queue.jobs) == 2
+
+
+async def test_ads_recovery_validation_survives_intervening_http_error() -> None:
+    repository, queue = Repository(), Queue()
+    subject = service(
+        repository,
+        queue,
+        Client(
+            [
+                response(200, b"example.net, account-1, DIRECT\n"),
+                response(404),
+                response(404),
+                response(403),
+                response(200, b"example.net, account-1, DIRECT\n"),
+            ]
+        ),
+    )
+    await subject.run_scheduled(
+        tenant_id=TENANT_ID,
+        site_id=SITE_ID,
+        config_type="ADS_TXT",
+        scheduled_for=datetime(2026, 8, 21, tzinfo=UTC),
+        attempt=1,
+        rule_version=PUBLIC_CONFIG_RULE_VERSION,
+    )
+    missing = await subject.run_scheduled(
+        tenant_id=TENANT_ID,
+        site_id=SITE_ID,
+        config_type="ADS_TXT",
+        scheduled_for=datetime(2026, 8, 21, 6, tzinfo=UTC),
+        attempt=1,
+        rule_version=PUBLIC_CONFIG_RULE_VERSION,
+    )
+    await subject.run_validation(
+        tenant_id=TENANT_ID,
+        site_id=SITE_ID,
+        config_type="ADS_TXT",
+        primary_snapshot_id=missing.snapshot_id,
+        attempt=1,
+        rule_version=PUBLIC_CONFIG_RULE_VERSION,
+    )
+    intermediate = await subject.run_scheduled(
+        tenant_id=TENANT_ID,
+        site_id=SITE_ID,
+        config_type="ADS_TXT",
+        scheduled_for=datetime(2026, 8, 21, 12, tzinfo=UTC),
+        attempt=1,
+        rule_version=PUBLIC_CONFIG_RULE_VERSION,
+    )
+    recovery = await subject.run_scheduled(
+        tenant_id=TENANT_ID,
+        site_id=SITE_ID,
+        config_type="ADS_TXT",
+        scheduled_for=datetime(2026, 8, 21, 18, tzinfo=UTC),
+        attempt=1,
+        rule_version=PUBLIC_CONFIG_RULE_VERSION,
+    )
+
+    assert intermediate.parse_status == "HTTP_ERROR"
+    assert intermediate.validation_requested is False
+    assert recovery.parse_status == "VALID"
+    assert recovery.validation_requested is True
+    assert len(queue.jobs) == 2
 
 
 async def test_transport_failure_is_persisted_before_retry_signal() -> None:

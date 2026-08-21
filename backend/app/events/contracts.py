@@ -7,7 +7,9 @@ ConfirmationMode = Literal[
     "SINGLE_STRONG_OBSERVATION",
     "TWO_CONSECUTIVE_CHECKPOINTS",
     "MULTI_URL_CORROBORATION",
+    "IMMEDIATE_SECOND_CHECK",
 ]
+EvidenceKind = Literal["CHECKPOINT_RUN", "PUBLIC_CONFIG_SNAPSHOT"]
 EventKind = Literal["POINT", "CONDITION"]
 EventAction = Literal[
     "RECORD",
@@ -43,10 +45,35 @@ class EventRule:
     schema_version: int = 2
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, init=False)
 class EvidencePointer:
-    checkpoint_run_id: uuid.UUID
+    source_id: uuid.UUID
     relation: str
+    evidence_kind: EvidenceKind = "CHECKPOINT_RUN"
+
+    def __init__(
+        self,
+        source_id: uuid.UUID | None = None,
+        relation: str = "",
+        evidence_kind: EvidenceKind = "CHECKPOINT_RUN",
+        *,
+        checkpoint_run_id: uuid.UUID | None = None,
+    ) -> None:
+        if source_id is not None and checkpoint_run_id is not None:
+            raise TypeError("provide source_id or checkpoint_run_id, not both")
+        resolved_source_id = source_id if source_id is not None else checkpoint_run_id
+        if resolved_source_id is None:
+            raise TypeError("evidence source ID is required")
+        if not relation:
+            raise ValueError("evidence relation is required")
+        object.__setattr__(self, "source_id", resolved_source_id)
+        object.__setattr__(self, "relation", relation)
+        object.__setattr__(self, "evidence_kind", evidence_kind)
+
+    @property
+    def checkpoint_run_id(self) -> uuid.UUID:
+        """Compatibility alias for the browser event path."""
+        return self.source_id
 
 
 @dataclass(frozen=True, slots=True)

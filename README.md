@@ -304,7 +304,11 @@ alerts or causal conclusions. EP-017 is in progress: M1–M3 complete immutable 
 snapshot and normalized ads.txt-record persistence, a bounded SSRF-safe public HTTP client,
 deterministic RFC 9309/ads.txt 1.1 semantic parsers, idempotent six-hour scheduling, and general
 worker persistence. High-risk transitions request an independently fetched, linked second check.
-E3 event derivation is not implemented yet.
+M4 event derivation is implemented locally with a fixed `e3-v1` catalog, semantic-noise
+suppression, strict primary/validation agreement, typed snapshot evidence, deterministic point
+dedupe, and E2-compatible ads.txt condition support, recovery, and recurrence. PostgreSQL lifecycle
+and unchanged-browser regression execution remain pending CI; no E3 path delivers alerts or makes
+indexing, authorization, revenue, or causal claims.
 
 The repository still excludes production OAuth onboarding, a managed secret provider, provider
 write access, alert delivery, Home/Timeline UI, automated incident conclusions, LLM-selected
