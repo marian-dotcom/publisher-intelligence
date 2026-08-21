@@ -10,6 +10,7 @@ from app.public_config.contracts import (
     MAX_ADS_TXT_RECORDS,
     AdsTxtRecordInput,
     ConfigType,
+    PublicConfigSiteTarget,
     PublicConfigSnapshotInput,
     SnapshotWriteResult,
     StoredPublicConfigSnapshot,
@@ -24,6 +25,34 @@ class PublicConfigStateError(RuntimeError):
 class PublicConfigRepository:
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
+
+    async def schedulable_sites(self) -> tuple[PublicConfigSiteTarget, ...]:
+        async with self._session_factory() as session:
+            sites = list(
+                (
+                    await session.scalars(
+                        select(Site).where(Site.status == "ACTIVE").order_by(Site.id)
+                    )
+                ).all()
+            )
+        return tuple(_site_target(site) for site in sites)
+
+    async def load_active_site(
+        self, *, tenant_id: uuid.UUID, site_id: uuid.UUID
+    ) -> PublicConfigSiteTarget:
+        async with self._session_factory() as session:
+            site = await session.scalar(
+                select(Site).where(
+                    Site.id == site_id,
+                    Site.tenant_id == tenant_id,
+                    Site.status == "ACTIVE",
+                )
+            )
+        if site is None:
+            raise PublicConfigStateError(
+                "active site does not belong to public configuration tenant"
+            )
+        return _site_target(site)
 
     async def persist_snapshot(
         self,
@@ -151,6 +180,35 @@ class PublicConfigRepository:
             )
         return _stored_snapshot(snapshot) if snapshot is not None else None
 
+    async def previous_healthy_scheduled_snapshot(
+        self,
+        *,
+        tenant_id: uuid.UUID,
+        site_id: uuid.UUID,
+        config_type: ConfigType,
+        observed_before: datetime,
+        normalizer_version: str,
+    ) -> StoredPublicConfigSnapshot | None:
+        async with self._session_factory() as session:
+            snapshot = await session.scalar(
+                select(PublicConfigSnapshot)
+                .where(
+                    PublicConfigSnapshot.tenant_id == tenant_id,
+                    PublicConfigSnapshot.site_id == site_id,
+                    PublicConfigSnapshot.config_type == config_type,
+                    PublicConfigSnapshot.fetch_kind == "SCHEDULED",
+                    PublicConfigSnapshot.parse_status.in_(("VALID", "VALID_WITH_WARNINGS")),
+                    PublicConfigSnapshot.normalizer_version == normalizer_version,
+                    PublicConfigSnapshot.observed_at < observed_before,
+                )
+                .order_by(
+                    PublicConfigSnapshot.observed_at.desc(),
+                    PublicConfigSnapshot.created_at.desc(),
+                )
+                .limit(1)
+            )
+        return _stored_snapshot(snapshot) if snapshot is not None else None
+
     @staticmethod
     async def _validate_site(
         session: AsyncSession, *, tenant_id: uuid.UUID, site_id: uuid.UUID
@@ -266,4 +324,14 @@ def _stored_snapshot(snapshot: PublicConfigSnapshot) -> StoredPublicConfigSnapsh
         fetch_kind=snapshot.fetch_kind,
         validation_of_snapshot_id=snapshot.validation_of_snapshot_id,
         observation_key=snapshot.observation_key,
+    )
+
+
+def _site_target(site: Site) -> PublicConfigSiteTarget:
+    return PublicConfigSiteTarget(
+        tenant_id=site.tenant_id,
+        site_id=site.id,
+        canonical_domain=site.canonical_domain,
+        canonical_scheme=site.canonical_scheme,
+        timezone=site.timezone,
     )

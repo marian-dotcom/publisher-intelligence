@@ -840,6 +840,26 @@ authorization.
 
 Next step after the local commit: obtain separate authorization to push M2 to Draft PR #18.
 
+### 2026-08-21 — M3 implementation complete; PostgreSQL validation pending
+
+Implemented deterministic per-site/config six-hour scheduling without catch-up, strict
+`FETCH_PUBLIC_CONFIG` and `VALIDATE_PUBLIC_CONFIG` general-worker handlers, immutable persistence
+before evaluation, controlled retry/terminal classification, and one high-priority validation job
+per eligible primary snapshot and `e3-v1` rule. The service verifies active tenant/site ownership
+and validation-primary lineage before network access; validation observations are independently
+fetched, linked to their primary, excluded from regular predecessor selection, and cannot enqueue
+another validation.
+
+Unit counterexamples cover repeated scheduler passes, timezone windows, first baselines, newly
+broad robots blocking, previously valid ads.txt becoming missing, independent validation,
+cross-tenant/malformed rejection before fetch, persisted transport failure, and bounded retry
+backoff. Added PostgreSQL coverage for the primary/job/validation lineage. The README repository
+boundary summary now distinguishes completed M1–M2 from locally implemented M3. Stage, commit,
+push, PR edits, and CI execution still require their separate workflow authorizations.
+
+Next step: obtain authorization to stage the M3 checkpoint, then commit, push, and use Draft PR
+#18 CI as separately authorized workflow steps.
+
 ## 21. Validation Results
 
 ### Planning validation — 2026-08-21
@@ -881,6 +901,21 @@ Next step after the local commit: obtain separate authorization to push M2 to Dr
 - Python compileall: PASS.
 - repository secret scan and whitespace checks: PASS.
 - M2 status: COMPLETE; no PostgreSQL execution is needed for this transport/parser-only milestone.
+
+### M3 local validation — 2026-08-21
+
+- `ruff format --check .`: PASS, 188 files formatted.
+- `ruff check .`: PASS.
+- `mypy app tests scripts migrations/env.py`: PASS, 173 source files.
+- `pytest tests/unit/public_config`: PASS, 50 tests.
+- `pytest tests/unit`: PASS, 245 tests; one existing Starlette deprecation warning.
+- Python compileall, repository secret scan, and whitespace checks: PASS.
+- Frontend lint, typecheck, test, and production build: PASS.
+- PostgreSQL validation test plus scheduler/worker `--once` smoke checks: BLOCKED BY ENVIRONMENT;
+  all stop at connection setup because no PostgreSQL listener is available at `localhost:5432`.
+  No application assertion was reached.
+- M3 status: implementation complete locally; acceptance remains open pending PostgreSQL/CI
+  validation.
 
 ## 22. Final Outcome / Retrospective
 

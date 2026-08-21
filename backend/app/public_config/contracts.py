@@ -37,6 +37,7 @@ PARSE_STATUSES = frozenset(
     }
 )
 ADS_TXT_RELATIONSHIPS = frozenset({"DIRECT", "RESELLER"})
+PUBLIC_CONFIG_RULE_VERSION = "e3-v1"
 
 MAX_SUMMARY_BYTES = 65_536
 MAX_ADS_TXT_RECORDS = 100_000
@@ -143,6 +144,23 @@ class AdsTxtRecordInput:
 class SnapshotWriteResult:
     snapshot_id: uuid.UUID
     created: bool
+
+
+@dataclass(frozen=True, slots=True)
+class PublicConfigSiteTarget:
+    tenant_id: uuid.UUID
+    site_id: uuid.UUID
+    canonical_domain: str
+    canonical_scheme: str
+    timezone: str
+
+
+@dataclass(frozen=True, slots=True)
+class PublicConfigRunResult:
+    snapshot_id: uuid.UUID
+    created: bool
+    parse_status: ParseStatus
+    validation_requested: bool
 
 
 @dataclass(frozen=True, slots=True)

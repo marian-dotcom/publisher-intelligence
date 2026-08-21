@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -8,9 +9,12 @@ import pytest
 from sqlalchemy import delete, func, select
 
 from app.browser.models import Publisher, Site
-from app.db.models import Tenant
+from app.db.models import Job, Tenant
 from app.db.session import get_session_factory
+from app.jobs.queue import JobQueue
+from app.public_config.client import PublicConfigFetchResult
 from app.public_config.contracts import (
+    PUBLIC_CONFIG_RULE_VERSION,
     AdsTxtRecordInput,
     PublicConfigSnapshotInput,
     ads_txt_record_hash,
@@ -18,6 +22,7 @@ from app.public_config.contracts import (
 )
 from app.public_config.models import AdsTxtRecord, PublicConfigSnapshot
 from app.public_config.persistence import PublicConfigRepository, PublicConfigStateError
+from app.public_config.service import PublicConfigService
 
 pytestmark = pytest.mark.integration
 
@@ -73,6 +78,7 @@ async def public_config_fixture() -> AsyncIterator[PublicConfigFixture]:
     yield PublicConfigFixture(tenant_id, other_tenant_id, site_id)
 
     async with factory() as session, session.begin():
+        await session.execute(delete(Job).where(Job.tenant_id == tenant_id))
         await session.execute(delete(AdsTxtRecord).where(AdsTxtRecord.tenant_id == tenant_id))
         await session.execute(
             delete(PublicConfigSnapshot).where(PublicConfigSnapshot.tenant_id == tenant_id)
@@ -266,3 +272,98 @@ async def test_previous_snapshot_ignores_validation_and_incompatible_versions(
 
     assert previous is not None
     assert previous.id == scheduled_ids[2]
+
+
+class _SequenceClient:
+    def __init__(self, contents: list[bytes]) -> None:
+        self._contents = contents
+
+    async def fetch(self, **_kwargs: object) -> PublicConfigFetchResult:
+        content = self._contents.pop(0)
+        return PublicConfigFetchResult(
+            url="https://example.com/robots.txt",
+            http_status=200,
+            content=content,
+            content_hash=hashlib.sha256(content).hexdigest(),
+            content_type="text/plain",
+            redirect_count=0,
+        )
+
+
+class _MinuteClock:
+    def __init__(self) -> None:
+        self._current = datetime(2026, 8, 21, tzinfo=UTC)
+
+    def __call__(self) -> datetime:
+        current = self._current
+        self._current += timedelta(minutes=1)
+        return current
+
+
+async def test_high_risk_transition_queues_and_links_one_validation(
+    public_config_fixture: PublicConfigFixture,
+) -> None:
+    fixture = public_config_fixture
+    factory = get_session_factory()
+    repository = PublicConfigRepository(factory)
+    queue = JobQueue(factory)
+    service = PublicConfigService(
+        repository,
+        queue,
+        _SequenceClient(
+            [
+                b"User-agent: *\nDisallow: /private\n",
+                b"User-agent: *\nDisallow: /\n",
+                b"User-agent: *\nDisallow: /\n",
+            ]
+        ),  # type: ignore[arg-type]
+        clock=_MinuteClock(),
+    )
+    await service.run_scheduled(
+        tenant_id=fixture.tenant_id,
+        site_id=fixture.site_id,
+        config_type="ROBOTS_TXT",
+        scheduled_for=datetime(2026, 8, 21, tzinfo=UTC),
+        attempt=1,
+        rule_version=PUBLIC_CONFIG_RULE_VERSION,
+    )
+    primary = await service.run_scheduled(
+        tenant_id=fixture.tenant_id,
+        site_id=fixture.site_id,
+        config_type="ROBOTS_TXT",
+        scheduled_for=datetime(2026, 8, 21, 6, tzinfo=UTC),
+        attempt=1,
+        rule_version=PUBLIC_CONFIG_RULE_VERSION,
+    )
+
+    assert primary.validation_requested is True
+    async with factory() as session:
+        validation_jobs = list(
+            (
+                await session.scalars(
+                    select(Job).where(
+                        Job.tenant_id == fixture.tenant_id,
+                        Job.job_type == "VALIDATE_PUBLIC_CONFIG",
+                    )
+                )
+            ).all()
+        )
+    assert len(validation_jobs) == 1
+    assert validation_jobs[0].payload["primary_snapshot_id"] == str(primary.snapshot_id)
+
+    validation = await service.run_validation(
+        tenant_id=fixture.tenant_id,
+        site_id=fixture.site_id,
+        config_type="ROBOTS_TXT",
+        primary_snapshot_id=primary.snapshot_id,
+        attempt=1,
+        rule_version=PUBLIC_CONFIG_RULE_VERSION,
+    )
+    stored = await repository.load_snapshot(
+        tenant_id=fixture.tenant_id,
+        site_id=fixture.site_id,
+        snapshot_id=validation.snapshot_id,
+    )
+
+    assert stored.fetch_kind == "VALIDATION"
+    assert stored.validation_of_snapshot_id == primary.snapshot_id

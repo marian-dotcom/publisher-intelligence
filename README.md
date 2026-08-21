@@ -300,10 +300,12 @@ EP-009 completes Browser v1. EP-010 through EP-014 add source persistence, read-
 collection, cross-source ratios, factual divergence helpers, and bounded incident drill-down.
 EP-015 and EP-016 add deterministic semantic browser events, evidence references, confirmation,
 deduplication, active-condition support, and evidence-backed recovery without turning events into
-alerts or causal conclusions. EP-017 is in progress: M1–M2 add immutable robots.txt/ads.txt
+alerts or causal conclusions. EP-017 is in progress: M1–M2 complete immutable robots.txt/ads.txt
 snapshot and normalized ads.txt-record persistence, a bounded SSRF-safe public HTTP client, and
-deterministic RFC 9309/ads.txt 1.1 semantic parsers. Scheduling, second-check validation, and E3
-event derivation are not implemented yet.
+deterministic RFC 9309/ads.txt 1.1 semantic parsers. M3 is implemented locally pending PostgreSQL
+CI validation: the general scheduler creates idempotent six-hour public-config jobs, the general
+worker persists each observation, and high-risk transitions request an independently fetched,
+linked second check. E3 event derivation is not implemented yet.
 
 The repository still excludes production OAuth onboarding, a managed secret provider, provider
 write access, alert delivery, Home/Timeline UI, automated incident conclusions, LLM-selected
