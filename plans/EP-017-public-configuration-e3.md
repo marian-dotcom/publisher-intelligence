@@ -13,7 +13,7 @@
 - [x] M0 — Verify the merged E2 baseline and fix the E3 semantic boundary
 - [x] M1 — Add immutable public-configuration snapshots and ads.txt records
 - [x] M2 — Implement bounded, SSRF-safe public fetches and semantic parsers
-- [ ] M3 — Schedule routine observations and immediate high-risk validation
+- [x] M3 — Schedule routine observations and immediate high-risk validation
 - [ ] M4 — Derive deterministic robots.txt and ads.txt events
 - [ ] M5 — Prove security, lifecycle, migration, regression, and release readiness
 
@@ -429,13 +429,13 @@ Implementation:
 
 Acceptance:
 
-- [ ] two scheduler passes create no duplicate jobs for the same site/config/window;
-- [ ] a first baseline produces no change event and no unnecessary validation;
-- [ ] high-risk primary state creates exactly one validation job and no premature event;
-- [ ] a validation snapshot is independently fetched and linked to its primary;
-- [ ] validation is never recursively validated;
-- [ ] malformed/cross-tenant jobs perform no network access;
-- [ ] retry exhaustion preserves prior snapshots and exposes a controlled terminal job state.
+- [x] two scheduler passes create no duplicate jobs for the same site/config/window;
+- [x] a first baseline produces no change event and no unnecessary validation;
+- [x] high-risk primary state creates exactly one validation job and no premature event;
+- [x] a validation snapshot is independently fetched and linked to its primary;
+- [x] validation is never recursively validated;
+- [x] malformed/cross-tenant jobs perform no network access;
+- [x] retry exhaustion preserves prior snapshots and exposes a controlled terminal job state.
 
 Validation:
 
@@ -860,6 +860,15 @@ push, PR edits, and CI execution still require their separate workflow authoriza
 Next step: obtain authorization to stage the M3 checkpoint, then commit, push, and use Draft PR
 #18 CI as separately authorized workflow steps.
 
+### 2026-08-21 — M3 complete
+
+Published the M3 checkpoint to Draft PR #18 at head `11938d0`. GitHub Actions CI #115 passed all
+backend, frontend, and repository-safety jobs. The backend job supplied the PostgreSQL evidence
+missing locally: migration, complete integration suite, scheduler `--once`, and general worker
+`--once` all passed. M3 acceptance is complete; no E3 event derivation was started.
+
+Next step: obtain explicit authorization to implement M4 semantic events and lifecycle behavior.
+
 ## 21. Validation Results
 
 ### Planning validation — 2026-08-21
@@ -916,6 +925,16 @@ Next step: obtain authorization to stage the M3 checkpoint, then commit, push, a
   No application assertion was reached.
 - M3 status: implementation complete locally; acceptance remains open pending PostgreSQL/CI
   validation.
+
+### M3 GitHub validation — 2026-08-21
+
+- Draft PR #18 head `11938d0`: PASS.
+- GitHub Actions CI #115: PASS.
+- Backend static checks, 245 unit tests, migration, full PostgreSQL integration suite, scheduler
+  smoke, and general-worker smoke: PASS.
+- Frontend lint, typecheck, test, and production build: PASS.
+- Repository secret scan, Compose validation, and whitespace checks: PASS.
+- M3 status: COMPLETE.
 
 ## 22. Final Outcome / Retrospective
 
