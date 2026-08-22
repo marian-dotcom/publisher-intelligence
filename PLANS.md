@@ -1652,36 +1652,134 @@ EP-008 — GAM connector C4
 EP-009 — Event Engine E1/E2
 ```
 
-## 76.1 Approved forward sequence (2026-08 architecture reconciliation)
+## 76.1 Approved forward sequence (2026-08 architecture reconciliation, amended 2026-08-22)
 
 The following sequence was approved by product/architecture decision and supersedes the
 remaining v1.0 suggestions. Remaining P0 invariants are implemented inside the EP that needs
 them; there is no separate architecture-precondition project.
 
+Engine track:
+
 ```text
-EP-018 — Observation run semantics & trigger provenance (ADR-130)
+EP-018 — Observation run semantics & trigger provenance (ADR-130) — COMPLETE
    ↓
-EP-019 — Incident intake, localization & investigation foundations (I1)
+EP-019 — Investigation foundations (schema, LKG freeze, comparability, budget, holds)
    ↓
-EP-020 — Evidence pack & typed relationships (I2)
+EP-020 — Incident intake & localization
    ↓
-EP-021 — Hypotheses, contradictions & deterministic ranking (I3/I4)
+EP-021 — Evidence pack & typed relationships
    ↓
 EP-022 — Inspect AI eval runtime integration (ADR-129)
+   ↓
+EP-023 — Hypotheses, contradictions & deterministic ranking
+   ↓
+Limited-pilot engine readiness
 ```
 
-Additional boundaries:
+Parallel product/operations track:
 
-- **EP-023 — Pilot reliability pack** becomes eligible after EP-019 and is mandatory before any
-  live pilot. Scope: retention/deletion enforcement, connection staleness detection and status
-  exposure, cost telemetry roll-up with hard caps, cross-source DST alignment tests.
-- **LLM synthesis (incident report narrative, I5)** is blocked behind both EP-021 (deterministic
-  hypothesis lifecycle complete) and a green eval release gate produced by EP-022, per ADR-114,
-  ADR-115 and `EVALS.md` §73.
-- **Known deferred gap:** the full entity-mapping lifecycle/provenance system (DOM/GPT slot →
-  GAM ad unit → placement mapping origin, confidence, supersession) is deliberately deferred
-  until a concrete Incident Engine use case requires it. This gap stays visible here until then;
-  it must not be silently dropped.
+```text
+EP-019 ──→ EP-024 — Connector OAuth, managed secrets & site onboarding  [HARD PILOT BLOCKER]
+EP-021 ──→ EP-025 — Home / Timeline & minimal Investigate product surface [HARD PILOT BLOCKER]
+
+EP-024 + EP-025 + EP-023
+   ↓
+EP-026 — Pilot reliability & operational readiness
+   ↓
+LIMITED PILOT
+   ↓
+LLM synthesis (incident narrative/report generation)
+```
+
+Boundary rules:
+
+- **One coherent outcome per ExecPlan; one active ExecPlan at a time.** The parallel tracks above
+  express dependency order only; execution still authorizes one plan at a time unless explicitly
+  changed.
+- **EP-024 Connector OAuth, managed secrets & site onboarding** makes GA4/GSC/GAM connections
+  usable in a real pilot without env-only/local secret injection: OAuth consent/onboarding, token
+  lifecycle and refresh handling, production-suitable managed secret resolution,
+  revoked/expired/degraded consent handling with last-successful-observation/freshness semantics —
+  silent connector degradation is forbidden. Scope also includes the browser-monitoring onboarding
+  contract: a documented, non-deceptive monitoring User-Agent and a vendor-neutral stable egress
+  identity suitable for publisher allowlisting (no cloud provider selection here; that remains a
+  human gate), plus a reusable allowlisting guidance/runbook. Read-only scopes are preserved;
+  capability probing is preserved. Provider/vendor selection and any new secret-provider
+  architecture decision remain human gates (OPEN-003/OPEN-005 territory).
+- **EP-025 Home / Timeline & minimal Investigate product surface** gives publishers/operators a
+  usable view of the operational memory already collected: authenticated predominantly read-only
+  shell, site selection, Timeline, event/incident detail, evidence links, Last Known Good
+  references where available, and explicit source health rendered separately from publisher health
+  (e.g., "Browser Monitoring — DEGRADED · GA4 — HEALTHY · GSC — HEALTHY · GAM — HEALTHY";
+  browser observation degradation must never be presented as publisher/site failure). It includes
+  exactly one narrowly bounded write interaction: minimal Investigate intake on top of EP-020's
+  incident intake behavior ("What happened? / When did it start? / Which site or scope?").
+  No vanity dashboards, ticketing/chat/workflow management, billing, collaboration, enterprise
+  RBAC, or broad admin tooling.
+- **EP-026 Pilot reliability & operational readiness** includes retention/deletion enforcement
+  (with monitoring that retention jobs actually run), connector staleness detection, source health
+  exposure, cost telemetry roll-up with hard caps and circuit breakers, cross-source
+  DST/timezone hardening, AND a minimal self-observability baseline (queue depth/backlog
+  visibility, stale lease/job detection visibility, run duration/failure-rate metrics,
+  scheduler/worker health). It additionally owns **Monitoring Network Reliability**:
+  - stable documented browser-monitoring egress identity and identifiable non-deceptive
+    User-Agent so publishers can legitimately allowlist us; no stealth/evasion ever (ADR-020);
+  - automated browser compatibility checks during onboarding using EP-018 DIAGNOSTIC semantics:
+    a small bounded diagnostic set whose signals (navigation failures, HTTP/redirect anomalies,
+    challenge/CAPTCHA markers, known WAF response patterns, missing expected application shell,
+    repeatedly radically reduced content) deterministically produce source-health outcomes such
+    as HEALTHY / DEGRADED / BLOCKED / ACTION_REQUIRED. DOM variance alone never proves blocking;
+  - continuous browser-source reliability: repeated challenge/block indicators on a previously
+    healthy source become browser-source data-quality degradation (semantic family such as
+    `BROWSER_SOURCE_DEGRADED`, `BROWSER_ACCESS_CHALLENGE_SUSPECTED`,
+    `BROWSER_SOURCE_RECOVERED`), aligned with existing taxonomy rather than duplicating it.
+    Observation failure must never be emitted as `SITE_ERROR` or publisher failure;
+  - graceful partial operation: browser degradation must not block GA4/GSC/GAM/public-config
+    monitoring; after allowlisting/remediation a diagnostic re-check verifies recovery;
+  - reusable pilot procedures/runbook for allowlisting, OAuth permissions, browser compatibility
+    validation, and degraded-source troubleshooting.
+  Not a full observability platform — enough operational telemetry to run a real pilot safely.
+- **Limited Pilot technical-readiness gate:** before Limited Pilot is considered technically
+  ready there must be at minimum 3–5 end-to-end investigations built on Publisher Intelligence's
+  own evidence (real checkpoint history; realistic sanitized connector extracts or consenting
+  live/test data), manual review of investigation quality, at least one monetization case, at
+  least one missing/degraded-source case, a browser-compatibility/WAF case where feasible, and
+  measured operational cost for a representative site/workload. LLM synthesis remains after this
+  gate.
+- **Explicitly deferred CTO proposals** (do not add without demonstrated need): an
+  `event_candidates` table merely because multi-check confirmation exists (confirmation state is
+  reconstructed from immutable evidence per EVENTS.md); per-site `event_rule_overrides` before
+  pilot demand; full entity-mapping lifecycle before a concrete feature depends on persistent
+  cross-system mapping; LOC-threshold-driven module splits (refactors stay need-driven).
+- **Inspect AI stays one coherent ExecPlan (EP-022)** placed after the evidence pack so the
+  deterministic engine has meaningful behavior to evaluate, and before hypothesis ranking so
+  ranking is developed against an active eval runtime. ADR-129 is unchanged: "Inspect is the eval
+  engine. EVALS.md remains the contract."
+- **LLM synthesis** remains a later milestone AFTER deterministic hypothesis ranking exists, the
+  Inspect release gate is active, and Limited Pilot feedback (per the gate above) is available.
+  It is not a pilot prerequisite; it turns validated deterministic outputs into user-facing
+  explanations/reports.
+- **EP-021 additionally owns two future responsibilities:** (a) a minimal auditable mechanism for
+  operational changes / manual evidence notes that are not automatically discoverable — e.g.
+  "GAM configuration changed", operator rollback, deploy/change note, operational intervention —
+  tenant-scoped, timestamped, with author/source provenance and immutable history, always
+  distinguished from machine-observed evidence and never automatically promoted to deterministic
+  truth; and (b) realistic sanitized connector fixtures for GA4/GSC/GAM so deterministic
+  hypothesis ranking (EP-023) can be tested against traffic/monetization evidence without waiting
+  for live OAuth.
+- **Load-bearing invariant across all observation subsystems: observation failure is not
+  evidence of publisher failure.** Evidence availability must be modeled distinctly from
+  publisher state (available / unavailable / degraded-observation / positive publisher-failure
+  evidence); EP-019 records this foundation, EP-026 operationalizes it for browser sources.
+- **Known deferred gap:** full DOM/GPT-slot → GAM ad unit → placement mapping provenance/lifecycle
+  stays deferred until a concrete Incident Engine feature relies on persistent cross-system
+  mapping; it then becomes mandatory. This gap must remain visible here.
+- **Module-size refactor rule:** `backend/app/worker.py` and `backend/app/browser/persistence.py`
+  are growing but are NOT scheduled for standalone cleanup. Split/refactor them only when future
+  in-scope work touches them and the refactor measurably reduces implementation risk.
+- **Catalog breadth rule:** do not schedule more collectors or more event-rule breadth merely
+  because canonical docs describe them. The shortest path to demonstrated pilot value outranks
+  catalog completeness.
 - Detailed ExecPlans are created one at a time, when an EP becomes active. Do not pre-create
   detailed plans for later EPs.
 
