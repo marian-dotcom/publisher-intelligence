@@ -358,7 +358,9 @@ Last Known Good references with version fingerprints, a unified evidence-compara
 an idempotent investigation budget ledger, and retention-hold hooks — schema and invariants only,
 with no incident workflow yet. EP-020 adds the first incident workflow: deterministic intake,
 evidence-based time/scope localization with frozen Last Known Good references, and bounded
-incident-diagnostic checkpoints under a persistent budget ledger — service layer only, no UI. No path delivers alerts or makes indexing,
+incident-diagnostic checkpoints under a persistent budget ledger — service layer only, no UI. EP-021 adds typed append-only evidence relationships, auditable
+manual operational notes (human-reported evidence kept separate from machine observation), and
+deterministic content-hashed evidence packs. No path delivers alerts or makes indexing,
 authorization, revenue, or causal claims.
 
 The repository still excludes production OAuth onboarding, a managed secret provider, provider

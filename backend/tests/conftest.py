@@ -20,5 +20,6 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 from app.browser import models as browser_models  # noqa: E402, F401
 from app.connectors import models as connector_models  # noqa: E402, F401
 from app.events import models as event_models  # noqa: E402, F401
+from app.evidence import models as evidence_models  # noqa: E402, F401
 from app.incidents import models as incident_models  # noqa: E402, F401
 from app.metrics import models as metric_models  # noqa: E402, F401

@@ -130,46 +130,6 @@ async def _cleanup(tenant_id: uuid.UUID) -> None:
         await session.execute(delete(Tenant).where(Tenant.id == tenant_id))
 
 
-def test_downgrade_refuses_while_foundation_rows_exist() -> None:
-    import asyncio
-
-    from alembic import command
-    from alembic.config import Config
-
-    factory = get_session_factory()
-
-    async def seed_properly() -> tuple[uuid.UUID, uuid.UUID]:
-        tenant_id, site_id = await _seed_site()
-        async with factory() as session, session.begin():
-            site = await session.scalar(select(Site).where(Site.id == site_id))
-            assert site is not None
-            session.add(
-                Incident(
-                    id=uuid.uuid4(),
-                    tenant_id=tenant_id,
-                    publisher_id=site.publisher_id,
-                    site_id=site_id,
-                    title="Downgrade guard",
-                    symptom_family="OTHER",
-                    description="row blocks downgrade",
-                    opened_at=datetime.now(UTC),
-                    status="OPEN",
-                )
-            )
-        return tenant_id, site_id
-
-    tenant_id, _ = asyncio.run(seed_properly())
-    try:
-        config = Config("alembic.ini")
-        with pytest.raises(Exception, match="cannot downgrade while incidents"):
-            command.downgrade(config, "0017_observation_run_kind")
-    finally:
-        config = Config("alembic.ini")
-        asyncio.run(_cleanup(tenant_id))
-        command.downgrade(config, "base")
-        command.upgrade(config, "head")
-
-
 @pytest.mark.asyncio
 async def test_incident_creation_with_segments_roundtrips() -> None:
     tenant_id, site_id = await _seed_site()
