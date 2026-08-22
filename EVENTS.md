@@ -636,6 +636,25 @@ MANUAL
 
 These are deterministic strategies.
 
+## 15.1 Observation-kind cohort purity (ADR-130)
+
+Confirmation cohorts are built from routine scheduled evidence by default. Per ADR-130,
+validation, diagnostic, and incident-diagnostic observations:
+
+- MUST NOT enter scheduled comparison/predecessor selection;
+- MUST NOT enter baseline or confirmation cohorts (including window aggregation and
+  multi-URL corroboration);
+- MUST NOT satisfy or advance the next scheduled observation;
+
+unless a specific versioned rule explicitly allows the inclusion and records why.
+The out-of-band second check required by `IMMEDIATE_SECOND_CHECK` is the canonical exception
+pattern: a `VALIDATION` observation may confirm a specific linked candidate, but never becomes
+routine cohort evidence. Diagnostic observations carry persistent trigger provenance and remain
+immutable evidence even while excluded from derivation.
+
+This invariant preserves existing E1/E2 browser semantics and E3 public-config semantics, both of
+which already implement it.
+
 ---
 
 # 16. SINGLE_STRONG_OBSERVATION

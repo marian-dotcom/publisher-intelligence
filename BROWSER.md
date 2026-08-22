@@ -350,6 +350,11 @@ Do not create a proxy/geo system in MVP merely because geo-specific behavior is 
 
 These are investigation jobs, not permanent monitoring expansion.
 
+Per ADR-130, such runs (and operator/tooling-initiated diagnostic runs) carry an explicit
+observation kind and persistent trigger provenance. They remain immutable evidence but never
+silently enter scheduled cadence, comparison lineage, event confirmation cohorts, or future
+Last Known Good eligibility unless a versioned rule explicitly allows it.
+
 ---
 
 # 8. Canonical device profiles
