@@ -33,7 +33,8 @@ last cohort-purity gap in the evidence store before Incident Engine work begins.
 - controlled vocabularies: kind `SCHEDULED | DIAGNOSTIC | INCIDENT_DIAGNOSTIC`;
   trigger source vocabulary for non-scheduled runs;
 - scheduler-created runs are always `SCHEDULED` with null provenance;
-- CLI diagnostic registration creates `DIAGNOSTIC` runs with persistent provenance;
+- CLI diagnostic registration creates `DIAGNOSTIC` runs whose provenance includes a concrete
+  invocation UUID (category-only provenance is rejected);
 - comparison-lineage predecessor lookup excludes non-scheduled runs;
 - event derivation (`load_input`, window inputs) excludes non-scheduled runs;
 - window aggregation cohorts exclude non-scheduled runs;
@@ -104,10 +105,14 @@ Post-EP-017 main (`5e747cf`). Browser evidence pipeline:
 ## 5. Target Behavior
 
 1. Every new `checkpoint_runs` row records `observation_kind`. The scheduler path writes
-   `SCHEDULED` always. The CLI diagnostic path writes `DIAGNOSTIC` plus provenance. Nothing today
-   writes `INCIDENT_DIAGNOSTIC`; it exists in the vocabulary so I1 needs no migration.
-2. Non-scheduled runs record persistent provenance at creation: a controlled `trigger_source`
-   (e.g., `OPERATOR_CLI`) and a nullable correlation identifier for the requesting object.
+   `SCHEDULED` always. The CLI diagnostic path writes `DIAGNOSTIC` plus concrete provenance.
+   Nothing today writes `INCIDENT_DIAGNOSTIC`; it exists in the vocabulary so I1 needs no migration.
+2. Non-scheduled runs record persistent, concrete provenance at creation: a controlled
+   `trigger_source` (e.g., `OPERATOR_CLI`) AND a non-null correlation UUID identifying the
+   specific invocation/request (for the CLI: one fresh UUID per invocation; for future
+   incident diagnostics: the requesting investigation/action ID per the implementing EP).
+   SCHEDULED rows carry NULL provenance on both fields. Category-only provenance is impossible
+   at the database level.
 3. Comparison-lineage lookup refuses non-scheduled predecessors: a diagnostic rerun of the same
    URL/scenario produces no diff-derived events against it and does not displace the legitimate
    scheduled predecessor.
@@ -123,7 +128,8 @@ Example:
 Run: uv … python -m app.browser_cli register-and-enqueue … (existing pilot site)
 Expected:
   checkpoint_run persisted with observation_kind='DIAGNOSTIC',
-  trigger_source='OPERATOR_CLI'
+  trigger_source='OPERATOR_CLI',
+  trigger_correlation_id=<fresh invocation UUID>
   → completes normally, artifacts stored
   → appears in zero comparison lineages, zero derivations, zero events
 Next scheduled six-hour run behaves exactly as before EP-018.
@@ -170,21 +176,33 @@ The queue, worker, and repository boundaries are reused unchanged (ADR-079/081/0
 
 ## 8. Milestones
 
-### M0 — Baseline verification
+### M0 — Baseline verification and historical run audit
 
-Goal: bind EP-018 to merged EP-017 main and current behavior.
+Goal: bind EP-018 to merged EP-017 main and establish whether any historical non-scheduled runs
+exist before choosing a classification strategy.
 
 Acceptance:
 
 - [ ] branch starts from clean `origin/main`; post-merge CI green;
 - [ ] lineage/derivation/window code paths inspected and recorded in this plan;
-- [ ] confirm no other writer creates checkpoint runs besides scheduler and CLI service.
+- [ ] confirm no other writer creates checkpoint runs besides scheduler and CLI service;
+- [ ] **historical run audit**: inspect every environment that can hold `checkpoint_runs` data
+  (local pilot databases, any staging/production instances) for evidence of non-scheduled/ad-hoc
+  browser runs. Deterministic identification signals to check (in order of trust):
+  - creating job idempotency keys (`browser-checkpoint:{run_id}` CLI pattern vs the scheduler's
+    window-scoped keys) joined through the jobs table where history survives;
+  - `checkpoint_windows` whose `window_start` does not coincide with a canonical site-local
+    00/06/12/18 boundary (the CLI creates ad-hoc five-minute windows);
+  - window creation timestamps vs scheduler activity records.
+- [ ] record the audit result and chosen classification path (see M1) in this plan before M1
+  implementation starts.
 
 Validation:
 
 ```bash
 git status --short --branch && git rev-parse HEAD origin/main
 gh run list --branch main --limit 1
+# plus the audit queries against each target database, pasted into the Progress Log
 ```
 
 ### M1 — Migration 0017 and model changes
@@ -196,22 +214,39 @@ Implementation:
 - `checkpoint_runs.observation_kind`: text NOT NULL, server default `'SCHEDULED'`, CHECK constraint
   limited to `('SCHEDULED','DIAGNOSTIC','INCIDENT_DIAGNOSTIC')`;
 - `checkpoint_runs.trigger_source`: text NULL, bounded CHECK-controlled vocabulary (initial value:
-  `'OPERATOR_CLI'`); CHECK: `observation_kind='SCHEDULED'` implies NULL, non-scheduled implies
-  NOT NULL;
-- `checkpoint_runs.trigger_correlation_id`: uuid NULL (no foreign key by design — see Decision
-  Log); CHECK: required only when a source provides one, never for SCHEDULED;
+  `'OPERATOR_CLI'`);
+- `checkpoint_runs.trigger_correlation_id`: uuid, NOT NULL when `observation_kind !=
+  'SCHEDULED'`, NULL when `SCHEDULED` (CHECK-enforced both directions); no foreign key by design —
+  see Decision Log;
 - SQLAlchemy model mirrors constraints exactly; partial index supporting future per-kind queries
   only if a query path needs it (avoid speculative indexes);
-- backfill: none required — default classifies all existing rows as SCHEDULED (historically true:
-  all production rows originate from the scheduler; the single legacy CLI pilot run predates any
-  incident use and its reclassification is unnecessary);
+- **historical classification rule** (executes the M0 audit result — evidence semantics outrank
+  convenience):
+  1. If M0 proves no non-scheduled/ad-hoc runs exist in any target database, the column defaults
+     apply and no backfill runs; record that proof in this plan.
+  2. If ad-hoc runs are deterministically identifiable from trustworthy repository state
+     (jobs idempotency-key join or canonical-boundary window check per M0), migration 0017's
+     upgrade reclassifies exactly those rows to `DIAGNOSTIC` with `trigger_source='LEGACY_CLI'`
+     and a derived correlation UUID recorded alongside the audit evidence; the reclassification
+     statement is part of migration 0017 and is covered by its tests.
+  3. If identification is not deterministic, do NOT invent a heuristic: keep ambiguous legacy rows
+     on the SCHEDULED default but introduce an explicit fail-safe eligibility cutoff — a
+     migration-added boolean (or equivalent marker) that renders pre-migration ambiguous rows
+     ineligible for Last Known Good selection and records them for operator review; the marker
+     semantics must be documented here and honored by future LKG consumers before I1 ships.
 - downgrade drops the added columns; downgrade refuses if any non-SCHEDULED row exists
   (fail-closed evidence safety).
 
 Acceptance:
 
 - [ ] upgrade/downgrade/upgrade passes from clean database;
-- [ ] constraint violations rejected at database level (kind, source-implied-null rules);
+- [ ] constraint violations rejected at database level (kind; source-implied-null rules;
+      non-scheduled without correlation identity rejected; SCHEDULED with either provenance field
+      populated rejected);
+- [ ] two CLI diagnostic invocations persist distinct correlation UUIDs;
+- [ ] retry of the same run preserves its original correlation identity unchanged;
+- [ ] historical classification path matches the M0 audit result; if path 3 was taken, the
+      fail-safe marker exists with documented semantics and test coverage;
 - [ ] existing integration suite passes unchanged with defaults.
 
 Validation:
@@ -295,7 +330,8 @@ Acceptance:
 ## 9. Final Acceptance Criteria
 
 - [ ] every checkpoint run row carries a constrained `observation_kind`;
-- [ ] non-scheduled runs carry persistent, auditable trigger provenance;
+- [ ] non-scheduled runs carry persistent, auditable, **concrete** trigger provenance: source
+  vocabulary entry plus a non-null correlation identity; SCHEDULED rows carry none;
 - [ ] diagnostic/incident-diagnostic runs are excluded from lineage, derivation, aggregation, and
   documented LKG eligibility;
 - [ ] diagnostic runs remain complete immutable evidence;
@@ -330,9 +366,18 @@ Happy path:
 
 Failure / edge paths:
 
+- SCHEDULED run with `trigger_source` or `trigger_correlation_id` populated is rejected by the
+  database constraint;
+- non-scheduled run missing `trigger_source` is rejected;
+- non-scheduled run missing `trigger_correlation_id` is rejected (category-only provenance is
+  impossible);
+- two independent CLI diagnostic invocations persist distinct correlation UUIDs;
+- retry of the same persisted run preserves its original correlation ID unchanged;
 - unknown kind or source rejected before job insert;
-- non-scheduled run missing trigger source rejected by database constraint;
 - downgrade attempted while a DIAGNOSTIC row exists fails closed;
+- historical classification: if the M0 audit finds identifiable ad-hoc runs, they reclassify to
+  DIAGNOSTIC with LEGACY_CLI provenance; if identification is indeterminate, ambiguous legacy rows
+  carry the fail-safe ineligibility marker and are excluded from LKG eligibility;
 - concurrent scheduler tick still yields unique window/run/job identities (unchanged).
 
 Cohort counterexamples:
@@ -349,9 +394,12 @@ Regression:
 ## 12. Data / Migration Impact
 
 Migration `0017_observation_run_kind`: additive columns + constraints on `checkpoint_runs` only.
-No data backfill (default SCHEDULED is historically accurate). Downgrade drops columns but refuses
-to proceed while any non-SCHEDULED row exists — evidence is never rewritten or deleted to enable a
-downgrade. No changes to `checkpoint_windows`, artifacts, events, or public-config tables.
+Historical rows are classified strictly per the M0-audited rule in M1 (proof of no ad-hoc runs →
+default; deterministic identification → targeted DIAGNOSTIC reclassification with
+`LEGACY_CLI` provenance; otherwise fail-safe eligibility marker). No heuristic backfills.
+Downgrade drops columns but refuses to proceed while any non-SCHEDULED row exists — evidence is
+never rewritten or deleted to enable a downgrade. No changes to `checkpoint_windows`, artifacts,
+events, or public-config tables.
 
 ## 13. Security / Privacy Impact
 
@@ -390,8 +438,8 @@ create those writers (I-series), each recorded in that plan's Decision Log if ex
 
 ### 2026-08-22 — Provenance by value columns, not foreign key
 
-**Decision:** Store `trigger_source` (controlled string) and nullable
-`trigger_correlation_id` (uuid, no FK) rather than a hard FK into `jobs`.
+**Decision:** Store `trigger_source` (controlled string) and `trigger_correlation_id`
+(uuid, no FK) rather than a hard FK into `jobs`.
 
 **Reason:** The jobs table is operational infrastructure with independent lifecycle/retention
 (ADR-096); evidence rows must never block or depend on queue cleanup. Correlation remains
@@ -401,6 +449,38 @@ auditable by value.
 semantics stay typed relational columns (ADR-027).
 
 **Impact:** Cross-referencing requires an index-by-value lookup later; acceptable at MVP scale.
+
+### 2026-08-22 — Concrete correlation identity is mandatory for non-scheduled runs
+
+**Decision:** CHECK constraints require `trigger_correlation_id IS NOT NULL` whenever
+`observation_kind != 'SCHEDULED'`, and both provenance fields NULL for SCHEDULED. The CLI
+generates one fresh invocation UUID per diagnostic request.
+
+**Reason:** ADR-130 auditability requires identifying the concrete invocation that produced the
+evidence; a category alone cannot answer "which run/request was this?" during an investigation.
+
+**Alternatives:** Optional correlation — rejected: leaves provenance holes the audit trail cannot
+close.
+
+**Impact:** Every future non-scheduled writer must be able to supply a correlation identity;
+this is a designed entry requirement, not incidental.
+
+### 2026-08-22 — Historical rows are classified only from evidence
+
+**Decision:** Migration 0017's treatment of pre-existing rows follows the M0 historical-run audit:
+proven default-absence → plain default; deterministic identification → targeted DIAGNOSTIC
+reclassification with `LEGACY_CLI` provenance; indeterminate → fail-safe ineligibility marker on
+ambiguous legacy rows instead of any heuristic backfill.
+
+**Reason:** Silently labeling unknown-origin runs as SCHEDULED would let them act as baseline,
+event-cohort, and LKG evidence they were never guaranteed to be. Evidence semantics outrank
+convenience.
+
+**Alternatives:** Unconditional SCHEDULED default with no audit — rejected as potentially false
+at the record level.
+
+**Impact:** M0 gains a mandatory audit deliverable before M1 code is written; LKG consumers must
+honor the fail-safe marker if path 3 activates.
 
 ### 2026-08-22 — Kind set excludes VALIDATION for browser runs
 
@@ -437,6 +517,17 @@ To be recorded during implementation.
 Created from the approved architecture-gap reconciliation (ADR-129/ADR-130). Plan drafted READY:
 scope, migration behavior, acceptance criteria, and validation are fully defined; no open product
 or architecture decision blocks implementation. No implementation has started.
+
+### 2026-08-22 — Pre-merge planning correction
+
+Review of PR #19 tightened two contracts. First, trigger provenance must be concrete:
+`trigger_correlation_id` is NOT NULL whenever a run is non-scheduled (CHECK-enforced both
+directions), and CLI diagnostics generate one fresh invocation UUID per request. Second,
+historical rows may no longer be assumed SCHEDULED: M0 now requires an audited historical-run
+inspection, and M1 implements one of three evidence-derived classification paths (proven absence /
+deterministic LEGACY_CLI reclassification / fail-safe ineligibility marker), with the
+unconditional "historically accurate" claim removed. ADR-130 and DATA_MODEL.md were updated to
+state the identical contract.
 
 ## 21. Final Outcome / Retrospective
 

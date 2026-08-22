@@ -2849,7 +2849,13 @@ Exact applicability may vary by subsystem (browser runs, public-config fetches, 
    - deterministic event confirmation cohorts;
    - Last Known Good eligibility;
    unless a specific versioned rule explicitly declares and documents the inclusion.
-2. Trigger provenance for every non-scheduled observation MUST be persistent and auditable (the job/object that caused it — candidate, event, hypothesis, investigation, or operator action), not reconstructed after the fact.
+2. Trigger provenance for every non-scheduled observation MUST be persistent, auditable, and
+   concrete: it records BOTH a controlled `trigger_source` vocabulary entry AND a correlation
+   identity pointing at the specific invocation/request that produced the evidence (for example,
+   the operator CLI invocation UUID, or the requesting investigation/action ID for incident
+   diagnostics). A trigger category alone does not satisfy this requirement. There is no hard
+   foreign key into operational infrastructure (see ADR-096 retention coupling); auditability is
+   by stored value.
 3. Validation/diagnostic observations remain first-class immutable evidence. Exclusion from cohorts never means exclusion from storage.
 4. Subsystems keep their existing storage models (e.g., public-config's `fetch_kind` column); the taxonomy constrains semantics, not table shapes.
 

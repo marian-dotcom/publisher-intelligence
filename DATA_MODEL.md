@@ -752,7 +752,8 @@ template_id: uuid FK templates
 scenario_id: uuid FK browser_scenarios
 observation_kind: text          # ADR-130: SCHEDULED | DIAGNOSTIC | INCIDENT_DIAGNOSTIC
 trigger_source: text nullable   # controlled vocabulary; required when kind != SCHEDULED
-trigger_correlation_id: uuid nullable  # requesting-object correlation; no FK by design (ADR-130)
+trigger_correlation_id: uuid    # concrete invocation/request identity; NOT NULL when
+                                # kind != SCHEDULED, NULL for SCHEDULED; no FK by design (ADR-130)
 scheduled_for: timestamptz
 started_at: timestamptz
 completed_at: timestamptz nullable
