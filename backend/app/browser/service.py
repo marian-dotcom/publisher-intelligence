@@ -173,6 +173,95 @@ class CheckpointService:
             trigger_correlation_id=invocation_id,
         )
 
+    async def enqueue_incident_diagnostic(
+        self,
+        *,
+        tenant_id: uuid.UUID,
+        site_id: uuid.UUID,
+        incident_id: uuid.UUID,
+        monitored_url_id: uuid.UUID,
+        scenario_id: uuid.UUID,
+    ) -> EnqueuedCheckpoint:
+        """Create one INCIDENT_DIAGNOSTIC checkpoint run and enqueue it.
+
+        ADR-130/EP-020: the diagnostic rides an ad-hoc five-minute window bound
+        to the requesting incident. Provenance is concrete (incident id) and
+        immutable after creation; completion never feeds scheduled cohorts.
+        """
+        now = datetime.now(UTC)
+        async with self._session_factory() as session, session.begin():
+            site = await session.scalar(
+                select(Site).where(
+                    Site.id == site_id,
+                    Site.tenant_id == tenant_id,
+                    Site.status == "ACTIVE",
+                )
+            )
+            if site is None:
+                raise ValueError("incident diagnostics require an active tenant-owned site")
+            monitored_url = await session.scalar(
+                select(MonitoredUrl).where(
+                    MonitoredUrl.id == monitored_url_id,
+                    MonitoredUrl.tenant_id == tenant_id,
+                    MonitoredUrl.site_id == site_id,
+                    MonitoredUrl.status == "ACTIVE",
+                )
+            )
+            scenario = await session.scalar(
+                select(BrowserScenario).where(
+                    BrowserScenario.id == scenario_id,
+                    BrowserScenario.tenant_id == tenant_id,
+                    BrowserScenario.site_id == site_id,
+                    BrowserScenario.status == "ACTIVE",
+                )
+            )
+            if monitored_url is None or scenario is None:
+                raise ValueError("diagnostic target url/scenario not found for site")
+            window = CheckpointWindow(
+                id=uuid.uuid4(),
+                tenant_id=tenant_id,
+                site_id=site.id,
+                scheduled_for=now,
+                window_start=now,
+                window_end=now + timedelta(minutes=5),
+                status="SCHEDULED",
+            )
+            run = CheckpointRun(
+                id=uuid.uuid4(),
+                tenant_id=tenant_id,
+                site_id=site.id,
+                checkpoint_window_id=window.id,
+                monitored_url_id=monitored_url.id,
+                template_id=monitored_url.template_id,
+                scenario_id=scenario.id,
+                observation_kind="INCIDENT_DIAGNOSTIC",
+                trigger_source="INCIDENT",
+                trigger_correlation_id=incident_id,
+                scheduled_for=now,
+                status="PENDING",
+                attempt_count=0,
+                collector_bundle_version="b8-v1",
+                environment={},
+                limitations=[],
+                manifest={},
+            )
+            session.add(window)
+            await session.flush()
+            session.add(run)
+            job_id = await self._queue.enqueue(
+                job_type="BROWSER_CHECKPOINT",
+                tenant_id=tenant_id,
+                payload={"checkpoint_run_id": str(run.id)},
+                idempotency_key=f"browser-checkpoint:{run.id}",
+                max_attempts=2,
+            )
+        return EnqueuedCheckpoint(
+            tenant_id=tenant_id,
+            checkpoint_run_id=run.id,
+            job_id=job_id,
+            trigger_correlation_id=incident_id,
+        )
+
     async def _tenant(self, session: AsyncSession, slug: str, name: str) -> Tenant:
         normalized_slug = _slug(slug)
         tenant = await session.scalar(select(Tenant).where(Tenant.slug == normalized_slug))
