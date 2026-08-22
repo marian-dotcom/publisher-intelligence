@@ -1,5 +1,6 @@
 import json
 import uuid
+from dataclasses import replace
 from typing import Any, cast
 
 from sqlalchemy import select
@@ -17,7 +18,10 @@ from app.events.persistence import (
     PersistenceResult,
 )
 from app.events.registry import RULES_BY_CODE, definition_id
-from app.public_config.evaluator import PublicConfigEvaluationInput
+from app.public_config.evaluator import (
+    MUTUALLY_EXCLUSIVE_ADS_CODES,
+    PublicConfigEvaluationInput,
+)
 from app.public_config.models import PublicConfigSnapshot
 
 PUBLIC_CONFIG_RELATIONS = VALID_RELATIONS | {"VALIDATION"}
@@ -48,6 +52,12 @@ class PublicConfigEventRepository:
                 if candidate.action == "RESOLVE_CONDITION":
                     resolved += int(await self._resolve_condition(session, value, candidate))
                     continue
+                if candidate.action == "UPSERT_CONDITION" and (
+                    candidate.code in MUTUALLY_EXCLUSIVE_ADS_CODES
+                ):
+                    resolved += int(
+                        await self._resolve_exclusive_siblings(session, value, candidate)
+                    )
                 outcome = await self._persist_condition(session, value, candidate)
                 created += int(outcome == "CREATED")
                 updated += int(outcome == "UPDATED")
@@ -182,6 +192,19 @@ class PublicConfigEventRepository:
             active.severity, candidate.severity or rule.default_severity
         )
         return "UPDATED"
+
+    async def _resolve_exclusive_siblings(
+        self,
+        session: AsyncSession,
+        value: PublicConfigEvaluationInput,
+        candidate: EventCandidate,
+    ) -> bool:
+        resolved_any = False
+        for code in sorted(MUTUALLY_EXCLUSIVE_ADS_CODES - {candidate.code}):
+            resolved_any |= await self._resolve_condition(
+                session, value, replace(candidate, code=code)
+            )
+        return resolved_any
 
     async def _resolve_condition(
         self,

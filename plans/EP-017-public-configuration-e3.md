@@ -763,6 +763,40 @@ or unbounded normalized rows in snapshot JSON.
 comparable by full hash, and diagnostic summaries remain safe to persist. Production egress policy
 is still required for DNS-rebinding defense.
 
+### 2026-08-22 — ADS_TXT_INVALID uses default severity HIGH
+
+**Decision:** The fixed `e3-v1` registry assigns `default_severity="HIGH"` to
+`ADS_TXT_INVALID` (severity policy `FIXED_DEFAULT`).
+
+**Reason:** A materially invalid ads.txt file destroys the publisher's authorized-seller record
+the same way a missing or empty file does, so it belongs in the same HIGH tier as its sibling
+conditions. The plan table's "MEDIUM/HIGH" was resolved to the higher value at implementation.
+
+**Alternatives:** MEDIUM, which would have under-weighted the one condition that proves the file
+exists but is unusable.
+
+**Impact:** Registry is authoritative; the plan table above remains the design history. No
+severity escalation logic depends on this default alone — active conditions can still only rise,
+never silently fall, per E2 semantics.
+
+### 2026-08-22 — Mutually exclusive ads.txt state conditions
+
+**Decision:** Define `{ADS_TXT_MISSING, ADS_TXT_EMPTY_200, ADS_TXT_INVALID}` explicitly as the
+mutually exclusive ads.txt condition set. When an `UPSERT_CONDITION` confirms one of these codes,
+the persistence layer resolves any currently ACTIVE sibling condition in the same transaction,
+before creating the new active condition.
+
+**Reason:** The three codes describe mutually exclusive states of the same ads.txt observation.
+Without explicit supersession, a MISSING → EMPTY transition left two contradictory active
+conditions on the Timeline (found in post-implementation review).
+
+**Alternatives:** Resolve siblings inside `_persist_condition` implicitly after creation;
+leave coexistence documented instead.
+
+**Impact:** Deterministic lifecycle semantics preserved: resolution uses the same evidence,
+ordering guard, and idempotency rules as recovery resolution; unrelated condition families are
+untouched; healthy recovery still resolves all applicable ads.txt conditions as designed.
+
 ## 19. Discoveries / Surprises
 
 - `event_evidence_refs` is already generic at the database layer, but the Python `EvidencePointer`
@@ -926,6 +960,18 @@ and final acceptance box against executed tests. Ran the full local validation l
 PostgreSQL-backed integration suite and scheduler/worker smoke checks that earlier milestones had
 delegated to CI. Wrote the retrospective. Marked EP-017 COMPLETE. This final documentation commit
 still requires one green CI run before PR #18 is marked Ready for review.
+
+### 2026-08-22 — Post-review correction: exclusive ads.txt condition supersession
+
+The pre-review review of PR #18 found that a confirmed MISSING → EMPTY_200 transition left both
+conditions ACTIVE simultaneously. Fixed by defining `MUTUALLY_EXCLUSIVE_ADS_CODES` explicitly in
+the evaluator and resolving active sibling conditions transactionally whenever an
+`UPSERT_CONDITION` confirms one of them (`event_persistence.py`), with a Decision Log entry for
+the previously implicit ADS_TXT_INVALID severity choice. Added the integration regression test
+`test_ads_state_transitions_resolve_mutually_exclusive_conditions` covering both transition
+directions, INVALID → healthy recovery, repeated-evaluation idempotency, and an unrelated active
+browser condition staying untouched, plus a unit pin of the explicit set against the evaluator
+catalog.
 
 ## 21. Validation Results
 

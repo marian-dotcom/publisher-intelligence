@@ -569,3 +569,159 @@ async def test_event_ads_condition_supports_resolves_and_recurs(
         "RECOVERY",
         "VALIDATION",
     }
+
+
+async def test_ads_state_transitions_resolve_mutually_exclusive_conditions(
+    public_config_fixture: PublicConfigFixture,
+) -> None:
+    fixture = public_config_fixture
+    factory = get_session_factory()
+    repository = PublicConfigRepository(factory)
+    valid = b"example.net, account-1, DIRECT\n"
+    service = PublicConfigService(
+        repository,
+        JobQueue(factory),
+        _ResponseSequenceClient(
+            [
+                (200, valid),
+                (404, b""),
+                (404, b""),
+                (200, b""),
+                (200, b""),
+                (200, b""),
+                (200, b"garbage-line-without-valid-record\n"),
+                (200, b"garbage-line-without-valid-record\n"),
+                (200, valid),
+                (200, valid),
+            ]
+        ),  # type: ignore[arg-type]
+        clock=_MinuteClock(),
+        event_service=PublicConfigEventService(repository, PublicConfigEventRepository(factory)),
+    )
+
+    async def scheduled(hour: int) -> PublicConfigRunResult:
+        return await service.run_scheduled(
+            tenant_id=fixture.tenant_id,
+            site_id=fixture.site_id,
+            config_type="ADS_TXT",
+            scheduled_for=datetime(2026, 8, 21, hour, tzinfo=UTC),
+            attempt=1,
+            rule_version=PUBLIC_CONFIG_RULE_VERSION,
+        )
+
+    async def validate(
+        primary_snapshot_id: uuid.UUID, *, attempt: int = 1
+    ) -> PublicConfigRunResult:
+        return await service.run_validation(
+            tenant_id=fixture.tenant_id,
+            site_id=fixture.site_id,
+            config_type="ADS_TXT",
+            primary_snapshot_id=primary_snapshot_id,
+            attempt=attempt,
+            rule_version=PUBLIC_CONFIG_RULE_VERSION,
+        )
+
+    async def condition_status(code: str) -> list[str]:
+        async with factory() as session:
+            events = list(
+                (
+                    await session.scalars(
+                        select(Event)
+                        .where(
+                            Event.tenant_id == fixture.tenant_id,
+                            Event.event_definition_id == definition_id(code),
+                        )
+                        .order_by(Event.started_at)
+                    )
+                ).all()
+            )
+        return [event.status for event in events]
+
+    await scheduled(0)
+    missing = await scheduled(1)
+    await validate(missing.snapshot_id)
+    assert await condition_status("ADS_TXT_MISSING") == ["ACTIVE"]
+
+    unrelated_id = uuid.uuid4()
+    detected_at = datetime(2026, 8, 20, tzinfo=UTC)
+    async with factory() as session, session.begin():
+        session.add(
+            Event(
+                id=unrelated_id,
+                tenant_id=fixture.tenant_id,
+                site_id=fixture.site_id,
+                event_definition_id=definition_id("JS_ERROR_STARTED"),
+                template_id=None,
+                started_at=detected_at,
+                occurred_after_at=None,
+                occurred_before_at=detected_at,
+                time_precision="WINDOW",
+                detected_at=detected_at,
+                severity="MEDIUM",
+                observation_confidence="HIGH",
+                status="ACTIVE",
+                source_kind="BROWSER_CHECKPOINT",
+                source_version="e2-v1",
+                condition_key=f"unrelated-js-error-{unrelated_id.hex}",
+                scope={"scenario": "core_desktop_v2"},
+                summary="unrelated active browser condition",
+                details={},
+            )
+        )
+
+    empty = await scheduled(2)
+    await validate(empty.snapshot_id)
+    assert await condition_status("ADS_TXT_MISSING") == ["RESOLVED"]
+    assert await condition_status("ADS_TXT_EMPTY_200") == ["ACTIVE"]
+    assert await condition_status("ADS_TXT_INVALID") == []
+    assert await condition_status("JS_ERROR_STARTED") == ["ACTIVE"]
+
+    repeated_empty = await validate(empty.snapshot_id, attempt=2)
+    assert await condition_status("ADS_TXT_EMPTY_200") == ["ACTIVE"]
+    assert await condition_status("ADS_TXT_MISSING") == ["RESOLVED"]
+
+    invalid = await scheduled(3)
+    await validate(invalid.snapshot_id)
+    assert await condition_status("ADS_TXT_EMPTY_200") == ["RESOLVED"]
+    assert await condition_status("ADS_TXT_INVALID") == ["ACTIVE"]
+    assert await condition_status("JS_ERROR_STARTED") == ["ACTIVE"]
+
+    recovery = await scheduled(4)
+    assert recovery.validation_requested is True
+    await validate(recovery.snapshot_id)
+    assert await condition_status("ADS_TXT_INVALID") == ["RESOLVED"]
+    assert await condition_status("ADS_TXT_MISSING") == ["RESOLVED"]
+    assert await condition_status("ADS_TXT_EMPTY_200") == ["RESOLVED"]
+    assert await condition_status("JS_ERROR_STARTED") == ["ACTIVE"]
+
+    async with factory() as session:
+        empty_events = list(
+            (
+                await session.scalars(
+                    select(Event).where(
+                        Event.tenant_id == fixture.tenant_id,
+                        Event.event_definition_id == definition_id("ADS_TXT_EMPTY_200"),
+                    )
+                )
+            ).all()
+        )
+        empty_refs = list(
+            (
+                await session.scalars(
+                    select(EventEvidenceRef).where(
+                        EventEvidenceRef.event_id.in_([event.id for event in empty_events])
+                    )
+                )
+            ).all()
+        )
+        unrelated_refs = list(
+            (
+                await session.scalars(
+                    select(EventEvidenceRef).where(EventEvidenceRef.event_id == unrelated_id)
+                )
+            ).all()
+        )
+    assert len(empty_events) == 1
+    assert empty_events[0].status == "RESOLVED"
+    assert repeated_empty.snapshot_id in {ref.source_id for ref in empty_refs}
+    assert unrelated_refs == []

@@ -2,7 +2,12 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from app.public_config.contracts import StoredPublicConfigSnapshot
-from app.public_config.evaluator import PublicConfigEvaluationInput, evaluate
+from app.public_config.evaluator import (
+    ADS_CONDITION_CODES,
+    MUTUALLY_EXCLUSIVE_ADS_CODES,
+    PublicConfigEvaluationInput,
+    evaluate,
+)
 
 TENANT_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 SITE_ID = uuid.UUID("00000000-0000-0000-0000-000000000002")
@@ -150,3 +155,8 @@ def test_ads_recovery_requires_agreement_and_targets_all_active_identities() -> 
         {pointer.relation for pointer in candidate.evidence} == {"RECOVERY", "VALIDATION"}
         for candidate in confirmed.candidates
     )
+
+
+def test_mutually_exclusive_ads_codes_match_condition_catalog() -> None:
+    assert MUTUALLY_EXCLUSIVE_ADS_CODES == frozenset(ADS_CONDITION_CODES.values())
+    assert len(MUTUALLY_EXCLUSIVE_ADS_CODES) == 3

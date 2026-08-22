@@ -10,6 +10,9 @@ ADS_CONDITION_CODES = {
     "EMPTY": "ADS_TXT_EMPTY_200",
     "INVALID": "ADS_TXT_INVALID",
 }
+# These three condition codes describe mutually exclusive states of the same
+# ads.txt observation. Confirming one supersedes any currently active sibling.
+MUTUALLY_EXCLUSIVE_ADS_CODES = frozenset(ADS_CONDITION_CODES.values())
 
 
 @dataclass(frozen=True, slots=True)
