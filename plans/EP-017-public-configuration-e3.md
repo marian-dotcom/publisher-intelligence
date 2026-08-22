@@ -1,9 +1,9 @@
 # EP-017 — Public Configuration E3
 
-**Status:** IN_PROGRESS
+**Status:** COMPLETE
 **Owner:** Codex / Engineering
 **Created:** 2026-08-21
-**Updated:** 2026-08-21
+**Updated:** 2026-08-22
 **Target milestone:** E3 — Public configuration
 **MVP scope impact:** NO
 **New infrastructure category:** NO
@@ -14,8 +14,8 @@
 - [x] M1 — Add immutable public-configuration snapshots and ads.txt records
 - [x] M2 — Implement bounded, SSRF-safe public fetches and semantic parsers
 - [x] M3 — Schedule routine observations and immediate high-risk validation
-- [ ] M4 — Derive deterministic robots.txt and ads.txt events
-- [ ] M5 — Prove security, lifecycle, migration, regression, and release readiness
+- [x] M4 — Derive deterministic robots.txt and ads.txt events
+- [x] M5 — Prove security, lifecycle, migration, regression, and release readiness
 
 ## 1. Purpose and User Outcome
 
@@ -466,19 +466,19 @@ Implementation:
 
 Acceptance:
 
-- [ ] formatting-only or first-baseline changes create no event;
-- [ ] routine valid ads.txt/robots semantic changes create one idempotent point event;
-- [ ] broad root block creates no event after one fetch and one CRITICAL point event after matching
+- [x] formatting-only or first-baseline changes create no event;
+- [x] routine valid ads.txt/robots semantic changes create one idempotent point event;
+- [x] broad root block creates no event after one fetch and one CRITICAL point event after matching
   validation;
-- [ ] validation disagreement creates no event and preserves both observations;
-- [ ] missing, empty 200, and material invalidity are distinct active conditions;
-- [ ] repeated affected evidence supports one active condition; confirmed valid recovery resolves it;
-- [ ] a later recurrence creates a new active event;
-- [ ] source evidence ownership and typed relations are enforced for public-config and unchanged for
+- [x] validation disagreement creates no event and preserves both observations;
+- [x] missing, empty 200, and material invalidity are distinct active conditions;
+- [x] repeated affected evidence supports one active condition; confirmed valid recovery resolves it;
+- [x] a later recurrence creates a new active event;
+- [x] source evidence ownership and typed relations are enforced for public-config and unchanged for
   browser events;
-- [ ] summaries mention observed rule/record scope but never assert indexing, authorization,
+- [x] summaries mention observed rule/record scope but never assert indexing, authorization,
   revenue, or causation;
-- [ ] no E3 path delivers an alert.
+- [x] no E3 path delivers an alert.
 
 Validation:
 
@@ -503,30 +503,30 @@ Implementation:
 
 Acceptance:
 
-- [ ] all M1–M4 criteria pass;
-- [ ] every event rule has positive, no-change, noise, recovery where applicable, missing-data,
+- [x] all M1–M4 criteria pass;
+- [x] every event rule has positive, no-change, noise, recovery where applicable, missing-data,
   incompatible-version, scope, dedupe, and validation-run tests;
-- [ ] no regression occurs in the existing E1/E2 event suite or browser security suite;
-- [ ] migration inventory and downgrade safety are explicit;
-- [ ] documentation matches the implemented contracts and no unplanned infrastructure appears;
-- [ ] `git diff --check`, secret scan, full backend CI, and full frontend CI pass;
-- [ ] the plan is marked `COMPLETE` only after results and commit/PR state are recorded.
+- [x] no regression occurs in the existing E1/E2 event suite or browser security suite;
+- [x] migration inventory and downgrade safety are explicit;
+- [x] documentation matches the implemented contracts and no unplanned infrastructure appears;
+- [x] `git diff --check`, secret scan, full backend CI, and full frontend CI pass;
+- [x] the plan is marked `COMPLETE` only after results and commit/PR state are recorded.
 
 ## 11. Final Acceptance Criteria
 
-- [ ] active sites produce deterministic six-hour robots.txt and ads.txt snapshots without
+- [x] active sites produce deterministic six-hour robots.txt and ads.txt snapshots without
   Chromium;
-- [ ] all destinations originate from tenant-owned configured sites and pass every SSRF gate;
-- [ ] snapshots and seller records are immutable, bounded, retry-safe, and tenant-isolated;
-- [ ] RFC 9309 and ads.txt 1.1 semantics are covered by executable fixtures;
-- [ ] semantic normalization suppresses formatting/order/comment noise;
-- [ ] high-risk conditions require a linked second fetch and never treat that validation as the
+- [x] all destinations originate from tenant-owned configured sites and pass every SSRF gate;
+- [x] snapshots and seller records are immutable, bounded, retry-safe, and tenant-isolated;
+- [x] RFC 9309 and ads.txt 1.1 semantics are covered by executable fixtures;
+- [x] semantic normalization suppresses formatting/order/comment noise;
+- [x] high-risk conditions require a linked second fetch and never treat that validation as the
   next scheduled observation;
-- [ ] E3 point and condition events are deterministic, evidence-backed, correctly scoped, and
+- [x] E3 point and condition events are deterministic, evidence-backed, correctly scoped, and
   lifecycle-safe;
-- [ ] existing browser events still persist with their current evidence and lifecycle behavior;
-- [ ] alerts, commercial recommendations, and causal claims remain absent;
-- [ ] all targeted and full validation commands pass.
+- [x] existing browser events still persist with their current evidence and lifecycle behavior;
+- [x] alerts, commercial recommendations, and causal claims remain absent;
+- [x] all targeted and full validation commands pass.
 
 ## 12. Final Validation
 
@@ -900,6 +900,33 @@ The user authorized staging and committing this local M4 checkpoint. Push and PR
 separate actions. After the commit, the next step is explicit push authorization so Draft PR #18
 can run CI and close the remaining PostgreSQL validation gate.
 
+### 2026-08-21 — M4 complete
+
+Published the M4 checkpoint to Draft PR #18 at head `066a178`. GitHub Actions CI passed all jobs on
+both the push event and the pull_request event: backend static checks and unit tests, Alembic
+migration to head `0016`, the full PostgreSQL integration suite including
+`tests/integration/test_public_configuration.py` event/validation tests and the unchanged-browser
+`tests/integration/test_event_lifecycle.py` regression, frontend checks, and repository safety.
+This supplied the PostgreSQL evidence that was unavailable locally; M4 acceptance is complete.
+
+Next step: implement M5 — documentation, final diff review, full local validation ladder,
+retrospective, and release readiness.
+
+### 2026-08-22 — M5 started
+
+Resumed EP-017 from a clean checkout of `agent/implement-ep-017` at `066a178`. Re-verified that CI
+passed for every check run at the M4 head. Confirmed no local-only commits existed and the working
+tree was clean before any edit. Began final documentation updates.
+
+### 2026-08-22 — M5 complete; EP-017 COMPLETE
+
+Updated README with a public-configuration (E3) capability section and refreshed the repository
+boundary summary to name EP-017 as implemented with its explicit exclusions. Checked every M4/M5
+and final acceptance box against executed tests. Ran the full local validation ladder including the
+PostgreSQL-backed integration suite and scheduler/worker smoke checks that earlier milestones had
+delegated to CI. Wrote the retrospective. Marked EP-017 COMPLETE. This final documentation commit
+still requires one green CI run before PR #18 is marked Ready for review.
+
 ## 21. Validation Results
 
 ### Planning validation — 2026-08-21
@@ -986,6 +1013,98 @@ can run CI and close the remaining PostgreSQL validation gate.
 - M4 status: implementation complete locally; acceptance remains open pending PostgreSQL/CI
   validation.
 
+### M4 GitHub validation — 2026-08-21
+
+- Draft PR #18 head `066a178`: PASS.
+- GitHub Actions CI: PASS on both the push event and the pull_request event; backend (static
+  checks, unit tests, Alembic migration, full PostgreSQL integration suite including E3
+  event/validation tests and unchanged-browser lifecycle regression), frontend, and
+  repository-safety jobs all succeeded.
+- M4 status: COMPLETE.
+
+### M5 local validation — 2026-08-22
+
+Local tooling was provisioned for this milestone (`uv`, pnpm via corepack, Docker daemon), so the
+PostgreSQL/Docker gates that previous milestones delegated to CI were executed locally against a
+disposable `postgres:16.4-alpine` container on port 5433 and the Compose MinIO services:
+
+- `ruff format --check .`: PASS, 193 files already formatted.
+- `ruff check .`: PASS.
+- `mypy app tests scripts migrations/env.py`: PASS, 177 source files.
+- `pytest tests/unit`: PASS, 253 tests; one existing Starlette deprecation warning.
+- `alembic upgrade head`: PASS from clean database through head `0016_public_config_events_e3`;
+  single head confirmed via `alembic heads`.
+- `RUN_INTEGRATION=1 pytest tests/integration`: PASS, 36/36 tests, including migrations,
+  public-config persistence/ownership/validation/events, event lifecycle browser regression, GA4/
+  GSC/GAM connectors, cross-source metrics, jobs, storage, and real Chromium checkpoint runs
+  (Playwright Chromium installed; fixture sites are loopback with explicit
+  `BROWSER_ALLOW_PRIVATE_NETWORKS=true` test opt-in).
+- `python -m app.scheduler --once`: PASS; public configuration scheduling pass completed with zero
+  configured sites.
+- `python -m app.worker --once`: PASS.
+- Frontend `pnpm install --frozen-lockfile`, lint, typecheck, test, build: PASS (local Node v22.18.0
+  emits an engine warning against the pinned Node 24 requirement; CI uses the pinned version and
+  passes).
+- `python scripts/check_secrets.py`: PASS.
+- `docker compose config`: PASS.
+- `git diff --check` and clean `git status`: PASS.
+- M5 status: COMPLETE.
+
 ## 22. Final Outcome / Retrospective
 
-Not yet implemented. Complete this section only after all milestones and final validation pass.
+### What shipped
+
+E3 gives every active site continuous, Chromium-independent observation of its public
+`/robots.txt` and `/ads.txt`. Immutable snapshots and normalized ads.txt seller records preserve
+bounded semantic evidence with scheduled-versus-validation provenance. Deterministic parsers
+implement RFC 9309 robots semantics and ads.txt 1.1 records/variables. A fixed `e3-v1` registry
+derives low-noise point events for routine semantic changes and uses a linked independent second
+fetch (`IMMEDIATE_SECOND_CHECK`) before recording high-risk states such as a new universal robots
+block or ads.txt becoming missing, empty-over-200, or materially invalid. ads.txt conditions reuse
+the E2 active-condition identity with support accumulation, strict recovery confirmation, and
+recurrence-as-new-event behavior. All events carry typed `PUBLIC_CONFIG_SNAPSHOT` evidence and
+state nothing about indexing, authorization, revenue, or causation. No alert delivery exists.
+
+### What changed from the original plan
+
+- The migration file was named `0016_public_config_events_e3` rather than the planned
+  `0016_public_configuration_e3`; content matches the plan.
+- Raw file bodies are intentionally not stored; the bounded normalized snapshot plus ads.txt
+  records are the durable source evidence, leaving the canonical `artifact_id` null (Decision Log).
+- The redirect policy is stricter than RFC 9309/IAB interoperability: only the configured host and
+  its www alias are followed (Decision Log).
+- Historical migration 0013's registry seed is now explicitly bounded to its six browser rules so a
+  fresh database does not receive E3 definitions early (Discovery).
+
+### Validation performed
+
+See Validation Results above. Final gate: full local ladder including 253 unit tests, 36/36
+PostgreSQL-backed integration tests, Alembic upgrade to `0016` from clean state, scheduler/worker
+smoke runs, frontend suite/build, secret scan, compose config, whitespace/diff checks — matching
+green GitHub Actions CI at heads `066a178` (M4) and the prior milestone heads.
+
+### Known limitations
+
+- High-severity rule delivery remains disabled by design until shadow/review/calibration work.
+- DNS rebinding cannot be fully eliminated in application code; production egress enforcement is
+  still required by `SECURITY.md`.
+- Cross-authority redirects (robots delegation, third-party ads.txt files) are recorded as blocked
+  until tenant-configured aliases exist.
+- `SUBDOMAIN` and `INVENTORYPARTNERDOMAIN` references are inert metadata in E3.
+- Sitemap handling and crawler-specific policy changes remain deferred.
+
+### Follow-ups
+
+- Mark PR #18 Ready for review after this commit's CI run passes; merge after review.
+- Next approved milestone family per PLANS.md §76 / ADR-114: Timeline/Home surfaces, incident
+  intake/localization, evidence pack, then candidate ranking, contradictions, LLM synthesis, and
+  the evals release gate.
+- OPEN decisions (auth provider, cloud/object storage, LLM provider, monitoring vendor) remain open
+  until their implementation point.
+
+### Lessons for AGENTS/DECISIONS
+
+No durable decision changes. Existing ADRs (023, 040–043, 089, 090, 093, 096, 112) proved
+sufficient without amendment. The pattern of delegating PostgreSQL validation to CI when local
+infrastructure is absent worked, but provisioning local Postgres/MinIO made final validation
+materially stronger and cheaper to interpret.
