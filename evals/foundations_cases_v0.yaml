@@ -1,0 +1,50 @@
+# Foundations smoke cases for the EP-019–021 deterministic SUT.
+# NOT part of the 76-case RCA corpus. NOT release-gating.
+# kind MUST stay "foundations_smoke_v0"; see ADR-129 / EVALS.md §77.
+kind: foundations_smoke_v0
+cases:
+  - case_id: FND-LOC-001
+    input:
+      runs:
+        - run_id: r1
+          observation_kind: SCHEDULED
+          status: COMPLETE
+          completed_at: "2026-08-20T06:00:00+00:00"
+        - run_id: r2
+          observation_kind: SCHEDULED
+          status: SITE_ERROR
+          completed_at: "2026-08-21T12:00:00+00:00"
+      onset: "2026-08-21T00:00:00+00:00"
+      candidate_run:
+        run_id: r1
+        observation_kind: SCHEDULED
+        status: COMPLETE
+        fingerprints: {collector_bundle: b8-v1}
+      fingerprints: {collector_bundle: b8-v1}
+      resource_kind: DRILLDOWN
+      used: 2
+    expected:
+      anchor: r1
+      lkg_eligible: true
+      within_budget: true
+
+  - case_id: FND-LKG-002
+    input:
+      runs:
+        - run_id: d1
+          observation_kind: DIAGNOSTIC
+          status: COMPLETE
+          completed_at: "2026-08-20T06:00:00+00:00"
+      onset: null
+      candidate_run:
+        run_id: d1
+        observation_kind: DIAGNOSTIC
+        status: COMPLETE
+        fingerprints: {collector_bundle: b8-v1}
+      fingerprints: {collector_bundle: b9-v1}
+      resource_kind: DIAGNOSTIC_RUN
+      used: 8
+    expected:
+      anchor: null
+      lkg_eligible: false
+      within_budget: false

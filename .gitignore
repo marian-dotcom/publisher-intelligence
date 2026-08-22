@@ -28,3 +28,4 @@ playwright-report/
 test-results/
 browser-profiles/
 tmp/
+backend/logs/
