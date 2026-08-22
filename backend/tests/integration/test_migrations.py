@@ -30,6 +30,11 @@ async def test_schema_is_minimal_and_rejects_cancelled_status() -> None:
         )
         assert tables == {
             "ads_txt_records",
+            "incidents",
+            "incident_symptom_segments",
+            "investigation_usage",
+            "last_known_good_refs",
+            "retention_holds",
             "alembic_version",
             "artifacts",
             "browser_scenarios",

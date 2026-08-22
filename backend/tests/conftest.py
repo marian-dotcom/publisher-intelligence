@@ -11,3 +11,14 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     for item in items:
         if "integration" in item.keywords:
             item.add_marker(skip)
+
+
+# Import every model module so the shared SQLAlchemy metadata contains all
+# tables and cross-module foreign keys (e.g. retention holds referencing
+# connector source extracts) resolve in every test process, mirroring
+# migrations/env.py.
+from app.browser import models as browser_models  # noqa: E402, F401
+from app.connectors import models as connector_models  # noqa: E402, F401
+from app.events import models as event_models  # noqa: E402, F401
+from app.incidents import models as incident_models  # noqa: E402, F401
+from app.metrics import models as metric_models  # noqa: E402, F401

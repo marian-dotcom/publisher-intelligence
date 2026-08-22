@@ -720,8 +720,10 @@ def test_downgrade_refuses_while_non_scheduled_runs_exist() -> None:
     tenant_id, _ = asyncio.run(seed())
     try:
         config = Config("alembic.ini")
+        # Target the exact revision: relative -1 breaks once newer
+        # migrations stack above this one.
         with pytest.raises(Exception, match="non-scheduled checkpoint runs exist"):
-            command.downgrade(config, "-1")
+            command.downgrade(config, "0016_public_config_events_e3")
     finally:
         # Remove the blocking evidence first, then restore the shared test
         # database to head for the remaining suite.
