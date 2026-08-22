@@ -23,7 +23,7 @@ def load_cases(path: str = DEFAULT_CASES_PATH) -> list[dict[str, Any]]:
 
 def foundations_samples(cases_path: str = DEFAULT_CASES_PATH) -> list[Sample]:
     samples = []
-    for index, case in enumerate(load_cases(cases_path), start=1):
+    for case in load_cases(cases_path):
         engine_input = {
             "runs": case["input"]["runs"],
             "onset": case["input"].get("onset"),
