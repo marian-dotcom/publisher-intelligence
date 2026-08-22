@@ -1451,7 +1451,42 @@ Codex MUST NOT:
 
 ---
 
-# 77. Final principle
+# 77. Evaluation runtime boundary (ADR-129)
+
+Evaluation **execution** uses replaceable runtime infrastructure. The adopted runtime is
+[Inspect AI](https://github.com/UKGovernmentBEIS/inspect_ai) (`UKGovernmentBEIS/inspect_ai`),
+accepted in ADR-129.
+
+The boundary is mandatory:
+
+> **Inspect is the eval engine. `EVALS.md` remains the contract.**
+
+Publisher Intelligence remains canonical and repository-owned for:
+
+- eval corpus and case IDs (`incident_evals_v0.1.yaml` and successors);
+- gold answers and expected outcomes;
+- deterministic assertions;
+- rubric semantics (`eval_rubric_v0.1.yaml`);
+- hard-fail semantics;
+- mandatory eval sets and holdout policy;
+- release thresholds and release eligibility.
+
+Inspect AI provides replaceable infrastructure only for: execution, dataset/sample orchestration,
+scorer plumbing, run logging and provenance capture, result inspection, usage/latency/cost
+telemetry, re-scoring, and regression execution.
+
+Rules:
+
+- PASS, hard-fail, mandatory-set membership, holdout semantics, thresholds, and release
+  eligibility MUST NOT be encoded exclusively in Inspect configuration.
+- An adapter boundary separates Publisher Intelligence corpus/rubric/release types from Inspect
+  concepts; Inspect APIs MUST NOT leak into Incident Engine domain code.
+- Replacing Inspect later MUST NOT require redefining any of the semantics listed above; the
+  machine-readable assets in `evals/` must survive unchanged.
+
+---
+
+# 78. Final principle
 
 A credible Incident Engine is not one that always has an answer.
 

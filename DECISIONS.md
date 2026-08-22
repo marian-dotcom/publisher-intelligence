@@ -2746,6 +2746,136 @@ Revisit when a real product workflow requires cancellation, per-attempt infrastr
 
 ---
 
+# ADR-129 — Inspect AI is the replaceable evaluation runtime
+
+**Status:** ACCEPTED  
+**Date:** 2026-08-22
+
+## Context
+
+`EVALS.md` defines a 76-case corpus, gold answers, deterministic assertions, a 24-point rubric, hard-fail semantics, mandatory sets, holdout policy and release thresholds, but the repository has no evaluation execution runtime. Building a proprietary eval runner would spend effort on orchestration (dataset loading, scorer plumbing, run logging, result inspection) that mature open-source tooling already provides.
+
+A build-vs-buy review selected [Inspect AI](https://github.com/UKGovernmentBEIS/inspect_ai) (`UKGovernmentBEIS/inspect_ai`) as the evaluation execution layer.
+
+## Decision
+
+Adopt Inspect AI as the **replaceable evaluation runtime infrastructure**.
+
+The architectural boundary is mandatory:
+
+> **Inspect is the eval engine. `EVALS.md` remains the contract.**
+
+Publisher Intelligence remains authoritative for:
+
+```text
+eval corpus
+case IDs
+gold answers
+deterministic assertions
+rubric semantics
+hard-fail semantics
+mandatory eval sets
+holdout policy
+release thresholds
+release eligibility
+```
+
+Inspect AI provides replaceable infrastructure only for:
+
+```text
+execution
+orchestration
+scorer plumbing
+run logging / provenance capture
+result inspection
+usage/latency/cost telemetry
+re-scoring
+regression execution
+```
+
+An adapter boundary is required: Publisher Intelligence owns corpus/rubric/release-policy types, and an isolated adapter translates them to/from Inspect concepts (`Sample`, scorers, solvers). Inspect APIs must not leak into Incident Engine domain code. PASS/hard-fail/holdout/release semantics must never be encoded exclusively in Inspect configuration; if Inspect is replaced later, `EVALS.md` and its machine-readable assets must survive without semantic redesign.
+
+## Reason
+
+Eval orchestration is commodity infrastructure with active maintenance and good observability. The differentiated, defensible asset is the corpus, the rubric semantics and the release policy — all of which stay repository-owned. This mirrors ADR-046's split between deterministic substance and supporting machinery.
+
+## Consequences
+
+- A future ExecPlan introduces the pinned dependency plus the adapter boundary; it does not create a proprietary runner or dashboard.
+- Release gating remains defined by `EVALS.md` §73 and evaluated against repository-owned assets.
+- Inspect-specific configuration is operational detail, not canonical semantics.
+- New significant Python dependency enters via normal dependency review in the implementing ExecPlan.
+
+## Alternatives considered
+
+- Proprietary in-house eval runner — rejected: high effort, low differentiation, duplicates maintained tooling.
+- Ad-hoc pytest-based harness only — rejected: insufficient run provenance, usage telemetry and result inspection for release gating.
+- Treating Inspect as authoritative (config-defined PASS/thresholds) — rejected: would make release semantics hostage to a third-party schema.
+
+## Revisit trigger
+
+Revisit if Inspect becomes unmaintained, cannot express the repository's deterministic scorers or hard-fail aggregation, or its dependency surface creates a security/cost blocker. Replacement must preserve corpus, rubric and release policy unchanged.
+
+---
+
+# ADR-130 — Observation run taxonomy and cohort purity
+
+**Status:** ACCEPTED  
+**Date:** 2026-08-22
+
+## Context
+
+The platform increasingly mixes routine scheduled observation with on-demand observation. Public configuration already distinguishes `SCHEDULED` from `VALIDATION` fetches at the schema level; connector drill-downs are already on-demand-only with investigation correlation. Browser checkpoints have no such distinction: an operator-triggered diagnostic checkpoint is structurally identical to a six-hour scheduled run and can silently enter comparison lineage, event confirmation cohorts, and future Last Known Good selection. Future incident diagnostics would amplify this risk.
+
+Without a canonical taxonomy, each subsystem invents ad-hoc flags and cohort-purity rules drift.
+
+## Decision
+
+All observation-producing subsystems use one canonical semantic taxonomy of observation kinds:
+
+```text
+SCHEDULED           — produced by the fixed recurring cadence
+VALIDATION          — an independent confirming re-observation of a specific candidate/state
+DIAGNOSTIC          — operator/tooling-initiated verification outside any incident context
+INCIDENT_DIAGNOSTIC — observation requested by an active investigation
+```
+
+Exact applicability may vary by subsystem (browser runs, public-config fetches, connector extracts, metric derivations), but the semantics are consistent:
+
+1. Non-routine observations (anything not `SCHEDULED`) MUST NOT silently contaminate:
+   - scheduled cadence accounting;
+   - predecessor/comparison lineage selection;
+   - baseline cohorts;
+   - deterministic event confirmation cohorts;
+   - Last Known Good eligibility;
+   unless a specific versioned rule explicitly declares and documents the inclusion.
+2. Trigger provenance for every non-scheduled observation MUST be persistent and auditable (the job/object that caused it — candidate, event, hypothesis, investigation, or operator action), not reconstructed after the fact.
+3. Validation/diagnostic observations remain first-class immutable evidence. Exclusion from cohorts never means exclusion from storage.
+4. Subsystems keep their existing storage models (e.g., public-config's `fetch_kind` column); the taxonomy constrains semantics, not table shapes.
+
+## Reason
+
+Baseline purity is a load-bearing invariant for every downstream conclusion (ADR-025, ADR-040–047). One contaminated diagnostic run can fabricate an event or corrupt an incident baseline. Making kinds canonical now prevents per-subsystem drift before Incident Engine work begins.
+
+## Consequences
+
+- Browser checkpoints gain explicit kind/provenance fields (next ExecPlan); the current operator CLI run is classified `DIAGNOSTIC`.
+- Event derivation and comparison lineage add explicit non-scheduled exclusion tests.
+- Future LKG eligibility admits only eligible `SCHEDULED` evidence unless a versioned rule says otherwise.
+- No change to public-config behavior, which already satisfies this contract.
+
+## Alternatives considered
+
+- Per-subsystem ad-hoc boolean flags — rejected: no shared semantics, drifts.
+- Separate tables for diagnostic runs — rejected: splits evidence history and violates single system-of-record.
+- Doing nothing until incidents exist — rejected: retrofitting cohort purity after contamination-prone paths ship is far costlier.
+
+## Revisit trigger
+
+Revisit only if a validated product need requires a new observation kind or deliberate cross-cohort inclusion; such inclusion must be a versioned rule recorded here or in the relevant subsystem spec.
+
+---
+
 # 18. Open decisions
 
 These are intentionally NOT locked yet.

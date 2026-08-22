@@ -2416,6 +2416,12 @@ Selection must record:
 - scope;
 - checkpoint ID.
 
+Selection is deterministic (ADR-060) and draws on routine scheduled evidence only: validation,
+diagnostic and incident-diagnostic observations are ineligible for Last Known Good unless a
+versioned rule explicitly allows them (ADR-130). Once selected for an investigation, the choice
+is frozen and auditable; later collector/scenario/normalizer version changes must not
+retrospectively alter an investigation's baseline.
+
 ---
 
 # 89. Last Known Good comparison pack

@@ -1633,9 +1633,12 @@ full enterprise RBAC
 
 ---
 
-# 76. First planned implementation sequence
+# 76. Planned implementation sequence
 
-Once repository foundation docs are complete, recommended initial ExecPlans are:
+The original v1.0 suggestion below was executed with reasonable variations: EP-001–EP-017 shipped
+the repository foundation, Browser v1 (B1–B8), read-only connectors (C2–C4), cross-source metrics
+(C5), incident drill-downs (C6), semantic browser events (E1) and event lifecycle (E2), and public
+configuration observation with its own event catalog (E3).
 
 ```text
 EP-001 — Repository bootstrap and local development environment
@@ -1647,17 +1650,43 @@ EP-006 — GA4 connector C2
 EP-007 — GSC connector C3
 EP-008 — GAM connector C4
 EP-009 — Event Engine E1/E2
-EP-010 — Timeline MVP
-EP-011 — Incident intake + localization I1
-EP-012 — Incident evidence pack I2
-EP-013 — Candidate ranking + contradictions I3/I4
-EP-014 — Incident report synthesis I5
-EP-015 — Evals harness and release gate
 ```
 
-This sequence may change after `MVP.md` and `ARCHITECTURE.md` are finalized.
+## 76.1 Approved forward sequence (2026-08 architecture reconciliation)
 
-Do not treat this list as a locked roadmap yet.
+The following sequence was approved by product/architecture decision and supersedes the
+remaining v1.0 suggestions. Remaining P0 invariants are implemented inside the EP that needs
+them; there is no separate architecture-precondition project.
+
+```text
+EP-018 — Observation run semantics & trigger provenance (ADR-130)
+   ↓
+EP-019 — Incident intake, localization & investigation foundations (I1)
+   ↓
+EP-020 — Evidence pack & typed relationships (I2)
+   ↓
+EP-021 — Hypotheses, contradictions & deterministic ranking (I3/I4)
+   ↓
+EP-022 — Inspect AI eval runtime integration (ADR-129)
+```
+
+Additional boundaries:
+
+- **EP-023 — Pilot reliability pack** becomes eligible after EP-019 and is mandatory before any
+  live pilot. Scope: retention/deletion enforcement, connection staleness detection and status
+  exposure, cost telemetry roll-up with hard caps, cross-source DST alignment tests.
+- **LLM synthesis (incident report narrative, I5)** is blocked behind both EP-021 (deterministic
+  hypothesis lifecycle complete) and a green eval release gate produced by EP-022, per ADR-114,
+  ADR-115 and `EVALS.md` §73.
+- **Known deferred gap:** the full entity-mapping lifecycle/provenance system (DOM/GPT slot →
+  GAM ad unit → placement mapping origin, confidence, supersession) is deliberately deferred
+  until a concrete Incident Engine use case requires it. This gap stays visible here until then;
+  it must not be silently dropped.
+- Detailed ExecPlans are created one at a time, when an EP becomes active. Do not pre-create
+  detailed plans for later EPs.
+
+This sequence may still change if reality justifies it; changes go through this file plus, where
+durable, a new ADR.
 
 ---
 
