@@ -38,7 +38,8 @@ localization, evidence-pack, and ranking milestones build on.
 - unified version-comparability fingerprint helper covering collector bundle, per-subsystem
   normalizer versions, and rule-bundle versions, used by LKG selection and exposed for future EPs;
 - investigation budget scaffold: idempotent resource-consumption ledger with per-incident limits;
-- retention-hold create/release API over the DATA_MODEL §104 table shape;
+- retention-hold create/release API over the DATA_MODEL §104 table shape, implemented as a real
+  acceptance-tested mechanism (auditable, idempotent, atomic), not a future hook;
 - tenant isolation, audit timestamps, and fail-closed downgrade guards throughout;
 - unit + PostgreSQL integration + migration tests.
 
@@ -52,7 +53,9 @@ localization, evidence-pack, and ranking milestones build on.
 - LLM synthesis;
 - UI of any kind (EP-025);
 - connector OAuth/secrets (EP-024);
-- retention deletion/enforcement jobs — this plan only provides hold hooks (EP-026);
+- retention deletion/enforcement jobs and WAF/challenge detection of any kind — this plan only
+  provides hold hooks and the conceptual evidence-availability model below (EP-026 owns runtime
+  network-reliability behavior);
 - cost telemetry roll-up, circuit breakers, DST test expansion (EP-026);
 - entity-mapping provenance lifecycle (deferred gap, PLANS.md §76.1).
 
@@ -122,10 +125,21 @@ Post-EP-018 main (`690c9c1`). Repository facts verified by inspection:
    `(investigation_ref, resource_kind)`; current usage derives from summed entries against a
    per-resource default limit registry; duplicate consumption attempts converge idempotently via
    deterministic entry keys.
-6. Retention holds can be created (optionally bound to an incident/artifact/extract) and released;
-   release records who/when; holds expose a query other modules can use to refuse deletion of
-   held objects (enforcement consumers arrive in EP-026).
-7. Nothing user-facing changes: no new endpoints, jobs, scheduler entries, or UI.
+6. Retention holds protect investigation-owned evidence from normal retention expiry:
+   - creation is idempotent (a duplicate hold for the same target/reason converges on one row);
+   - creation is all-or-nothing per request — a partial failure leaves no corrupt half-state;
+   - every hold is tenant-scoped and auditable (creator reference, reason, timestamps);
+   - release is explicit, stamps `released_at`/`released_by`, and keeps the row as immutable
+     history;
+   - active holds are queryable so future enforcement (EP-026) can refuse deletion of held
+     objects.
+7. Foundational invariant recorded with this schema: **observation failure is not evidence of
+   publisher failure.** The source/evidence availability model distinguishes, at minimum,
+   conceptually: valid/available evidence; unavailable evidence (source absent/unreachable);
+   degraded/unreliable observation (we could not observe reliably); and positive
+   publisher-failure evidence. These categories must never be collapsed; downstream EPs map
+   observation problems to observer/source health, not to publisher incidents.
+8. Nothing user-facing changes: no new endpoints, jobs, scheduler entries, or UI.
 
 ## 6. Architecture / Data Flow
 
@@ -309,7 +323,11 @@ Acceptance:
 - [ ] deterministic LKG eligibility honors ADR-130 kinds, fingerprint comparability, scope, and
   freeze-on-selection;
 - [ ] budget ledger is idempotent, bounded, tenant-scoped, and queryable;
-- [ ] retention-hold API supports create/release/query with immutable history after release;
+- [ ] retention-hold API is an accepted-criteria mechanism: idempotent creation, atomic
+  all-or-nothing writes, auditable provenance, explicit release semantics preserving immutable
+  history, and active-hold queries that future enforcement consumers must honor;
+- [ ] the observation-failure/publisher-failure distinction is documented as the foundational
+  evidence-availability model without implementing any WAF/challenge detection;
 - [ ] no scheduler/worker/browser/connector/public-config behavior changes;
 - [ ] full validation ladder passes locally and in CI.
 
@@ -319,8 +337,9 @@ Happy path: incident creation with segments; LKG freeze for eligible scheduled r
 consume/query; hold create/query/release.
 
 Failure paths: invalid status/kind/source vocabulary; incomparable fingerprints (each version
-dimension varied); diagnostic candidate ineligible; duplicate consume collapses; cross-tenant
-access rejected everywhere; downgrade refusal with live rows.
+dimension varied); diagnostic candidate ineligible; duplicate consume collapses; duplicate hold
+converges idempotently; hold creation failure leaves no partial rows; cross-tenant access
+rejected everywhere; downgrade refusal with live rows.
 
 Regression: existing suites unchanged; migration inventory updated; E1/E2/E3 and EP-018 suites
 green.
@@ -400,6 +419,22 @@ would invalidate open investigations.
 
 **Impact:** Repeat selections for the same incident converge via the uniqueness constraint rather
 than updating.
+
+### 2026-08-22 — Evidence-availability model is conceptual in EP-019
+
+**Decision:** Record the four-way distinction (valid/available, unavailable,
+degraded/unreliable observation, positive publisher-failure evidence) as a foundational
+invariant and design vocabulary; do not implement WAF/challenge detection or source-health
+event codes here.
+
+**Reason:** The invariant prevents the most dangerous misclassification this platform could
+produce. Its runtime operationalization (browser-source reliability outcomes, onboarding
+compatibility diagnostics) belongs to EP-026 Monitoring Network Reliability.
+
+**Alternatives:** Implementing detection signals now — rejected: out of foundation scope and
+premature without onboarding context.
+
+**Impact:** I-series and EP-026 must honor the vocabulary; no schema field is forced yet.
 
 ### 2026-08-22 — Symptom-segment schema precedes intake behavior
 
