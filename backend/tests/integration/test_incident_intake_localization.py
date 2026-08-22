@@ -114,9 +114,17 @@ async def _cleanup(tenant_id: uuid.UUID) -> None:
         )
         from app.incidents.models import (
             Incident as IncidentModel,
+        )
+        from app.incidents.models import (
             IncidentSymptomSegment as SegmentModel,
+        )
+        from app.incidents.models import (
             InvestigationUsageEntry as UsageModel,
+        )
+        from app.incidents.models import (
             LastKnownGoodRef as LkgModel,
+        )
+        from app.incidents.models import (
             RetentionHold as HoldModel,
         )
 
@@ -201,7 +209,7 @@ async def test_open_investigation_persists_incident_segments_and_key() -> None:
 @pytest.mark.asyncio
 async def test_localization_anchors_on_last_healthy_and_freezes_lkg() -> None:
     tenant_id, site_id = await _seed_site()
-    intake, repository = _service()
+    intake, _repository = _service()
     try:
         factory = get_session_factory()
         async with factory() as session, session.begin():
