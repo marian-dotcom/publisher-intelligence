@@ -341,7 +341,7 @@ def test_guarded_downgrades_refuse_while_evidence_exists() -> None:
 
     config = Config("alembic.ini")
     seeded = asyncio.run(seed())
-    tenant_id, _site_id, _diagnostic_run_id = seeded
+    _tenant_id, _site_id, _diagnostic_run_id = seeded
 
     def expect_refusal(pattern: str) -> None:
         try:
