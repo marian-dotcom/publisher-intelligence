@@ -353,7 +353,10 @@ condition support, recovery, and recurrence. EP-018 adds ADR-130 observation run
 checkpoint run records its observation kind (scheduled/diagnostic) with concrete creation-time
 trigger provenance that is immutable afterwards; non-scheduled runs remain first-class evidence
 but never enter comparison lineage, event derivation cohorts, or future Last Known Good
-eligibility. No path delivers alerts or makes indexing,
+eligibility. EP-019 adds investigation foundations: incident core records, frozen append-only
+Last Known Good references with version fingerprints, a unified evidence-comparability contract,
+an idempotent investigation budget ledger, and retention-hold hooks — schema and invariants only,
+with no incident workflow yet. No path delivers alerts or makes indexing,
 authorization, revenue, or causal claims.
 
 The repository still excludes production OAuth onboarding, a managed secret provider, provider
