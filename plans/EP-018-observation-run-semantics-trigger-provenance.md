@@ -1,6 +1,6 @@
 # EP-018 — Observation Run Semantics & Trigger Provenance
 
-**Status:** READY
+**Status:** COMPLETE
 **Owner:** Codex / Engineering
 **Created:** 2026-08-22
 **Updated:** 2026-08-22
@@ -14,7 +14,7 @@
 - [x] M1 — Migration 0017: run kind and trigger provenance on checkpoint runs
 - [x] M2 — Scheduler, worker, and CLI behavior for observation kinds
 - [x] M3 — Cohort purity: lineage, event derivation, and window aggregation exclusion
-- [ ] M4 — Full validation and release readiness
+- [x] M4 — Full validation and release readiness
 
 ## 1. Purpose and User Outcome
 
@@ -323,24 +323,24 @@ Goal: close only after all repository contracts are proven.
 
 Acceptance:
 
-- [ ] all M1–M3 criteria pass;
-- [ ] README boundary summary updated (one paragraph: run-kind semantics shipped, diagnostics
-      excluded from baselines/events/LKG eligibility);
-- [ ] full local ladder green (see Final Validation) and CI green;
-- [ ] plan retrospective completed; status COMPLETE only after results recorded.
+- [x] all M1–M3 criteria pass;
+- [x] README boundary summary updated (run-kind semantics shipped, diagnostics excluded from
+      baselines/events/LKG eligibility);
+- [x] full local ladder green (see Final Validation) and CI green;
+- [x] plan retrospective completed; status COMPLETE only after results recorded.
 
 ## 9. Final Acceptance Criteria
 
-- [ ] every checkpoint run row carries a constrained `observation_kind`;
-- [ ] non-scheduled runs carry persistent, auditable, **concrete** trigger provenance: source
+- [x] every checkpoint run row carries a constrained `observation_kind`;
+- [x] non-scheduled runs carry persistent, auditable, **concrete** trigger provenance: source
   vocabulary entry plus a non-null correlation identity; SCHEDULED rows carry none;
-- [ ] diagnostic/incident-diagnostic runs are excluded from lineage, derivation, aggregation, and
+- [x] diagnostic/incident-diagnostic runs are excluded from lineage, derivation, aggregation, and
   documented LKG eligibility;
-- [ ] diagnostic runs remain complete immutable evidence;
-- [ ] scheduled behavior is regression-free;
-- [ ] migration is safe forward, backward-compatible, and fail-closed on downgrade;
-- [ ] tenant isolation holds on all touched paths;
-- [ ] full validation ladder passes locally and in CI.
+- [x] diagnostic runs remain complete immutable evidence;
+- [x] scheduled behavior is regression-free;
+- [x] migration is safe forward, backward-compatible, and fail-closed on downgrade;
+- [x] tenant isolation holds on all touched paths;
+- [x] full validation ladder passes locally and in CI.
 
 ## 10. Final Validation
 
@@ -608,6 +608,15 @@ deterministic LEGACY_CLI reclassification / fail-safe ineligibility marker), wit
 unconditional "historically accurate" claim removed. ADR-130 and DATA_MODEL.md were updated to
 state the identical contract.
 
+### 2026-08-22 — M4 complete; EP-018 COMPLETE
+
+Adversarial self-review of `main...HEAD` produced two in-scope findings, both fixed with
+regression coverage: a missing downgrade-guard test (added; refuses `-1` while non-scheduled
+evidence exists) and the latent Prebid CPM-assertion flake (scoped to Prebid surfaces). Final head
+`ceabca4` validated: full local ladder green and GitHub Actions CI green on both push and
+pull_request events (backend incl. PostgreSQL integration at 42/42, frontend, repository-safety).
+README boundary summary updated. EP-018 marked COMPLETE.
+
 ## 20.1 Validation Results
 
 ### M0–M3 local validation — 2026-08-22
@@ -631,13 +640,68 @@ state the identical contract.
 - Frontend lint/typecheck/test/build: PASS.
 - Secret scan, `docker compose config`, `git diff --check`: PASS.
 
-### Correction validation — 2026-08-22
+### M4 GitHub validation — 2026-08-22
 
-- New downgrade-guard regression test: PASS (refuses `-1` while a DIAGNOSTIC row exists; shared
-  database restored to head afterwards).
-- Full PostgreSQL integration suite after correction: PASS, 42/42.
-- Unit suite without inherited environment variables: PASS, 258.
+- Draft PR #20 heads `eaa253b`, `66ee812`, `ceabca4`: all required GitHub Actions CI runs green
+  (backend incl. PostgreSQL integration, frontend, repository-safety) on both push and
+  pull_request events for the final head.
+- One CI failure occurred on the first implementation push: a latent, order-dependent flake in
+  the pre-existing Prebid privacy assertion (`"9.99"` substring scanned across the entire
+  manifest can collide with unrelated B8 timing floats). Fixed by scoping the CPM-leak check to
+  Prebid evidence surfaces while keeping the four high-entropy secret tokens scanned against the
+  full manifest; regression coverage re-verified locally and in CI.
+- The single local unit failure reproduced mid-session was inherited-environment leakage
+  (`DATABASE_URL` exported into pytest); clean-environment run passes 258/258. CI confirms.
 
 ## 21. Final Outcome / Retrospective
 
-Pending implementation. Complete after M4 with validation results and commit/PR references.
+### What shipped
+
+Every synthetic browser checkpoint now carries ADR-130 observation semantics: a constrained
+`observation_kind` plus, for non-scheduled invocations, concrete creation-time provenance
+(`trigger_source` + non-null invocation/investigation correlation UUID). Provenance is immutable
+through normal application paths (mapper-level guard + database CHECK constraints). Diagnostic
+runs remain complete immutable evidence but are structurally excluded from comparison lineage,
+event derivation enqueue and inputs, window aggregation cohorts, recorded-lineage reconstruction,
+and future Last Known Good eligibility. Migration 0017 is additive, single-head, and refuses
+downgrade while non-scheduled evidence exists. The historical audit proved data absence, so Path
+A applied: no backfill and no heuristic classification.
+
+### What changed from the plan during implementation
+
+- Added a fail-closed filter on recorded comparison lineage in `_build_input` (defense in depth
+  beyond the planned selection/enqueue filters).
+- Added a downgrade-guard regression test after adversarial self-review flagged its absence.
+- Scoped the pre-existing Prebid CPM leak assertion to Prebid evidence surfaces to eliminate a
+  latent order-dependent flake (CI failure diagnosis; test-only change).
+- Path B/C mechanics (LEGACY_CLI backfill / fail-safe marker) remain specified but unexercised —
+  no historical data exists; they are documented for any pre-pilot deployment that later needs
+  them.
+
+### Validation performed
+
+Full ladder: ruff format/check, mypy (179 sources), 258 unit tests, clean-database Alembic upgrade
+to single head 0017, downgrade/re-upgrade, DB constraint violation matrix, new observation
+semantics suite (4 integration tests), full PostgreSQL integration suite (42/42 incl. Chromium
+checkpoint + E1/E2 lifecycle regressions), scheduler/worker smoke, frontend lint/typecheck/test/
+build, secret scan, compose config, whitespace checks — plus green GitHub Actions CI on every
+pushed head (final head validated on both push and pull_request events).
+
+### Known limitations
+
+- `INCIDENT_DIAGNOSTIC` is reserved vocabulary only; I-series EPs will write it.
+- `LEGACY_CLI` exists solely for potential future backfills of deployments that accumulate data
+  before this migration; unused today by design.
+- LKG eligibility filtering is documented (INCIDENT.md §88, DATA_MODEL) but LKG itself is I1 work.
+
+### Follow-ups
+
+- Mark PR #20 Ready for review after this final update's CI run; merge requires human approval.
+- Next authorized milestone family begins at EP-019 per PLANS.md §76.1.
+
+### Lessons
+
+No durable decision changes. ADR-130 proved sufficient without amendment; the mapper-level guard
+pattern may be reusable if other immutable-evidence columns appear.
+
+### Correction validation — 2026-08-22
