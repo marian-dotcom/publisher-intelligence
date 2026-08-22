@@ -2,7 +2,8 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.browser.models import CheckpointRun
@@ -124,7 +125,7 @@ class InvestigationRepository:
         returned.
         """
         async with self._session_factory() as session:
-            conditions: list[Any] = [
+            conditions: list[ColumnElement[bool]] = [
                 CheckpointRun.tenant_id == tenant_id,
                 CheckpointRun.site_id == site_id,
                 # ADR-130 cohort purity: only routine scheduled evidence
@@ -314,7 +315,7 @@ class InvestigationRepository:
         if all(item is None for item in targets):
             raise InvestigationStateError("retention hold requires at least one target")
         async with self._session_factory() as session, session.begin():
-            conditions: list[Any] = [
+            conditions: list[ColumnElement[bool]] = [
                 RetentionHold.tenant_id == tenant_id,
                 RetentionHold.released_at.is_(None),
                 RetentionHold.reason == reason,
@@ -328,7 +329,7 @@ class InvestigationRepository:
             existing = await session.scalar(select(RetentionHold).where(*conditions))
             if existing is not None:
                 return existing
-            hold = RetentionHold(
+            created = RetentionHold(
                 id=uuid.uuid4(),
                 tenant_id=tenant_id,
                 incident_id=incident_id,
@@ -336,9 +337,33 @@ class InvestigationRepository:
                 source_extract_id=source_extract_id,
                 reason=reason,
             )
-            session.add(hold)
-            await session.flush()
-            return hold
+            session.add(created)
+            try:
+                await session.flush()
+            except IntegrityError:
+                # Concurrent creation raced the active-hold match; the partial
+                # unique index guarantees exactly one active hold survives.
+                # Re-select it on a fresh transaction.
+                winner = await self._active_hold(tenant_id=tenant_id, conditions=conditions)
+                if winner is None:
+                    raise InvestigationStateError(
+                        "retention hold conflict left no surviving hold"
+                    ) from None
+                return winner
+            return created
+
+    async def _active_hold(
+        self, *, tenant_id: uuid.UUID, conditions: list[ColumnElement[bool]]
+    ) -> RetentionHold | None:
+        async with self._session_factory() as session:
+            query_conditions: list[ColumnElement[bool]] = [
+                RetentionHold.tenant_id == tenant_id,
+                *conditions[1:],
+            ]
+            result: RetentionHold | None = await session.scalar(
+                select(RetentionHold).where(*query_conditions)
+            )
+            return result
 
     async def release_retention_hold(
         self,

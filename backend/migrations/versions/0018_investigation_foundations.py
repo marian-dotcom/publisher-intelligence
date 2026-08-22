@@ -255,6 +255,21 @@ def upgrade() -> None:
         ["tenant_id"],
         postgresql_where=sa.text("released_at IS NULL"),
     )
+    # EP-019: hold creation is idempotent at the database level — one active
+    # hold per (tenant, reason, target combination).
+    op.create_index(
+        "uq_retention_holds_active_target",
+        "retention_holds",
+        [
+            "tenant_id",
+            "reason",
+            sa.text("COALESCE(incident_id::text, '')"),
+            sa.text("COALESCE(artifact_id::text, '')"),
+            sa.text("COALESCE(source_extract_id::text, '')"),
+        ],
+        unique=True,
+        postgresql_where=sa.text("released_at IS NULL"),
+    )
 
 
 def downgrade() -> None:
@@ -269,6 +284,7 @@ def downgrade() -> None:
             f"DO $$ BEGIN IF EXISTS (SELECT 1 FROM {table}) THEN RAISE EXCEPTION "
             f"'cannot downgrade while {table} contains rows'; END IF; END $$"
         )
+    op.drop_index("uq_retention_holds_active_target", table_name="retention_holds")
     op.drop_index("ix_retention_holds_tenant_active", table_name="retention_holds")
     op.drop_table("retention_holds")
     op.drop_constraint("uq_investigation_usage_key", "investigation_usage", type_="unique")

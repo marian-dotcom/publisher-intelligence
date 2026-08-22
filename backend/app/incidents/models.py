@@ -201,6 +201,16 @@ class RetentionHold(Base):
             "tenant_id",
             postgresql_where=text("released_at IS NULL"),
         ),
+        Index(
+            "uq_retention_holds_active_target",
+            "tenant_id",
+            "reason",
+            text("COALESCE(incident_id::text, '')"),
+            text("COALESCE(artifact_id::text, '')"),
+            text("COALESCE(source_extract_id::text, '')"),
+            unique=True,
+            postgresql_where=text("released_at IS NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
