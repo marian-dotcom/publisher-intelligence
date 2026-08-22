@@ -52,4 +52,4 @@ async def test_registration_rejects_unknown_trigger_source() -> None:
 
 def test_vocabularies_match_adr_130() -> None:
     assert OBSERVATION_KINDS == {"SCHEDULED", "DIAGNOSTIC", "INCIDENT_DIAGNOSTIC"}
-    assert TRIGGER_SOURCES == {"OPERATOR_CLI", "LEGACY_CLI"}
+    assert TRIGGER_SOURCES == {"OPERATOR_CLI", "LEGACY_CLI", "INCIDENT"}

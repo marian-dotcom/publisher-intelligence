@@ -356,7 +356,9 @@ but never enter comparison lineage, event derivation cohorts, or future Last Kno
 eligibility. EP-019 adds investigation foundations: incident core records, frozen append-only
 Last Known Good references with version fingerprints, a unified evidence-comparability contract,
 an idempotent investigation budget ledger, and retention-hold hooks — schema and invariants only,
-with no incident workflow yet. No path delivers alerts or makes indexing,
+with no incident workflow yet. EP-020 adds the first incident workflow: deterministic intake,
+evidence-based time/scope localization with frozen Last Known Good references, and bounded
+incident-diagnostic checkpoints under a persistent budget ledger — service layer only, no UI. No path delivers alerts or makes indexing,
 authorization, revenue, or causal claims.
 
 The repository still excludes production OAuth onboarding, a managed secret provider, provider

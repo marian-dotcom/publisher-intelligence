@@ -662,6 +662,81 @@ async def test_provenance_is_immutable_through_orm_updates() -> None:
         await _cleanup(tenant_id)
 
 
+def test_downgrade_refuses_while_incident_sourced_runs_exist() -> None:
+    """Stacked guarded migrations each pin their explicit revision target."""
+    import asyncio
+
+    from alembic import command
+    from alembic.config import Config
+
+    factory = get_session_factory()
+
+    async def seed() -> uuid.UUID:
+        tenant_id = await _seed_site()
+        async with factory() as session, session.begin():
+            site = await session.scalar(select(Site).where(Site.tenant_id == tenant_id))
+            scenario = await session.scalar(
+                select(BrowserScenario).where(BrowserScenario.tenant_id == tenant_id)
+            )
+            monitored_url = await session.scalar(
+                select(MonitoredUrl).where(MonitoredUrl.tenant_id == tenant_id)
+            )
+            template = await session.scalar(select(Template).where(Template.tenant_id == tenant_id))
+            assert site and scenario and monitored_url and template
+            window_id = uuid.uuid4()
+            session.add(
+                CheckpointWindow(
+                    id=window_id,
+                    tenant_id=tenant_id,
+                    site_id=site.id,
+                    scheduled_for=datetime.now(UTC),
+                    window_start=datetime.now(UTC),
+                    window_end=datetime.now(UTC) + timedelta(minutes=5),
+                )
+            )
+            await session.flush()
+            session.add(
+                CheckpointRun(
+                    id=uuid.uuid4(),
+                    tenant_id=tenant_id,
+                    site_id=site.id,
+                    checkpoint_window_id=window_id,
+                    monitored_url_id=monitored_url.id,
+                    template_id=template.id,
+                    scenario_id=scenario.id,
+                    observation_kind="INCIDENT_DIAGNOSTIC",
+                    trigger_source="INCIDENT",
+                    trigger_correlation_id=uuid.uuid4(),
+                    scheduled_for=datetime.now(UTC),
+                    status="PENDING",
+                    attempt_count=0,
+                    collector_bundle_version="b8-v1",
+                    environment={},
+                    limitations=[],
+                    manifest={},
+                )
+            )
+        return tenant_id
+
+    tenant_id = asyncio.run(seed())
+    try:
+        config = Config("alembic.ini")
+        with pytest.raises(Exception, match="incident-diagnostic checkpoint runs"):
+            command.downgrade(config, "0018_investigation_foundations")
+    finally:
+        config = Config("alembic.ini")
+
+        async def _delete_runs() -> None:
+            async with factory() as session, session.begin():
+                await session.execute(
+                    delete(CheckpointRun).where(CheckpointRun.tenant_id == tenant_id)
+                )
+
+        asyncio.run(_delete_runs())
+        command.downgrade(config, "base")
+        command.upgrade(config, "head")
+
+
 def test_downgrade_refuses_while_non_scheduled_runs_exist() -> None:
     from alembic import command
     from alembic.config import Config

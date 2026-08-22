@@ -215,7 +215,7 @@ class CheckpointRun(Base):
             name="ck_checkpoint_runs_observation_kind",
         ),
         CheckConstraint(
-            "trigger_source IS NULL OR trigger_source IN ('OPERATOR_CLI','LEGACY_CLI')",
+            "trigger_source IS NULL OR trigger_source IN ('OPERATOR_CLI','LEGACY_CLI','INCIDENT')",
             name="ck_checkpoint_runs_trigger_source",
         ),
         CheckConstraint(

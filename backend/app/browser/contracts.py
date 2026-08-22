@@ -23,7 +23,7 @@ ObservationKind = Literal["SCHEDULED", "DIAGNOSTIC", "INCIDENT_DIAGNOSTIC"]
 TriggerSource = Literal["OPERATOR_CLI", "LEGACY_CLI"]
 
 OBSERVATION_KINDS = frozenset({"SCHEDULED", "DIAGNOSTIC", "INCIDENT_DIAGNOSTIC"})
-TRIGGER_SOURCES = frozenset({"OPERATOR_CLI", "LEGACY_CLI"})
+TRIGGER_SOURCES = frozenset({"OPERATOR_CLI", "LEGACY_CLI", "INCIDENT"})
 
 
 @dataclass(frozen=True, slots=True)
