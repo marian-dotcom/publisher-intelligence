@@ -660,3 +660,72 @@ async def test_provenance_is_immutable_through_orm_updates() -> None:
             await session.commit()
     finally:
         await _cleanup(tenant_id)
+
+
+def test_downgrade_refuses_while_non_scheduled_runs_exist() -> None:
+    from alembic import command
+    from alembic.config import Config
+
+    factory = get_session_factory()
+
+    async def seed() -> tuple[uuid.UUID, uuid.UUID]:
+        tenant_id = await _seed_site()
+        async with factory() as session, session.begin():
+            site = await session.scalar(select(Site).where(Site.tenant_id == tenant_id))
+            scenario = await session.scalar(
+                select(BrowserScenario).where(BrowserScenario.tenant_id == tenant_id)
+            )
+            monitored_url = await session.scalar(
+                select(MonitoredUrl).where(MonitoredUrl.tenant_id == tenant_id)
+            )
+            template = await session.scalar(select(Template).where(Template.tenant_id == tenant_id))
+            assert site and scenario and monitored_url and template
+            window_id = uuid.uuid4()
+            session.add(
+                CheckpointWindow(
+                    id=window_id,
+                    tenant_id=tenant_id,
+                    site_id=site.id,
+                    scheduled_for=datetime.now(UTC),
+                    window_start=datetime.now(UTC),
+                    window_end=datetime.now(UTC) + timedelta(minutes=5),
+                )
+            )
+            await session.flush()
+            session.add(
+                CheckpointRun(
+                    id=uuid.uuid4(),
+                    tenant_id=tenant_id,
+                    site_id=site.id,
+                    checkpoint_window_id=window_id,
+                    monitored_url_id=monitored_url.id,
+                    template_id=template.id,
+                    scenario_id=scenario.id,
+                    observation_kind="DIAGNOSTIC",
+                    trigger_source="OPERATOR_CLI",
+                    trigger_correlation_id=uuid.uuid4(),
+                    scheduled_for=datetime.now(UTC),
+                    status="PENDING",
+                    attempt_count=0,
+                    collector_bundle_version="b8-v1",
+                    environment={},
+                    limitations=[],
+                    manifest={},
+                )
+            )
+        return tenant_id, window_id
+
+    import asyncio
+
+    tenant_id, _ = asyncio.run(seed())
+    try:
+        config = Config("alembic.ini")
+        with pytest.raises(Exception, match="non-scheduled checkpoint runs exist"):
+            command.downgrade(config, "-1")
+    finally:
+        # Remove the blocking evidence first, then restore the shared test
+        # database to head for the remaining suite.
+        config = Config("alembic.ini")
+        asyncio.run(_cleanup(tenant_id))
+        command.downgrade(config, "base")
+        command.upgrade(config, "head")

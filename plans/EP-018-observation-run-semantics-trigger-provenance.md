@@ -631,6 +631,13 @@ state the identical contract.
 - Frontend lint/typecheck/test/build: PASS.
 - Secret scan, `docker compose config`, `git diff --check`: PASS.
 
+### Correction validation — 2026-08-22
+
+- New downgrade-guard regression test: PASS (refuses `-1` while a DIAGNOSTIC row exists; shared
+  database restored to head afterwards).
+- Full PostgreSQL integration suite after correction: PASS, 42/42.
+- Unit suite without inherited environment variables: PASS, 258.
+
 ## 21. Final Outcome / Retrospective
 
 Pending implementation. Complete after M4 with validation results and commit/PR references.
