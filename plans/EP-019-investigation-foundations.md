@@ -1,6 +1,6 @@
 # EP-019 — Investigation Foundations
 
-**Status:** IN_PROGRESS
+**Status:** COMPLETE
 **Owner:** Codex / Engineering
 **Created:** 2026-08-22
 **Updated:** 2026-08-22
@@ -509,4 +509,48 @@ defined. Implementation not started.
 
 ## 21. Final Outcome / Retrospective
 
-Pending implementation. Complete after M4 with validation results and commit/PR references.
+### What shipped
+
+Investigation foundations: five tenant-scoped tables (incidents, incident_symptom_segments,
+last_known_good_refs, investigation_usage, retention_holds) behind a typed repository module; a
+unified evidence-version comparability contract; deterministic scheduled-only LKG eligibility with
+append-only frozen references carrying fingerprint snapshots; an idempotent investigation budget
+ledger with bounded resource kinds and default limits; auditable retention holds with explicit
+release semantics and database-level active-hold idempotency. The observation-failure /
+publisher-failure distinction is recorded as the foundational evidence-availability invariant.
+No runtime behavior changed anywhere else.
+
+### What changed from the plan during implementation
+
+- Retention-hold idempotency moved from check-then-insert to a partial unique index
+  (`uq_retention_holds_active_target`) after adversarial self-review identified the creation race
+  (MEDIUM); repository re-selects the surviving hold on conflict.
+- Added fail-closed scheduled-only filters to recorded-lineage reconstruction inputs? No — that
+  was EP-018. Here: added `_active_hold` re-selection helper; LKG freeze guard simplified from
+  per-field checks to unconditional append-only rejection.
+- Test infrastructure: conftest imports all model modules so cross-module FK metadata resolves.
+
+### Validation performed
+
+Full ladder executed: ruff format/check, mypy (188 sources), 267 unit tests, clean-database
+Alembic upgrade to single head 0018, full downgrade-to-base / re-upgrade cycle, new 8-test
+PostgreSQL integration suite, full 50/50 integration suite including Chromium checkpoint and
+E1/E2/E3 regressions, scheduler/worker smoke, frontend lint/typecheck/test/build, secret scan,
+compose config, whitespace checks, plus green GitHub Actions CI on both pushed heads.
+
+### Known limitations
+
+- Budget limit values are provisional defaults pending pilot calibration.
+- No runtime consumer reads incidents/holds yet by design; EP-020 begins that wiring.
+- LEGACY-style historical classification paths were unnecessary here (no prior data), consistent
+  with the EP-018 audit.
+
+### Follow-ups
+
+- Mark PR #22 Ready for review after this update's CI run; merge requires human authorization.
+- Next milestone per PLANS.md §76.1: EP-020 Incident Intake & Localization.
+
+### Lessons
+
+The DATA_MODEL-first approach held up; every column traced to §66–68/§104 without invention. The
+conftest metadata gap was the only structural surprise.
