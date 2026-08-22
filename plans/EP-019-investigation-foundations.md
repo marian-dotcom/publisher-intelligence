@@ -32,7 +32,9 @@ localization, evidence-pack, and ranking milestones build on.
 - migration 0018: `incidents`, `incident_symptom_segments`, `last_known_good_refs`,
   `retention_holds`, and a generic investigation budget ledger table;
 - deterministic Last Known Good eligibility/selection contract: scheduled-only (ADR-130),
-  healthy status, comparable version fingerprints, site/template scope, frozen append-only rows;
+  healthy status, comparable version fingerprints, site/template scope, frozen append-only rows.
+  EP-019 ships this as a deterministic repository primitive only; using it inside an incident
+  workflow is EP-020 scope;
 - unified version-comparability fingerprint helper covering collector bundle, per-subsystem
   normalizer versions, and rule-bundle versions, used by LKG selection and exposed for future EPs;
 - investigation budget scaffold: idempotent resource-consumption ledger with per-incident limits;
