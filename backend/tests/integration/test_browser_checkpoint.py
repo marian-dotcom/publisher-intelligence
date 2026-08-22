@@ -657,9 +657,13 @@ async def test_prebid_client_auction_persists_safe_timing_and_bidder_evidence(
             "raw-bid-secret",
             "timeout-secret",
             "slot-secret-code",
-            "9.99",
         ):
             assert forbidden not in serialized_manifest
+        # The fixture CPM must never leak into any Prebid evidence surface.
+        # It is not scanned against the whole manifest because unrelated B8
+        # timing floats can legitimately contain the same digit substring.
+        serialized_prebid = str([prebid, auctions, bidders])
+        assert "9.99" not in serialized_prebid
         assert (
             await repository.prebid_auctions_for_tenant(
                 tenant_id=uuid.uuid4(),
