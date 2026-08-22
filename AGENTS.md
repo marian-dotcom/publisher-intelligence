@@ -45,6 +45,18 @@ Do not implement from chat memory alone.
 
 The repository documents are the durable source of truth.
 
+## 2.1 Implementation authorization invariant
+
+Canonical specifications (`PRODUCT.md`, `MVP.md`, `EVENTS.md`, `DATA_MODEL.md`, `INCIDENT.md`,
+`EVALS.md`, `BROWSER.md`, `CONNECTORS.md`, and similar files) define constraints, invariants, and
+target semantics. They do **not** authorize implementation. Only the currently active authorized
+ExecPlan authorizes new capability work.
+
+For large catalogs where future/unimplemented semantics are described alongside implemented ones
+(especially `EVENTS.md`), consult the document's implementation-status legend to distinguish
+normative-now sections from planned/future sections before treating any described behavior as
+buildable scope.
+
 ---
 
 # 3. Canonical documents

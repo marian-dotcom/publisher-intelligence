@@ -41,6 +41,31 @@ It detects facts and meaningful conditions that may later become evidence.
 
 ---
 
+# 0.1 Implementation status legend
+
+This document mixes implemented, normative-now semantics with planned future behavior. Per
+`AGENTS.md` §2.1, nothing here authorizes implementation by itself — only the active authorized
+ExecPlan does.
+
+Status convention for this catalog:
+
+- **NORMATIVE NOW** — implemented in the repository and covered by executable tests:
+  confirmation modes and their cohort-purity rules (§15–15.1), the E1 browser event rules
+  (dependency added/removed, JS error started, noindex, canonical changed, GPT expected slot
+  missing), the E2 persistence/lifecycle/dedupe/resolution semantics, and the E3 public
+  configuration rules (`ROBOTS_TXT_CHANGED`, `ROBOTS_BROAD_BLOCK_ADDED`,
+  `ROBOTS_BROAD_BLOCK_REMOVED`, `ADS_TXT_CHANGED`, `ADS_TXT_MISSING`, `ADS_TXT_EMPTY_200`,
+  `ADS_TXT_INVALID`) with `IMMEDIATE_SECOND_CHECK`.
+- **PLANNED / FUTURE** — target semantics only; do not treat as buildable scope: every `EV-###`
+  catalog entry not listed above (metric anomalies, consent/request events, search/discover,
+  performance families), milestone sections beyond E3 (E4+), statistical/template-majority
+  confirmation modes, external-event ingestion, alerting/Weekly-Brief behavior, and any table or
+  field in referenced data-model sections that has no migration.
+
+When an ExecPlan implements a PLANNED item, update this legend as part of that plan.
+
+---
+
 # 1. Non-negotiable invariants
 
 Codex MUST preserve these rules unless `DECISIONS.md` explicitly changes them.

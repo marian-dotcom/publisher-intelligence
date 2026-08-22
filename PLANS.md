@@ -1652,36 +1652,85 @@ EP-008 — GAM connector C4
 EP-009 — Event Engine E1/E2
 ```
 
-## 76.1 Approved forward sequence (2026-08 architecture reconciliation)
+## 76.1 Approved forward sequence (2026-08 architecture reconciliation, amended 2026-08-22)
 
 The following sequence was approved by product/architecture decision and supersedes the
 remaining v1.0 suggestions. Remaining P0 invariants are implemented inside the EP that needs
 them; there is no separate architecture-precondition project.
 
+Engine track:
+
 ```text
-EP-018 — Observation run semantics & trigger provenance (ADR-130)
+EP-018 — Observation run semantics & trigger provenance (ADR-130) — COMPLETE
    ↓
-EP-019 — Incident intake, localization & investigation foundations (I1)
+EP-019 — Investigation foundations (schema, LKG freeze, comparability, budget, holds)
    ↓
-EP-020 — Evidence pack & typed relationships (I2)
+EP-020 — Incident intake & localization
    ↓
-EP-021 — Hypotheses, contradictions & deterministic ranking (I3/I4)
+EP-021 — Evidence pack & typed relationships
    ↓
 EP-022 — Inspect AI eval runtime integration (ADR-129)
+   ↓
+EP-023 — Hypotheses, contradictions & deterministic ranking
+   ↓
+Limited-pilot engine readiness
 ```
 
-Additional boundaries:
+Parallel product/operations track:
 
-- **EP-023 — Pilot reliability pack** becomes eligible after EP-019 and is mandatory before any
-  live pilot. Scope: retention/deletion enforcement, connection staleness detection and status
-  exposure, cost telemetry roll-up with hard caps, cross-source DST alignment tests.
-- **LLM synthesis (incident report narrative, I5)** is blocked behind both EP-021 (deterministic
-  hypothesis lifecycle complete) and a green eval release gate produced by EP-022, per ADR-114,
-  ADR-115 and `EVALS.md` §73.
-- **Known deferred gap:** the full entity-mapping lifecycle/provenance system (DOM/GPT slot →
-  GAM ad unit → placement mapping origin, confidence, supersession) is deliberately deferred
-  until a concrete Incident Engine use case requires it. This gap stays visible here until then;
-  it must not be silently dropped.
+```text
+EP-019 ──→ EP-024 — Connector OAuth & managed secrets        [HARD PILOT BLOCKER]
+EP-021 ──→ EP-025 — Home / Timeline read-only product surface [HARD PILOT BLOCKER]
+
+EP-024 + EP-025 + EP-023
+   ↓
+EP-026 — Pilot reliability & operational readiness
+   ↓
+LIMITED PILOT
+   ↓
+LLM synthesis (incident narrative/report generation)
+```
+
+Boundary rules:
+
+- **One coherent outcome per ExecPlan; one active ExecPlan at a time.** The parallel tracks above
+  express dependency order only; execution still authorizes one plan at a time unless explicitly
+  changed.
+- **EP-024 Connector OAuth & managed secrets** makes GA4/GSC/GAM connections usable in a real
+  pilot without env-only/local secret injection: OAuth consent/onboarding, token lifecycle and
+  refresh handling, production-suitable managed secret resolution, revoked/expired consent
+  handling, tenant ownership, secure credential storage boundary. Read-only scopes are preserved;
+  capability probing is preserved. Provider/vendor selection and any new secret-provider
+  architecture decision remain human gates (OPEN-003/OPEN-005 territory).
+- **EP-025 Home / Timeline read-only surface** gives publishers/operators a usable view of the
+  operational memory already collected: authenticated read-only shell, site selection, Timeline,
+  event/incident detail, source/connector health distinct from publisher health, evidence links,
+  Last Known Good references where available. Operational-memory-first, not generic-BI-first:
+  no vanity dashboards, billing, write operations, enterprise RBAC, or broad admin tooling.
+- **EP-026 Pilot reliability & operational readiness** includes retention/deletion enforcement,
+  connector staleness detection, source health exposure, cost telemetry roll-up with hard caps and
+  circuit breakers, cross-source DST/timezone hardening, AND a minimal self-observability baseline
+  (queue depth/backlog visibility, stale lease/job detection visibility, run duration/failure-rate
+  metrics, scheduler/worker health). Not a full observability platform — enough operational
+  telemetry to run a real pilot safely.
+- **Inspect AI stays one coherent ExecPlan (EP-022)** placed after the evidence pack so the
+  deterministic engine has meaningful behavior to evaluate, and before hypothesis ranking so
+  ranking is developed against an active eval runtime. ADR-129 is unchanged: "Inspect is the eval
+  engine. EVALS.md remains the contract."
+- **LLM synthesis** remains a later milestone AFTER deterministic hypothesis ranking exists, the
+  Inspect release gate is active, and Limited Pilot feedback is available. It is not a pilot
+  prerequisite. The Limited Pilot validates operational memory, incident workflow, evidence
+  quality, deterministic hypotheses/ranking, Timeline usability, connector onboarding, and
+  operational reliability.
+- **Known deferred gap:** full DOM/GPT-slot → GAM ad unit → placement mapping provenance/lifecycle
+  stays deferred until a concrete Incident Engine feature relies on persistent cross-system
+  mapping; it then becomes mandatory. This gap must remain visible here.
+- **Module-size refactor rule:** `backend/app/worker.py` and `backend/app/browser/persistence.py`
+  are growing but are NOT scheduled for standalone cleanup. Split/refactor them only when future
+  in-scope work touches them and the refactor measurably reduces implementation risk.
+- **Catalog breadth rule:** do not schedule more collectors or more event-rule breadth merely
+  because canonical docs describe them. The shortest path to demonstrated pilot value outranks
+  catalog completeness.
 - Detailed ExecPlans are created one at a time, when an EP becomes active. Do not pre-create
   detailed plans for later EPs.
 
