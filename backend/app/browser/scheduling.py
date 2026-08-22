@@ -263,6 +263,7 @@ class CheckpointSchedulingService:
                     monitored_url_id=monitored_url.id,
                     template_id=monitored_url.template_id,
                     scenario_id=scenario.id,
+                    observation_kind="SCHEDULED",
                     scheduled_for=scheduled_for,
                     status="PENDING",
                     attempt_count=0,

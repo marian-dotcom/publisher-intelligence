@@ -14,6 +14,8 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    event,
+    inspect,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -208,6 +210,21 @@ class CheckpointRun(Base):
             "'BROWSER_ERROR', 'TIMEOUT', 'BLOCKED')",
             name="ck_checkpoint_runs_status",
         ),
+        CheckConstraint(
+            "observation_kind IN ('SCHEDULED','DIAGNOSTIC','INCIDENT_DIAGNOSTIC')",
+            name="ck_checkpoint_runs_observation_kind",
+        ),
+        CheckConstraint(
+            "trigger_source IS NULL OR trigger_source IN ('OPERATOR_CLI','LEGACY_CLI')",
+            name="ck_checkpoint_runs_trigger_source",
+        ),
+        CheckConstraint(
+            "(observation_kind = 'SCHEDULED' AND trigger_source IS NULL "
+            "AND trigger_correlation_id IS NULL) OR "
+            "(observation_kind IN ('DIAGNOSTIC','INCIDENT_DIAGNOSTIC') "
+            "AND trigger_source IS NOT NULL AND trigger_correlation_id IS NOT NULL)",
+            name="ck_checkpoint_runs_observation_provenance",
+        ),
         UniqueConstraint("checkpoint_window_id", "monitored_url_id", "scenario_id"),
         Index("ix_checkpoint_runs_tenant_started", "tenant_id", "started_at"),
     )
@@ -233,6 +250,11 @@ class CheckpointRun(Base):
     scenario_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("browser_scenarios.id", ondelete="RESTRICT"), nullable=False
     )
+    observation_kind: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=text("'SCHEDULED'")
+    )
+    trigger_source: Mapped[str | None] = mapped_column(String(30))
+    trigger_correlation_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     scheduled_for: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -251,6 +273,28 @@ class CheckpointRun(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
+
+
+# ADR-130 creation-time evidence: observation kind and trigger provenance are
+# assigned when the checkpoint run row is created and can never be rewritten
+# through normal application paths. The mapper-level guard raises on any ORM
+# update that would actually change one of these values; assigning an identical
+# value remains harmless. Database CHECK constraints independently enforce the
+# provenance shape (SCHEDULED implies no provenance; non-scheduled implies
+# both fields present).
+_PROVENANCE_FIELDS = ("observation_kind", "trigger_source", "trigger_correlation_id")
+
+
+@event.listens_for(CheckpointRun, "before_update")
+def _checkpoint_run_provenance_immutable(mapper: Any, connection: Any, target: Any) -> None:
+    state = inspect(target)
+    for field in _PROVENANCE_FIELDS:
+        history = state.attrs[field].history
+        if not history.has_changes():
+            continue
+        previous = history.deleted[0] if history.deleted else None
+        if previous != getattr(target, field):
+            raise RuntimeError("checkpoint run observation provenance is immutable after creation")
 
 
 class CheckpointAttempt(Base):

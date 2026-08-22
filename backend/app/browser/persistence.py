@@ -482,19 +482,24 @@ class CheckpointRepository:
             run.environment = evidence.environment
             run.limitations = evidence.limitations
             run.manifest = manifest
-            await session.execute(
-                insert(Job)
-                .values(
-                    id=uuid.uuid4(),
-                    tenant_id=target.tenant_id,
-                    job_type="DERIVE_BROWSER_EVENTS",
-                    payload={"checkpoint_run_id": str(target.checkpoint_run_id)},
-                    priority=-10,
-                    max_attempts=3,
-                    idempotency_key=f"derive-browser-events:{target.checkpoint_run_id}:e2-v1",
+            # ADR-130 cohort purity: only routine scheduled observations feed
+            # semantic event derivation. Diagnostic and incident-diagnostic
+            # runs stay immutable first-class evidence but generate no
+            # derivation job and therefore no events.
+            if run.observation_kind == "SCHEDULED":
+                await session.execute(
+                    insert(Job)
+                    .values(
+                        id=uuid.uuid4(),
+                        tenant_id=target.tenant_id,
+                        job_type="DERIVE_BROWSER_EVENTS",
+                        payload={"checkpoint_run_id": str(target.checkpoint_run_id)},
+                        priority=-10,
+                        max_attempts=3,
+                        idempotency_key=(f"derive-browser-events:{target.checkpoint_run_id}:e2-v1"),
+                    )
+                    .on_conflict_do_nothing()
                 )
-                .on_conflict_do_nothing()
-            )
             await self._refresh_window_status(
                 session, run.checkpoint_window_id, evidence.completed_at
             )
@@ -1283,6 +1288,10 @@ class CheckpointRepository:
                     CheckpointRun.site_id == current.site_id,
                     CheckpointRun.scenario_id == current.scenario_id,
                     CheckpointRun.id != current.id,
+                    # ADR-130 cohort purity: only routine scheduled runs may
+                    # act as comparison predecessors, in both the exact-URL
+                    # and same-template rotation fallback branches.
+                    CheckpointRun.observation_kind == "SCHEDULED",
                     CheckpointRun.status.in_(FINAL_CHECKPOINT_STATUSES),
                     CheckpointRun.scheduled_for < current.scheduled_for,
                 )

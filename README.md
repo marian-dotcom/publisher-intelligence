@@ -349,7 +349,11 @@ bounded SSRF-safe general-worker HTTP client (no Chromium), deterministic RFC 93
 semantic parsers, idempotent six-hour scheduling, an independently fetched linked second check for
 high-risk transitions, and the fixed `e3-v1` event catalog with `IMMEDIATE_SECOND_CHECK`
 confirmation, semantic-noise suppression, typed snapshot evidence, and E2-compatible ads.txt
-condition support, recovery, and recurrence. No path delivers alerts or makes indexing,
+condition support, recovery, and recurrence. EP-018 adds ADR-130 observation run semantics: every
+checkpoint run records its observation kind (scheduled/diagnostic) with concrete creation-time
+trigger provenance that is immutable afterwards; non-scheduled runs remain first-class evidence
+but never enter comparison lineage, event derivation cohorts, or future Last Known Good
+eligibility. No path delivers alerts or makes indexing,
 authorization, revenue, or causal claims.
 
 The repository still excludes production OAuth onboarding, a managed secret provider, provider

@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.browser.contracts import OBSERVATION_KINDS, TRIGGER_SOURCES
 from app.browser.interactions import parse_interaction_steps
 from app.browser.models import (
     BrowserScenario,
@@ -57,6 +58,7 @@ class EnqueuedCheckpoint:
     tenant_id: uuid.UUID
     checkpoint_run_id: uuid.UUID
     job_id: uuid.UUID
+    trigger_correlation_id: uuid.UUID
 
 
 def _slug(value: str) -> str:
@@ -85,10 +87,19 @@ class CheckpointService:
         publisher_name: str,
         site_name: str,
         url: str,
+        observation_kind: str = "DIAGNOSTIC",
+        trigger_source: str = "OPERATOR_CLI",
     ) -> EnqueuedCheckpoint:
         hostname = urlsplit(url).hostname
         if hostname is None:
             raise ValueError("URL hostname is required")
+        if observation_kind not in OBSERVATION_KINDS or observation_kind == "SCHEDULED":
+            raise ValueError("operator registration only accepts non-scheduled observation kinds")
+        if trigger_source not in TRIGGER_SOURCES:
+            raise ValueError("unknown checkpoint run trigger source")
+        # ADR-130: one fresh, persistent correlation UUID per independent
+        # diagnostic invocation; job retries reuse the stored identity.
+        invocation_id = uuid.uuid4()
         canonical_domain = canonical_hostname(hostname)
         canonical_scheme = urlsplit(url).scheme.lower()
         guard = BrowserNetworkGuard(
@@ -131,6 +142,9 @@ class CheckpointService:
                 monitored_url_id=monitored_url.id,
                 template_id=template.id,
                 scenario_id=scenario.id,
+                observation_kind=observation_kind,
+                trigger_source=trigger_source,
+                trigger_correlation_id=invocation_id,
                 scheduled_for=now,
                 status="PENDING",
                 attempt_count=0,
@@ -156,6 +170,7 @@ class CheckpointService:
             tenant_id=tenant_id,
             checkpoint_run_id=run_id,
             job_id=job_id,
+            trigger_correlation_id=invocation_id,
         )
 
     async def _tenant(self, session: AsyncSession, slug: str, name: str) -> Tenant:

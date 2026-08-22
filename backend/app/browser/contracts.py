@@ -14,6 +14,17 @@ CheckpointStatus = Literal[
 CollectorStatus = Literal["OK", "NOT_PRESENT", "NOT_OBSERVABLE", "ERROR", "TIMEOUT"]
 InteractionStepType = Literal["WAIT", "SCROLL_PERCENT", "INSPECT"]
 
+# ADR-130 observation run taxonomy. Kinds and trigger provenance are
+# creation-time evidence: they are assigned when the checkpoint run row is
+# created and never mutated afterwards. SCHEDULED runs carry no provenance;
+# every non-scheduled run records both a controlled trigger source and the
+# concrete correlation identity of the invocation that produced it.
+ObservationKind = Literal["SCHEDULED", "DIAGNOSTIC", "INCIDENT_DIAGNOSTIC"]
+TriggerSource = Literal["OPERATOR_CLI", "LEGACY_CLI"]
+
+OBSERVATION_KINDS = frozenset({"SCHEDULED", "DIAGNOSTIC", "INCIDENT_DIAGNOSTIC"})
+TRIGGER_SOURCES = frozenset({"OPERATOR_CLI", "LEGACY_CLI"})
+
 
 @dataclass(frozen=True, slots=True)
 class InteractionStep:

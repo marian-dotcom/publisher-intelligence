@@ -25,6 +25,8 @@ async def register_and_enqueue(args: argparse.Namespace) -> None:
                 "tenant_id": str(result.tenant_id),
                 "checkpoint_run_id": str(result.checkpoint_run_id),
                 "job_id": str(result.job_id),
+                "observation_kind": "DIAGNOSTIC",
+                "trigger_correlation_id": str(result.trigger_correlation_id),
             },
             sort_keys=True,
         )
