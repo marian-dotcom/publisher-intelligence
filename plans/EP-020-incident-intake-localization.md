@@ -288,6 +288,12 @@ Created under the multi-ExecPlan program immediately after EP-019's merge and gr
 Marked READY: builds entirely on landed foundations; the only schema touch is an additive CHECK
 vocabulary extension; no human-gated decision required. Implementation not started.
 
+### Correction validation — 2026-08-22
+
+- Adversarial review found the 0019 downgrade guard untested (inconsistent with its predecessors).
+  Added `test_downgrade_refuses_while_incident_sourced_runs_exist`; full integration suite now
+  54/54.
+
 ## 20.1 Validation Results
 
 ### Local validation — 2026-08-22
