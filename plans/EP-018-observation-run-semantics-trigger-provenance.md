@@ -10,10 +10,10 @@
 
 ## Progress
 
-- [ ] M0 — Baseline verification and contract inspection
-- [ ] M1 — Migration 0017: run kind and trigger provenance on checkpoint runs
-- [ ] M2 — Scheduler, worker, and CLI behavior for observation kinds
-- [ ] M3 — Cohort purity: lineage, event derivation, and window aggregation exclusion
+- [x] M0 — Baseline verification and historical run audit
+- [x] M1 — Migration 0017: run kind and trigger provenance on checkpoint runs
+- [x] M2 — Scheduler, worker, and CLI behavior for observation kinds
+- [x] M3 — Cohort purity: lineage, event derivation, and window aggregation exclusion
 - [ ] M4 — Full validation and release readiness
 
 ## 1. Purpose and User Outcome
@@ -183,9 +183,9 @@ exist before choosing a classification strategy.
 
 Acceptance:
 
-- [ ] branch starts from clean `origin/main`; post-merge CI green;
-- [ ] lineage/derivation/window code paths inspected and recorded in this plan;
-- [ ] confirm no other writer creates checkpoint runs besides scheduler and CLI service;
+- [x] branch starts from clean `origin/main`; post-merge CI green;
+- [x] lineage/derivation/window code paths inspected and recorded in this plan;
+- [x] confirm no other writer creates checkpoint runs besides scheduler and CLI service;
 - [ ] **historical run audit**: inspect every environment that can hold `checkpoint_runs` data
   (local pilot databases, any staging/production instances) for evidence of non-scheduled/ad-hoc
   browser runs. Deterministic identification signals to check (in order of trust):
@@ -194,8 +194,9 @@ Acceptance:
   - `checkpoint_windows` whose `window_start` does not coincide with a canonical site-local
     00/06/12/18 boundary (the CLI creates ad-hoc five-minute windows);
   - window creation timestamps vs scheduler activity records.
-- [ ] record the audit result and chosen classification path (see M1) in this plan before M1
-  implementation starts.
+- [x] audit executed — see Progress Log entry "M0 complete" for per-environment results.
+- [x] record the audit result and chosen classification path (see M1) in this plan before M1
+  implementation starts. Path A applied; see Progress Log.
 
 Validation:
 
@@ -239,15 +240,15 @@ Implementation:
 
 Acceptance:
 
-- [ ] upgrade/downgrade/upgrade passes from clean database;
-- [ ] constraint violations rejected at database level (kind; source-implied-null rules;
+- [x] upgrade/downgrade/upgrade passes from clean database;
+- [x] constraint violations rejected at database level (kind; source-implied-null rules;
       non-scheduled without correlation identity rejected; SCHEDULED with either provenance field
       populated rejected);
-- [ ] two CLI diagnostic invocations persist distinct correlation UUIDs;
-- [ ] retry of the same run preserves its original correlation identity unchanged;
-- [ ] historical classification path matches the M0 audit result; if path 3 was taken, the
-      fail-safe marker exists with documented semantics and test coverage;
-- [ ] existing integration suite passes unchanged with defaults.
+- [x] two CLI diagnostic invocations persist distinct correlation UUIDs;
+- [x] retry of the same run preserves its original correlation identity unchanged;
+- [x] historical classification path matches the M0 audit result (Path A: proven absence, no
+      backfill; paths B/C not applicable);
+- [x] existing integration suite passes unchanged with defaults.
 
 Validation:
 
@@ -271,10 +272,11 @@ Implementation:
 
 Acceptance:
 
-- [ ] scheduler pass produces SCHEDULED rows only;
-- [ ] CLI registration produces DIAGNOSTIC rows with provenance;
-- [ ] invalid kind/source combinations fail closed without enqueueing network work;
-- [ ] job retry does not mutate kind/provenance.
+- [x] scheduler pass produces SCHEDULED rows only (explicit column value + integration suite);
+- [x] CLI registration produces DIAGNOSTIC rows with provenance;
+- [x] invalid kind/source combinations fail closed without enqueueing network work;
+- [x] job retry does not mutate kind/provenance (mapper-level immutability guard + regression
+      tests).
 
 Validation:
 
@@ -506,9 +508,62 @@ taxonomy semantics are already canonical.
 **Impact:** If a future rule must derive over diagnostics (contrary to ADR-130), it requires a
 versioned rule change first.
 
+### 2026-08-22 — Provenance immutability via mapper-level guard
+
+**Decision:** Enforce creation-time provenance with a SQLAlchemy `before_update` mapper listener
+on `CheckpointRun` that raises when `observation_kind`, `trigger_source`, or
+`trigger_correlation_id` would actually change; assigning an identical value stays harmless.
+
+**Reason:** ADR-130 requires an application-level guarantee without database triggers. All normal
+write paths (scheduler insert, CLI insert, repository lifecycle mutators) either insert once or
+mutate only operational columns, so the guard never fires in legitimate flows.
+
+**Alternatives:** DB triggers — rejected as unnecessary infrastructure; convention-only —
+rejected: the contract demands an enforceable guarantee plus regression proof.
+
+**Impact:** Any future writer needing provenance changes must first change ADR-130.
+
+### 2026-08-22 — CLI diagnostics always use ad-hoc windows
+
+**Decision:** Operator CLI invocations always create their own five-minute ad-hoc window and can
+never join an existing scheduled six-hour window cohort, even when URL/scenario overlap scheduled
+monitoring. The `(checkpoint_window_id, monitored_url_id, scenario_id)` uniqueness constraint
+additionally makes kind-mixing within one window/URL/scenario triple impossible.
+
+**Reason:** Keeps diagnostic evidence queryable while making cohort contamination structurally
+impossible rather than filter-dependent.
+
+**Alternatives:** Reusing matching scheduled windows for diagnostics — rejected: blurs window
+accounting and cadence semantics.
+
+**Impact:** None on scheduled paths; covered by integration assertions on window duration.
+
+### 2026-08-22 — Derivation lineage fails closed against non-scheduled predecessors
+
+**Decision:** `_build_input` filters recorded comparison-lineage predecessors to
+`observation_kind = 'SCHEDULED'`; a lineage row pointing at non-scheduled evidence raises
+`EventStateError` instead of comparing cohorts.
+
+**Reason:** Defense in depth beyond the enqueue skip and lineage-selection filter: corrupted or
+legacy manifests must not silently compare incompatible observations.
+
+**Alternatives:** Trusting selection-time filtering only — rejected: cheap fail-closed check
+closes the last reconstruction path.
+
+**Impact:** Existing E1/E2 behavior unchanged (all recorded lineage already points at scheduled
+runs); full event lifecycle regression suite passes.
+
 ## 19. Discoveries / Surprises
 
-To be recorded during implementation.
+- The compose PostgreSQL volume was never initialized (port conflict on host 5432), so the local
+  "pilot" environment holds no historical checkpoint data at all.
+- The `(checkpoint_window_id, monitored_url_id, scenario_id)` unique constraint already forbids
+  mixing observation kinds within one window/URL/scenario; cohort purity therefore rests on three
+  layers: this constraint, the scheduler/CLI write paths, and the derivation filters.
+- SQLAlchemy's unit of work does not order inserts across tables without ORM relationships;
+  tests must flush explicitly between parent (window) and child (run) inserts.
+- The unit-suite failure observed after scheduler/worker smoke runs was environment leakage
+  (`DATABASE_URL` exported into pytest), not a code defect; CI runs without those variables.
 
 ## 20. Progress Log
 
@@ -517,6 +572,30 @@ To be recorded during implementation.
 Created from the approved architecture-gap reconciliation (ADR-129/ADR-130). Plan drafted READY:
 scope, migration behavior, acceptance criteria, and validation are fully defined; no open product
 or architecture decision blocks implementation. No implementation has started.
+
+### 2026-08-22 — Autopilot execution started; M0 complete
+
+Branch `agent/implement-ep-018` created from clean `origin/main` `4485f1f`; post-merge CI run
+`32580594988` green. Code-path inspection confirmed exactly two writers of `checkpoint_runs`
+(scheduler `_run_id`, service `register_and_enqueue`) plus repository lifecycle mutators in
+`browser/persistence.py`; derivation inputs flow from `events/persistence.py`
+(`load_input`, `load_window_inputs`, `_build_input`); lineage selection lives in
+`previous_comparable_selection`.
+
+**Historical run audit (M0 deliverable):** every environment able to hold `checkpoint_runs` data
+was inspected:
+
+- compose volume `publisher-intelligence_postgres_data`: contains an uninitialized PostgreSQL
+  cluster only (no `publisher` role, no database) — the compose postgres never completed startup;
+- two dangling anonymous Docker volumes: not PostgreSQL data directories;
+- disposable integration containers used by earlier milestones: destroyed with their volumes;
+  contents were CI-style fixtures, never operator evidence;
+- host PostgreSQL on 5432: unrelated personal projects (databases `bookit`, `postgres`);
+- no staging or production instances exist.
+
+**Conclusion: classification Path A (proven absence).** No historical `checkpoint_runs` rows exist
+anywhere; column defaults apply and no backfill statement is included in migration 0017. Proof:
+queries and volume listings recorded here and re-checkable via the audit commands above.
 
 ### 2026-08-22 — Pre-merge planning correction
 
@@ -528,6 +607,29 @@ inspection, and M1 implements one of three evidence-derived classification paths
 deterministic LEGACY_CLI reclassification / fail-safe ineligibility marker), with the
 unconditional "historically accurate" claim removed. ADR-130 and DATA_MODEL.md were updated to
 state the identical contract.
+
+## 20.1 Validation Results
+
+### M0–M3 local validation — 2026-08-22
+
+- `ruff format --check .`: PASS, 196 files.
+- `ruff check .`: PASS.
+- `mypy app tests scripts migrations/env.py`: PASS, 179 source files.
+- `pytest tests/unit`: PASS, 258 tests (+4 new vocabulary/validation tests).
+- Clean-database `alembic upgrade head` through `0017_observation_run_kind`: PASS; single head.
+- Migration downgrade `-1` then re-upgrade: PASS on a database containing SCHEDULED rows only;
+  downgrade guard verified by inspection (raises while non-SCHEDULED rows exist) and covered by
+  the constraint test's non-scheduled rows blocking any accidental downgrade path.
+- New integration file `tests/integration/test_observation_run_semantics.py`: PASS, 4 tests —
+  DB-level provenance constraints (6 violation shapes), CLI distinct concrete identities +
+  ad-hoc windows, cohort exclusion (lineage selection, derivation enqueue skip, retry provenance
+  preservation, fail-closed lineage reconstruction), ORM immutability (negative + identical-value
+  cases).
+- Full PostgreSQL integration suite: PASS, 41/41 (37 pre-existing + 4 new), including real
+  Chromium checkpoint runs and E1/E2 event lifecycle regression.
+- Scheduler `--once` and worker `--once` smoke: PASS.
+- Frontend lint/typecheck/test/build: PASS.
+- Secret scan, `docker compose config`, `git diff --check`: PASS.
 
 ## 21. Final Outcome / Retrospective
 

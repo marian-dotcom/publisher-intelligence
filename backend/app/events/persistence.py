@@ -66,6 +66,9 @@ class EventRepository:
                 select(CheckpointRun).where(
                     CheckpointRun.id == checkpoint_run_id,
                     CheckpointRun.tenant_id == tenant_id,
+                    # ADR-130 cohort purity: non-scheduled observations are
+                    # never derivation inputs.
+                    CheckpointRun.observation_kind == "SCHEDULED",
                 )
             )
             if current is None:
@@ -80,6 +83,9 @@ class EventRepository:
                 select(CheckpointRun).where(
                     CheckpointRun.id == checkpoint_run_id,
                     CheckpointRun.tenant_id == tenant_id,
+                    # ADR-130 cohort purity: window aggregation cohorts are
+                    # built from scheduled observations only.
+                    CheckpointRun.observation_kind == "SCHEDULED",
                 )
             )
             if current is None:
@@ -101,6 +107,9 @@ class EventRepository:
                             CheckpointRun.tenant_id == tenant_id,
                             CheckpointRun.site_id == current.site_id,
                             CheckpointRun.checkpoint_window_id == current.checkpoint_window_id,
+                            # ADR-130 cohort purity: exclude non-scheduled
+                            # observations even when they share a window.
+                            CheckpointRun.observation_kind == "SCHEDULED",
                             CheckpointRun.status.in_(("COMPLETE", "PARTIAL")),
                         )
                         .order_by(CheckpointRun.id)
@@ -131,6 +140,9 @@ class EventRepository:
                 CheckpointRun.site_id == current.site_id,
                 CheckpointRun.scenario_id == current.scenario_id,
                 CheckpointRun.monitored_url_id == current.monitored_url_id,
+                # ADR-130 cohort purity: recorded comparison lineage must
+                # point at scheduled evidence; anything else fails closed.
+                CheckpointRun.observation_kind == "SCHEDULED",
             )
         )
         if previous is None or previous.completed_at is None or current.completed_at is None:
@@ -154,6 +166,8 @@ class EventRepository:
                     CheckpointRun.site_id == current.site_id,
                     CheckpointRun.scenario_id == current.scenario_id,
                     CheckpointRun.monitored_url_id == current.monitored_url_id,
+                    # ADR-130 cohort purity: see the predecessor filter above.
+                    CheckpointRun.observation_kind == "SCHEDULED",
                 )
             )
             if prior is not None and prior.completed_at is None:
