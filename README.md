@@ -264,6 +264,50 @@ retain raw consent strings; authenticate; bypass paywalls; run stealth; discover
 automatically; or make compliance, revenue, event, incident, causality, player-quality, or AI
 judgments.
 
+## Public configuration events (E3)
+
+The scheduler enqueues one idempotent `FETCH_PUBLIC_CONFIG` job per active site for `/robots.txt`
+and `/ads.txt` in every site-local six-hour window. URLs are always derived from the tenant-owned
+`Site` record; job payloads and parsed files never grant fetch authority. A lightweight general-worker HTTP client — no Chromium — applies fixed-path URL derivation, DNS resolution under an explicit
+timeout, rejection of private/reserved/metadata destinations and IP literals, manual redirect
+authorization at every hop against only the configured canonical host and its www alias, streamed
+decompressed byte budgets (512,000 bytes for robots.txt per RFC 9309's 500 KiB minimum, 2 MiB for
+ads.txt), a five-redirect limit, and 2s/5s/10s/20s DNS/connect/read/total timeouts. The client never
+follows redirects automatically, sends no cookies, credentials, or environment proxies, and treats
+response bodies as untrusted bytes.
+
+Every completed attempt persists one immutable `public_config_snapshots` row (scheduled or
+validation provenance, deterministic observation key, bounded versioned summary) and, for ads.txt,
+normalized immutable `ads_txt_records` with per-record hashes and bounded diagnostics. Parse states
+keep failure modes distinct: `VALID`, `VALID_WITH_WARNINGS`, `EMPTY` (HTTP 200 without a meaningful
+declaration is never healthy), `INVALID`, `MISSING`, `HTTP_ERROR`, `UNREACHABLE`, `TOO_LARGE`, and
+`BLOCKED`. Raw file bodies are not stored; the bounded normalized snapshot is the durable source
+evidence.
+
+The RFC 9309 robots parser retains parseable rules despite bad lines and honors grouping, wildcard
+and end-marker matching, case-insensitive user agents, and longest-match behavior. The ads.txt 1.1
+parser normalizes seller fields case-insensitively where specified, preserves account IDs exactly,
+accepts optional certification-authority fields, and folds supported variables including
+`OWNERDOMAIN`/`MANAGERDOMAIN` into semantic state. Semantic hashes ignore comments, ordering,
+whitespace, line endings, field case where defined, and duplicate-equivalent records.
+
+The fixed `e3-v1` registry derives deterministic events only from comparable scheduled snapshots of
+compatible normalizer versions: routine semantic changes become single idempotent point events
+(`ROBOTS_TXT_CHANGED`, `ROBOTS_BROAD_BLOCK_REMOVED`, `ADS_TXT_CHANGED`) while formatting-only or
+first-baseline transitions stay silent. A newly effective universal `User-agent: *` plus
+`Disallow: /` is the only automatic broad-block predicate; it, together with ads.txt becoming
+missing, empty-over-200, or materially invalid, enqueues exactly one linked
+`VALIDATE_PUBLIC_CONFIG` second fetch and creates no event yet. High-risk events are recorded only
+when that independent validation semantically agrees, attaching both snapshots as typed
+`PUBLIC_CONFIG_SNAPSHOT` evidence; disagreement preserves both observations and records nothing.
+ads.txt conditions reuse E2 active-condition identity: repeated affected observations add support,
+confirmed valid recovery resolves, and recurrence creates a new event. Validation fetches never
+advance the next scheduled window and are never recursively validated.
+
+E3 events state only what public evidence supports: no indexing, authorization, revenue, or causal
+claims, and no alert delivery. Production network egress enforcement remains required because DNS
+preflight cannot by itself eliminate DNS rebinding between resolution and connection.
+
 Apply or inspect migrations independently:
 
 ```bash
@@ -296,9 +340,20 @@ If Docker is unavailable, run the local unit/lint/build checks and rely on GitHu
 
 ## Repository boundaries
 
-EP-009 completes Browser v1. EP-010 adds C1 persistence and GA4 C2. EP-011 adds GSC C3. EP-012
-adds GAM C4 with three capability-validated aggregate cubes, asynchronous report execution, full
-pagination, and network timezone/currency provenance. EP-013 adds C5 cross-source ratios, explicit
-multi-source provenance, and factual divergence helpers. The repository still excludes production
-OAuth onboarding, a managed secret provider, provider write access, event promotion, alerts,
-incident conclusions, LLM-selected queries, and production rollout.
+EP-009 completes Browser v1. EP-010 through EP-014 add source persistence, read-only GA4/GSC/GAM
+collection, cross-source ratios, factual divergence helpers, and bounded incident drill-down.
+EP-015 and EP-016 add deterministic semantic browser events with evidence references, confirmation,
+deduplication, active-condition support, and evidence-backed recovery. EP-017 adds public
+configuration observation: immutable robots.txt/ads.txt snapshots and normalized ads.txt records, a
+bounded SSRF-safe general-worker HTTP client (no Chromium), deterministic RFC 9309 and ads.txt 1.1
+semantic parsers, idempotent six-hour scheduling, an independently fetched linked second check for
+high-risk transitions, and the fixed `e3-v1` event catalog with `IMMEDIATE_SECOND_CHECK`
+confirmation, semantic-noise suppression, typed snapshot evidence, and E2-compatible ads.txt
+condition support, recovery, and recurrence. No path delivers alerts or makes indexing,
+authorization, revenue, or causal claims.
+
+The repository still excludes production OAuth onboarding, a managed secret provider, provider
+write access, alert delivery, Home/Timeline UI, automated incident conclusions, LLM-selected
+queries, and production rollout. Refresh this summary after no more than three completed EPs, and
+earlier whenever an EP materially changes the implemented product or security boundary. Always
+state the latest fully covered EP and distinguish partial work from completed capability.

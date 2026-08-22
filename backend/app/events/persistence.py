@@ -457,6 +457,8 @@ class EventRepository:
         for pointer in pointers:
             if pointer.relation not in VALID_RELATIONS:
                 raise EventStateError("unsupported evidence relation")
+            if pointer.evidence_kind != "CHECKPOINT_RUN":
+                raise EventStateError("browser events require checkpoint evidence")
             pair = (pointer.checkpoint_run_id, pointer.relation)
             if pair in seen:
                 continue

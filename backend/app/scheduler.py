@@ -14,6 +14,8 @@ from app.db.session import get_session_factory
 from app.jobs.queue import JobQueue
 from app.metrics.persistence import MetricDerivationRepository
 from app.metrics.scheduling import CrossSourceSchedulingService
+from app.public_config.persistence import PublicConfigRepository
+from app.public_config.scheduling import PublicConfigSchedulingService
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +74,18 @@ async def run_once() -> None:
             "context": {
                 "site_count": derived_result.site_count,
                 "job_count": derived_result.job_count,
+            }
+        },
+    )
+    public_config_result = await PublicConfigSchedulingService(
+        PublicConfigRepository(factory), queue
+    ).schedule_due()
+    logger.info(
+        "public configuration scheduling pass completed",
+        extra={
+            "context": {
+                "site_count": public_config_result.site_count,
+                "job_count": public_config_result.job_count,
             }
         },
     )

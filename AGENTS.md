@@ -921,6 +921,11 @@ repository foundation
 
 Use `MVP.md`, subsystem milestones and ExecPlans as the authoritative sequence.
 
+Keep `README.md` → `Repository boundaries` current as compact project memory. Refresh it after no
+more than three completed EPs, or sooner when an EP materially changes the implemented product,
+data, security, or operational boundary. Name the latest fully covered EP and label partial work
+explicitly; never describe a planned milestone as shipped.
+
 ---
 
 # 32. When to ask the user

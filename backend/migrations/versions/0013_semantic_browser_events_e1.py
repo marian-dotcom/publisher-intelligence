@@ -17,6 +17,15 @@ down_revision: str | None = "0012_cross_source_metrics_c5"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
+BROWSER_EVENT_CODES = {
+    "THIRD_PARTY_DEPENDENCY_ADDED",
+    "THIRD_PARTY_DEPENDENCY_REMOVED",
+    "JS_ERROR_STARTED",
+    "NOINDEX_ADDED",
+    "CANONICAL_CHANGED",
+    "GPT_EXPECTED_SLOT_MISSING",
+}
+
 
 def upgrade() -> None:
     op.create_table(
@@ -109,6 +118,7 @@ def upgrade() -> None:
                 "metadata_schema": None,
             }
             for r in RULES
+            if r.code in BROWSER_EVENT_CODES
         ],
     )
     op.create_table(

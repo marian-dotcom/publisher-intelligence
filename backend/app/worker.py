@@ -29,6 +29,12 @@ from app.jobs.queue import JobLease, JobQueue
 from app.metrics.contracts import CROSS_SOURCE_RULE_VERSION
 from app.metrics.persistence import MetricDerivationRepository, MetricDerivationStateError
 from app.metrics.service import CrossSourceMetricService
+from app.public_config.client import PublicConfigClient
+from app.public_config.contracts import PUBLIC_CONFIG_RULE_VERSION, ConfigType
+from app.public_config.event_persistence import PublicConfigEventRepository
+from app.public_config.event_service import PublicConfigEventService
+from app.public_config.persistence import PublicConfigRepository, PublicConfigStateError
+from app.public_config.service import PublicConfigRunError, PublicConfigService
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +48,7 @@ async def handle_job(
     gam_service: GAMConnectorService | None = None,
     metric_service: CrossSourceMetricService | None = None,
     event_service: EventService | None = None,
+    public_config_service: PublicConfigService | None = None,
 ) -> None:
     context: dict[str, object] = {
         "job_id": str(lease.id),
@@ -83,6 +90,16 @@ async def handle_job(
         return
     if lease.job_type == "DERIVE_BROWSER_EVENTS" and event_service is not None:
         await _handle_browser_events_job(queue, lease, backoff_seconds, event_service, context)
+        return
+    if lease.job_type == "FETCH_PUBLIC_CONFIG" and public_config_service is not None:
+        await _handle_public_config_fetch_job(
+            queue, lease, backoff_seconds, public_config_service, context
+        )
+        return
+    if lease.job_type == "VALIDATE_PUBLIC_CONFIG" and public_config_service is not None:
+        await _handle_public_config_validation_job(
+            queue, lease, backoff_seconds, public_config_service, context
+        )
         return
     failed = await queue.fail_or_retry(
         job_id=lease.id,
@@ -160,6 +177,233 @@ async def _handle_browser_events_job(
                 "unsupported_count": result.unsupported_count,
                 "skip_reasons": list(result.skip_reasons),
                 "fenced_update": completed,
+            }
+        },
+    )
+
+
+async def _handle_public_config_fetch_job(
+    queue: JobQueue,
+    lease: JobLease,
+    backoff_seconds: int,
+    service: PublicConfigService,
+    context: dict[str, object],
+) -> None:
+    required = {"site_id", "config_type", "scheduled_for", "rule_version"}
+    if lease.tenant_id is None or set(lease.payload) != required:
+        await _fail_public_config_job(
+            queue,
+            lease,
+            backoff_seconds,
+            retryable=False,
+            error_class="INVALID_PUBLIC_CONFIG_JOB",
+            error_code="INVALID_JOB_PAYLOAD",
+            context=context,
+        )
+        return
+    try:
+        site_id = uuid.UUID(_payload_string(lease.payload["site_id"]))
+        config_type = _public_config_type(lease.payload["config_type"])
+        scheduled_for = datetime.fromisoformat(_payload_string(lease.payload["scheduled_for"]))
+        rule_version = _payload_string(lease.payload["rule_version"])
+        if scheduled_for.tzinfo is None or scheduled_for.utcoffset() is None:
+            raise ValueError("scheduled instant must have an offset")
+        if rule_version != PUBLIC_CONFIG_RULE_VERSION:
+            raise ValueError("unsupported public configuration rule version")
+    except (TypeError, ValueError, AttributeError):
+        await _fail_public_config_job(
+            queue,
+            lease,
+            backoff_seconds,
+            retryable=False,
+            error_class="INVALID_PUBLIC_CONFIG_JOB",
+            error_code="INVALID_JOB_PAYLOAD",
+            context=context,
+        )
+        return
+    try:
+        result = await service.run_scheduled(
+            tenant_id=lease.tenant_id,
+            site_id=site_id,
+            config_type=config_type,
+            scheduled_for=scheduled_for,
+            attempt=lease.attempt,
+            rule_version=rule_version,
+        )
+    except PublicConfigRunError as error:
+        await _fail_public_config_job(
+            queue,
+            lease,
+            backoff_seconds,
+            retryable=error.retryable,
+            error_class="PUBLIC_CONFIG_RUN_ERROR",
+            error_code=error.code,
+            context=context,
+        )
+        return
+    except (EventStateError, PublicConfigStateError, ValueError):
+        await _fail_public_config_job(
+            queue,
+            lease,
+            backoff_seconds,
+            retryable=False,
+            error_class="PUBLIC_CONFIG_STATE_ERROR",
+            error_code="TENANT_OR_STATE_INVALID",
+            context=context,
+        )
+        return
+    except Exception:
+        await _fail_public_config_job(
+            queue,
+            lease,
+            backoff_seconds,
+            retryable=True,
+            error_class="PUBLIC_CONFIG_RUNTIME_ERROR",
+            error_code="PUBLIC_CONFIG_RUNTIME_ERROR",
+            context=context,
+        )
+        return
+    completed = await queue.complete(job_id=lease.id, lock_token=lease.lock_token)
+    logger.info(
+        "public configuration fetch job completed",
+        extra={
+            "context": {
+                **context,
+                "site_id": str(site_id),
+                "config_type": config_type,
+                "snapshot_id": str(result.snapshot_id),
+                "parse_status": result.parse_status,
+                "validation_requested": result.validation_requested,
+                "fenced_update": completed,
+            }
+        },
+    )
+
+
+async def _handle_public_config_validation_job(
+    queue: JobQueue,
+    lease: JobLease,
+    backoff_seconds: int,
+    service: PublicConfigService,
+    context: dict[str, object],
+) -> None:
+    required = {"site_id", "config_type", "primary_snapshot_id", "rule_version"}
+    if lease.tenant_id is None or set(lease.payload) != required:
+        await _fail_public_config_job(
+            queue,
+            lease,
+            backoff_seconds,
+            retryable=False,
+            error_class="INVALID_PUBLIC_CONFIG_JOB",
+            error_code="INVALID_JOB_PAYLOAD",
+            context=context,
+        )
+        return
+    try:
+        site_id = uuid.UUID(_payload_string(lease.payload["site_id"]))
+        config_type = _public_config_type(lease.payload["config_type"])
+        primary_snapshot_id = uuid.UUID(_payload_string(lease.payload["primary_snapshot_id"]))
+        rule_version = _payload_string(lease.payload["rule_version"])
+        if rule_version != PUBLIC_CONFIG_RULE_VERSION:
+            raise ValueError("unsupported public configuration rule version")
+    except (TypeError, ValueError, AttributeError):
+        await _fail_public_config_job(
+            queue,
+            lease,
+            backoff_seconds,
+            retryable=False,
+            error_class="INVALID_PUBLIC_CONFIG_JOB",
+            error_code="INVALID_JOB_PAYLOAD",
+            context=context,
+        )
+        return
+    try:
+        result = await service.run_validation(
+            tenant_id=lease.tenant_id,
+            site_id=site_id,
+            config_type=config_type,
+            primary_snapshot_id=primary_snapshot_id,
+            attempt=lease.attempt,
+            rule_version=rule_version,
+        )
+    except PublicConfigRunError as error:
+        await _fail_public_config_job(
+            queue,
+            lease,
+            backoff_seconds,
+            retryable=error.retryable,
+            error_class="PUBLIC_CONFIG_RUN_ERROR",
+            error_code=error.code,
+            context=context,
+        )
+        return
+    except (EventStateError, PublicConfigStateError, ValueError):
+        await _fail_public_config_job(
+            queue,
+            lease,
+            backoff_seconds,
+            retryable=False,
+            error_class="PUBLIC_CONFIG_STATE_ERROR",
+            error_code="TENANT_OR_STATE_INVALID",
+            context=context,
+        )
+        return
+    except Exception:
+        await _fail_public_config_job(
+            queue,
+            lease,
+            backoff_seconds,
+            retryable=True,
+            error_class="PUBLIC_CONFIG_RUNTIME_ERROR",
+            error_code="PUBLIC_CONFIG_RUNTIME_ERROR",
+            context=context,
+        )
+        return
+    completed = await queue.complete(job_id=lease.id, lock_token=lease.lock_token)
+    logger.info(
+        "public configuration validation job completed",
+        extra={
+            "context": {
+                **context,
+                "site_id": str(site_id),
+                "config_type": config_type,
+                "primary_snapshot_id": str(primary_snapshot_id),
+                "snapshot_id": str(result.snapshot_id),
+                "parse_status": result.parse_status,
+                "fenced_update": completed,
+            }
+        },
+    )
+
+
+async def _fail_public_config_job(
+    queue: JobQueue,
+    lease: JobLease,
+    backoff_seconds: int,
+    *,
+    retryable: bool,
+    error_class: str,
+    error_code: str,
+    context: dict[str, object],
+) -> None:
+    bounded_backoff = min(3600, max(1, backoff_seconds) * (2 ** max(0, lease.attempt - 1)))
+    failed = await queue.fail_or_retry(
+        job_id=lease.id,
+        lock_token=lease.lock_token,
+        retryable=retryable,
+        error_class=error_class,
+        error_message=error_code,
+        backoff_seconds=bounded_backoff,
+    )
+    logger.error(
+        "public configuration job failed",
+        extra={
+            "context": {
+                **context,
+                "error_class": error_class,
+                "error_code": error_code,
+                "retryable": retryable,
+                "fenced_update": failed,
             }
         },
     )
@@ -907,6 +1151,13 @@ def _payload_string(value: object) -> str:
     return value
 
 
+def _public_config_type(value: object) -> ConfigType:
+    raw = _payload_string(value)
+    if raw not in {"ROBOTS_TXT", "ADS_TXT"}:
+        raise ValueError("invalid public configuration type")
+    return "ROBOTS_TXT" if raw == "ROBOTS_TXT" else "ADS_TXT"
+
+
 def _optional_payload_string(value: object, max_length: int) -> str | None:
     if value is None:
         return None
@@ -956,6 +1207,16 @@ async def run(*, once: bool) -> None:
     )
     metric_service = CrossSourceMetricService(MetricDerivationRepository(factory))
     event_service = EventService(EventRepository(factory))
+    public_config_repository = PublicConfigRepository(factory)
+    public_config_service = PublicConfigService(
+        public_config_repository,
+        queue,
+        PublicConfigClient(),
+        event_service=PublicConfigEventService(
+            public_config_repository,
+            PublicConfigEventRepository(factory),
+        ),
+    )
     worker_id = f"{socket.gethostname()}:{id(asyncio.current_task())}"
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -987,6 +1248,7 @@ async def run(*, once: bool) -> None:
                 gam_service,
                 metric_service,
                 event_service,
+                public_config_service,
             )
         if once:
             return
