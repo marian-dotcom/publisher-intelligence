@@ -154,7 +154,7 @@ class AuthService:
         token_hash = hash_session_token(raw_token)
         now = datetime.now(UTC)
         async with self._session_factory() as session:
-            row = await session.scalar(
+            query = (
                 select(Session, Operator, OperatorTenant.tenant_id)
                 .join(Operator, Operator.id == Session.operator_id)
                 .join(
@@ -162,13 +162,17 @@ class AuthService:
                     (OperatorTenant.operator_id == Operator.id)
                     & (OperatorTenant.tenant_id == Session.tenant_id),
                 )
-                .where(
-                    Session.token_hash == token_hash,
-                    Session.revoked_at.is_(None),
-                    Session.expires_at > now,
-                    Operator.is_active.is_(True),
-                )
             )
+            row = (
+                await session.execute(
+                    query.where(
+                        Session.token_hash == token_hash,
+                        Session.revoked_at.is_(None),
+                        Session.expires_at > now,
+                        Operator.is_active.is_(True),
+                    )
+                )
+            ).first()
             if row is None:
                 return None
             session_row, operator, _tenant_id = row

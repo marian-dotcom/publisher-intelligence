@@ -61,7 +61,7 @@ def make_purge(
     session_factory: Callable[[], Any],
 ) -> Callable[[], Any]:
     async def purge() -> None:
-        async with session_factory()() as session, session.begin():
+        async with session_factory() as session, session.begin():
             for table in PURGE_ORDER:
                 await session.execute(text(f"DELETE FROM {table}"))
 

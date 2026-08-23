@@ -3,7 +3,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 
 from app.auth.dependencies import (
     SESSION_COOKIE,
@@ -23,7 +23,7 @@ def _service() -> AuthService:
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
     tenant_id: uuid.UUID
 
