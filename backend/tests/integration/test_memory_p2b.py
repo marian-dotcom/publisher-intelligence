@@ -437,19 +437,11 @@ def test_t8_cross_tenant_timeline_body_contains_no_foreign_event_data() -> None:
 
 def test_t9_raw_internal_payload_not_exposed_in_timeline() -> None:
     """T9: raw/unrestricted payload data must not appear in Timeline serialization."""
-    from tests.integration.product.factories import (
-        add_event_with_internal_details,
-        create_operator,
-        create_site,
-        create_tenant,
-    )
 
     async def setup():
         slug = f"t9-{uuid.uuid4().hex[:8]}"
         tenant_id = await factories.create_tenant(slug)
-        _operator_id, email = await factories.create_operator(
-            tenant_id, f"op-{slug}@example.com"
-        )
+        _operator_id, email = await factories.create_operator(tenant_id, f"op-{slug}@example.com")
         site_id = await factories.create_site(tenant_id)
         event_id = await factories.add_event_with_internal_details(tenant_id, site_id)
         return tenant_id, site_id, email

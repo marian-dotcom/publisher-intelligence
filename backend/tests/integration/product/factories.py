@@ -21,6 +21,7 @@ from app.db.session import get_session_factory
 from app.events.models import Event
 from app.events.registry import definition_id
 from app.evidence.models import ManualNote
+from app.incidents.models import Incident
 
 
 async def create_tenant(slug: str) -> uuid.UUID:
@@ -361,19 +362,13 @@ async def add_bounded_event(
     return event_id
 
 
-async def add_bounded_event(
-    tenant_id: uuid.UUID,
-    site_id: uuid.UUID,
-    *,
-    window_start,
-    window_end,
-) -> uuid.UUID:
-    """Event with bounded occurrence interval (WINDOW precision, both bounds set)."""
+async def add_event_with_internal_details(tenant_id: uuid.UUID, site_id: uuid.UUID) -> uuid.UUID:
+    """Event with populated internal details/metadata for leakage testing."""
     factory = get_session_factory()
     event_id = uuid.uuid4()
-    when = datetime.now(UTC) - timedelta(hours=1)
+    when = datetime(2026, 8, 22, 12, tzinfo=UTC)
+    monitored_url_id, template_id = uuid.uuid4(), uuid.uuid4()
     async with factory() as session, session.begin():
-        monitored_url_id, template_id, scenario_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
         session.add(
             Template(
                 id=template_id,
@@ -392,16 +387,6 @@ async def add_bounded_event(
                 site_id=site_id,
                 template_id=template_id,
                 url=f"https://{site_id.hex}.example.com/a",
-                status="ACTIVE",
-            )
-        )
-        session.add(
-            BrowserScenario(
-                id=scenario_id,
-                tenant_id=tenant_id,
-                site_id=site_id,
-                code=f"core_desktop_{scenario_id.hex[:6]}",
-                version=1,
                 status="ACTIVE",
             )
         )
@@ -425,8 +410,8 @@ async def add_bounded_event(
                 event_definition_id=definition_id("NOINDEX_ADDED"),
                 template_id=None,
                 started_at=when,
-                occurred_after_at=window_start,
-                occurred_before_at=window_end,
+                occurred_after_at=None,
+                occurred_before_at=when,
                 time_precision="WINDOW",
                 detected_at=when + timedelta(minutes=5),
                 severity="MEDIUM",
@@ -435,57 +420,6 @@ async def add_bounded_event(
                 source_kind="BROWSER_CHECKPOINT",
                 source_version="e3-v1",
                 condition_key=None,
-                scope={"config_type": "ROBOTS_TXT"},
-                summary="P2-B bounded-window fixture event",
-                details={},
-            )
-        )
-    return event_id
-
-
-async def add_event_with_internal_details(
-    tenant_id: uuid.UUID, site_id: uuid.UUID
-) -> uuid.UUID:
-    """Event with populated internal details/metadata for leakage testing."""
-    factory = get_session_factory()
-    event_id = uuid.uuid4()
-    when = datetime(2026, 8, 22, 12, tzinfo=UTC)
-    monitored_url_id, template_id = uuid.uuid4(), uuid.uuid4()
-    async with factory() as session, session.begin():
-        session.add(
-            Template(
-                id=template_id, tenant_id=tenant_id, site_id=site_id,
-                code="article", display_name="Article", status="ACTIVE",
-            )
-        )
-        await session.flush()
-        session.add(
-            MonitoredUrl(
-                id=monitored_url_id, tenant_id=tenant_id, site_id=site_id,
-                template_id=template_id,
-                url=f"https://{site_id.hex}.example.com/a", status="ACTIVE",
-            )
-        )
-        window_id = uuid.uuid4()
-        session.add(
-            CheckpointWindow(
-                id=window_id, tenant_id=tenant_id, site_id=site_id,
-                scheduled_for=when, window_start=when,
-                window_end=when + timedelta(minutes=30),
-            )
-        )
-        await session.flush()
-        session.add(
-            Event(
-                id=event_id, tenant_id=tenant_id, site_id=site_id,
-                event_definition_id=definition_id("NOINDEX_ADDED"),
-                template_id=None, started_at=when,
-                occurred_after_at=None, occurred_before_at=when,
-                time_precision="WINDOW",
-                detected_at=when + timedelta(minutes=5),
-                severity="MEDIUM", observation_confidence="HIGH",
-                status="RECORDED", source_kind="BROWSER_CHECKPOINT",
-                source_version="e3-v1", condition_key=None,
                 scope={"config_type": "ROBOTS_TXT"},
                 summary="T9 raw-payload fixture event",
                 details={
@@ -497,3 +431,31 @@ async def add_event_with_internal_details(
             )
         )
     return event_id
+
+
+async def create_incident(
+    tenant_id: uuid.UUID,
+    site_id: uuid.UUID,
+    *,
+    title: str = "Test incident",
+    status: str = "OPEN",
+) -> uuid.UUID:
+    factory = get_session_factory()
+    async with factory() as session, session.begin():
+        site = await session.scalar(select(Site).where(Site.id == site_id))
+        assert site is not None
+        incident_id = uuid.uuid4()
+        session.add(
+            Incident(
+                id=incident_id,
+                tenant_id=tenant_id,
+                publisher_id=site.publisher_id,
+                site_id=site_id,
+                title=title,
+                symptom_family="GAM_ADSERVING",
+                description=f"Description for {title}",
+                opened_at=datetime.now(UTC),
+                status=status,
+            )
+        )
+    return incident_id
