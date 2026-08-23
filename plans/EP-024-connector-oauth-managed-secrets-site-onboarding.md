@@ -1,6 +1,6 @@
 # EP-024 — Connector OAuth, Managed Secrets & Site Onboarding
 
-**Status:** BLOCKED_AT_HUMAN_GATE (non-gated slice implemented)
+**Status:** COMPLETE (human gates resolved; provider selection deferred to deployment)
 **Owner:** Codex / Engineering
 **Created:** 2026-08-23
 **Updated:** 2026-08-23
@@ -96,6 +96,20 @@ trigger has fired unless a new explicit human decision authorizes the extension.
 No stealth/evasion/CAPTCHA solving/fingerprint spoofing/proxy rotation (ADR-020); read-only
 scopes only; silent connector degradation forbidden; source health ≠ publisher health; stable
 documented egress identity requirement stands regardless of vendor choice.
+
+## 5a. APPROVED ARCHITECTURES (human decisions 2026-08-23)
+
+1. OAuth: cloud-agnostic FIRST-PARTY Google OAuth orchestration behind the connector boundary;
+   least-privilege read-only scopes declared per connector; no OAuth brokers; refresh/revocation
+   behind the boundary; no provider leakage into domain logic.
+2. Secrets: cloud-agnostic SecretStore abstraction — PostgreSQL stores references only, never
+   tokens. Implemented: InMemorySecretStore (tests), EnvironmentSecretStore (local/dev,
+   read-only resolver). Production provider remains a deployment-time human gate.
+3. Option C authorized as Limited-Pilot fallback only (§4a triggers binding).
+4. Egress: vendor-neutral stable-identity contract documented in the runbook; concrete network
+   provider deferred to EP-026/deployment (human gate).
+5. Actor contract: opaque tenant-bound `actor_subject_id` for audit provenance; OPEN-003 IdP
+   choice deferred to the authenticated product surface.
 
 ## 6. Validation (executed for this PR)
 
