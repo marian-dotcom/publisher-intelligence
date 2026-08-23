@@ -45,6 +45,14 @@
       checkpoint_run_id/valid_for_incident_id/selected_at/selection_method/
       selection_version/reason/fingerprints all unchanged; no rows created or
       replaced). P2-B incident-read scenarios I1–I9 complete (I7 N/A by contract);
+      **P2-B COMPLETE** — completion gate 2026-08-24 @ ddb013a: T+I scenarios 17/17 in
+      normal order AND reversed order (order-independent, purge isolation holds);
+      product-read regression 29/29; full integration 86 pass + 12 known browser-
+      environment failures (identical to pre-P2-B baseline); unit 289; Ruff/mypy clean
+      on incident test file; known static-quality debt remains in test_memory_p2b.py
+      (21 ruff / 11 mypy findings from original T-series commit: dead _add_bounded_event
+      helper + unused-variable/annotation debt) — functional behavior unaffected,
+      remediation proposed before P2-C;
       P2-C work (incident detail/evidence depth, investigations, LKG visibility,
       monetization exposure) remains;
       incident detail/evidence/LKG remain for P2-C):
