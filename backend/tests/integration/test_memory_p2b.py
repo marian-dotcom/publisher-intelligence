@@ -2,7 +2,7 @@
 
 import asyncio
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -39,14 +39,12 @@ def test_t1_authenticated_tenant_can_read_own_timeline() -> None:
     async def setup() -> tuple[uuid.UUID, uuid.UUID, uuid.UUID, str]:
         slug = f"t1-{uuid.uuid4().hex[:8]}"
         tenant_id = await factories.create_tenant(slug)
-        operator_id, email = await factories.create_operator(tenant_id, f"op-{slug}@example.com")
+        _operator_id, email = await factories.create_operator(tenant_id, f"op-{slug}@example.com")
         site_id = await factories.create_site(tenant_id)
         event_id = await factories.add_scheduled_event(tenant_id, site_id)
         return tenant_id, site_id, event_id, email
 
-    window_start = datetime(2026, 8, 21, 10, 0, tzinfo=UTC)
-    window_end = datetime(2026, 8, 21, 14, 0, tzinfo=UTC)
-    tenant_id, site_id, event_id, email = asyncio.run(setup())
+    tenant_id, _site_id, event_id, email = asyncio.run(setup())
 
     async def verify_event() -> tuple[str, str, str]:
         async with factory() as session:
@@ -54,7 +52,7 @@ def test_t1_authenticated_tenant_can_read_own_timeline() -> None:
             assert event is not None
             return str(event.event_definition_id), str(event.site_id), str(event.tenant_id)
 
-    definition_str, expected_site, expected_tenant = asyncio.run(verify_event())
+    definition_str, expected_site, _expected_tenant = asyncio.run(verify_event())
     client, cookies = _login_and_get_cookies(tenant_id, email)
 
     response = client.get("/timeline", cookies=cookies)
@@ -72,12 +70,11 @@ def test_t1_authenticated_tenant_can_read_own_timeline() -> None:
 
 
 def test_t2_tenant_a_timeline_excludes_tenant_b_events() -> None:
-    factory = get_session_factory()
 
     async def setup_two_tenants() -> tuple[uuid.UUID, uuid.UUID, uuid.UUID, str]:
         slug_a = f"t2a-{uuid.uuid4().hex[:8]}"
         tenant_a = await factories.create_tenant(slug_a)
-        operator_id_a, email_a = await factories.create_operator(
+        _operator_id_a, email_a = await factories.create_operator(
             tenant_a, f"op-{slug_a}@example.com"
         )
         site_a = await factories.create_site(tenant_a)
@@ -116,12 +113,11 @@ def test_t2_tenant_a_timeline_excludes_tenant_b_events() -> None:
 def test_t3_machine_observed_provenance_is_explicitly_serialized() -> None:
     """The product contract must carry provenance as an explicit field —
     the frontend must not infer it from event type/source/timestamps."""
-    factory = get_session_factory()
 
     async def setup() -> tuple[uuid.UUID, uuid.UUID, str]:
         slug = f"t3-{uuid.uuid4().hex[:8]}"
         tenant_id = await factories.create_tenant(slug)
-        operator_id, email = await factories.create_operator(tenant_id, f"op-{slug}@example.com")
+        _operator_id, email = await factories.create_operator(tenant_id, f"op-{slug}@example.com")
         site_id = await factories.create_site(tenant_id)
         await factories.add_scheduled_event(tenant_id, site_id)
         return tenant_id, site_id, email
@@ -152,19 +148,18 @@ def test_t3_machine_observed_provenance_is_explicitly_serialized() -> None:
 def test_t4_human_reported_provenance_distinct_from_machine() -> None:
     """T4: human_reported and machine_observed are explicit, distinguishable
     provenance classes in the serialized Timeline contract."""
-    factory = get_session_factory()
 
     async def setup() -> tuple[uuid.UUID, uuid.UUID, str]:
         slug = f"t4-{uuid.uuid4().hex[:8]}"
         tenant_id = await factories.create_tenant(slug)
         _operator_id, email = await factories.create_operator(tenant_id, f"op-{slug}@example.com")
         site_id = await factories.create_site(tenant_id)
-        note_id = await factories.create_manual_note(
+        await factories.create_manual_note(
             tenant_id, site_id, "Operator confirmed the CMP banner was removed."
         )
         return tenant_id, site_id, email
 
-    tenant_id, site_id, email_a = asyncio.run(setup())
+    tenant_id, _site_id, email_a = asyncio.run(setup())
     client = TestClient(app)
     login_response = client.post(
         "/auth/login",
@@ -204,10 +199,10 @@ def test_t5_observed_at_preserved_occurred_at_remains_unknown() -> None:
         tenant_id = await create_tenant(slug)
         _operator_id, email = await create_operator(tenant_id, f"op-{slug}@example.com")
         site_id = await create_site(tenant_id)
-        event_id = await add_scheduled_event(tenant_id, site_id)
+        await add_scheduled_event(tenant_id, site_id)
         return tenant_id, site_id, email
 
-    tenant_id, site_id, email = asyncio.run(setup())
+    tenant_id, _site_id, email = asyncio.run(setup())
 
     client = TestClient(app)
     login_response = client.post(
@@ -239,18 +234,16 @@ async def test_t6_exact_occurred_at_exposed_only_when_canonical() -> None:
     occurrence timestamp ONLY when time_precision == EXACT."""
     from tests.integration.product.factories import add_exact_event
 
-    factory = get_session_factory()
-
     async def setup() -> tuple[uuid.UUID, uuid.UUID, str]:
         slug = f"t6-{uuid.uuid4().hex[:8]}"
         tenant_id = await factories.create_tenant(slug)
         _operator_id, email = await factories.create_operator(tenant_id, f"op-{slug}@example.com")
         site_id = await factories.create_site(tenant_id)
-        event_id = await factories.add_scheduled_event(tenant_id, site_id)
-        exact_event_id = await add_exact_event(tenant_id, site_id)
+        await factories.add_scheduled_event(tenant_id, site_id)
+        await add_exact_event(tenant_id, site_id)
         return tenant_id, site_id, email
 
-    tenant_id, site_id, email = await setup()
+    tenant_id, _site_id, email = await setup()
 
     client = TestClient(app)
     login_response = client.post(
@@ -282,64 +275,6 @@ async def test_t6_exact_occurred_at_exposed_only_when_canonical() -> None:
         assert entry["observed_at"] is not None
 
 
-@pytest.mark.asyncio
-async def _add_bounded_event(
-    tenant_id: uuid.UUID,
-    site_id: uuid.UUID,
-    *,
-    window_start: datetime,
-    window_end: datetime,
-) -> uuid.UUID:
-    factory = get_session_factory()
-    event_id = uuid.uuid4()
-    async with factory() as session, session.begin():
-        monitored_url = await session.scalar(
-            select(MonitoredUrl).where(MonitoredUrl.tenant_id == tenant_id)
-        )
-        template = await session.scalar(select(Template).where(Template.tenant_id == tenant_id))
-        scenario = await session.scalar(
-            select(BrowserScenario).where(BrowserScenario.tenant_id == tenant_id)
-        )
-        assert monitored_url and template and scenario
-        window_id = uuid.uuid4()
-        when = datetime.now(UTC) - timedelta(hours=1)
-        session.add(
-            CheckpointWindow(
-                id=window_id,
-                tenant_id=tenant_id,
-                site_id=site_id,
-                scheduled_for=when,
-                window_start=when,
-                window_end=when + timedelta(minutes=30),
-            )
-        )
-        await session.flush()
-        session.add(
-            Event(
-                id=event_id,
-                tenant_id=tenant_id,
-                site_id=site_id,
-                event_definition_id=definition_id("NOINDEX_ADDED"),
-                template_id=None,
-                started_at=when,
-                occurred_after_at=window_start,
-                occurred_before_at=window_end,
-                time_precision="WINDOW",
-                detected_at=when + timedelta(minutes=5),
-                severity="MEDIUM",
-                observation_confidence="HIGH",
-                status="RECORDED",
-                source_kind="BROWSER_CHECKPOINT",
-                source_version="e3-v1",
-                condition_key=None,
-                scope={"config_type": "ROBOTS_TXT"},
-                summary="bounded-window fixture event",
-                details={},
-            )
-        )
-    return event_id
-
-
 def test_t7_bounded_occurrence_window_survives_serialization() -> None:
     """T7: both occurrence-window bounds survive serialization without
     fabricated precision and occurred_at remains null."""
@@ -353,12 +288,12 @@ def test_t7_bounded_occurrence_window_survives_serialization() -> None:
     window_start = datetime(2026, 8, 21, 10, 0, tzinfo=UTC)
     window_end = datetime(2026, 8, 21, 14, 0, tzinfo=UTC)
 
-    async def setup():
+    async def setup() -> tuple[uuid.UUID, uuid.UUID, str]:
         slug = f"t7-{uuid.uuid4().hex[:8]}"
         tenant_id = await create_tenant(slug)
         _operator_id, email = await create_operator(tenant_id, f"op-{slug}@example.com")
         site_id = await create_site(tenant_id)
-        event_id = await add_bounded_event(
+        await add_bounded_event(
             tenant_id,
             site_id,
             window_start=window_start,
@@ -398,9 +333,9 @@ def test_t8_cross_tenant_timeline_body_contains_no_foreign_event_data() -> None:
     endpoint and therefore cannot leak here; that safety is proven on the read
     surfaces where those references are actually exposed."""
 
-    factory = get_session_factory()
-
-    async def setup_two_tenants():
+    async def setup_two_tenants() -> tuple[
+        uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, str
+    ]:
         slug_a = f"iso-a-{uuid.uuid4().hex[:8]}"
         slug_b = f"iso-b-{uuid.uuid4().hex[:8]}"
         tenant_a = await factories.create_tenant(slug_a)
@@ -413,7 +348,7 @@ def test_t8_cross_tenant_timeline_body_contains_no_foreign_event_data() -> None:
         event_b = await factories.add_scheduled_event(tenant_b, site_b)
         return tenant_a, tenant_b, site_a, site_b, event_a, event_b, op_a_email
 
-    tenant_a, tenant_b, site_a, site_b, event_a, event_b, op_a_email = asyncio.run(
+    tenant_a, _tenant_b, site_a, site_b, event_a, event_b, op_a_email = asyncio.run(
         setup_two_tenants()
     )
 
@@ -438,15 +373,15 @@ def test_t8_cross_tenant_timeline_body_contains_no_foreign_event_data() -> None:
 def test_t9_raw_internal_payload_not_exposed_in_timeline() -> None:
     """T9: raw/unrestricted payload data must not appear in Timeline serialization."""
 
-    async def setup():
+    async def setup() -> tuple[uuid.UUID, uuid.UUID, str]:
         slug = f"t9-{uuid.uuid4().hex[:8]}"
         tenant_id = await factories.create_tenant(slug)
         _operator_id, email = await factories.create_operator(tenant_id, f"op-{slug}@example.com")
         site_id = await factories.create_site(tenant_id)
-        event_id = await factories.add_event_with_internal_details(tenant_id, site_id)
+        await factories.add_event_with_internal_details(tenant_id, site_id)
         return tenant_id, site_id, email
 
-    tenant_id, site_id, email = asyncio.run(setup())
+    tenant_id, _site_id, email = asyncio.run(setup())
 
     client = TestClient(app)
     login_response = client.post(

@@ -320,22 +320,33 @@ async def add_bounded_event(
         scenario_id = uuid.uuid4()
         session.add(
             Template(
-                id=template_id, tenant_id=tenant_id, site_id=site_id,
-                code="article", display_name="Article", status="ACTIVE",
+                id=template_id,
+                tenant_id=tenant_id,
+                site_id=site_id,
+                code="article",
+                display_name="Article",
+                status="ACTIVE",
             )
         )
         await session.flush()
         session.add(
             MonitoredUrl(
-                id=monitored_url_id, tenant_id=tenant_id, site_id=site_id,
+                id=monitored_url_id,
+                tenant_id=tenant_id,
+                site_id=site_id,
                 template_id=template_id,
-                url=f"https://{site_id.hex}.example.com/a", status="ACTIVE",
+                url=f"https://{site_id.hex}.example.com/a",
+                status="ACTIVE",
             )
         )
         session.add(
             BrowserScenario(
-                id=scenario_id, tenant_id=tenant_id, site_id=site_id,
-                code=f"core_desktop_{scenario_id.hex[:6]}", version=1, status="ACTIVE",
+                id=scenario_id,
+                tenant_id=tenant_id,
+                site_id=site_id,
+                code=f"core_desktop_{scenario_id.hex[:6]}",
+                version=1,
+                status="ACTIVE",
             )
         )
         window_id = uuid.uuid4()

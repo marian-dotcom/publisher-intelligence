@@ -53,6 +53,14 @@
       (21 ruff / 11 mypy findings from original T-series commit: dead _add_bounded_event
       helper + unused-variable/annotation debt) — functional behavior unaffected,
       remediation proposed before P2-C;
+      **P2-B static-debt closure** (post-gate cleanup @ 8763c39→): dead _add_bounded_event
+      helper removed; all 21 Ruff findings in test_memory_p2b.py resolved (unused locals
+      renamed/removed individually, no closure breakage); all 6 mypy findings resolved
+      (explicit return annotations on the three inner setups); factories.py format-only
+      reflow; T1–T9 behaviorally unchanged (9/9 before and after every step);
+      full mypy scope now green (240 files); remaining full-scope Ruff findings are
+      pre-existing category-B files outside P2-B (test_product_http_auth.py,
+      test_product_read_p2a.py); completion-gate evidence remains valid;
       P2-C work (incident detail/evidence depth, investigations, LKG visibility,
       monetization exposure) remains;
       incident detail/evidence/LKG remain for P2-C):
