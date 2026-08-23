@@ -392,8 +392,11 @@ def test_t7_bounded_occurrence_window_survives_serialization() -> None:
     assert entry["occurrence_window_end"] == window_end.isoformat()
 
 
-def test_t8_cross_tenant_timeline_isolation() -> None:
-    """T8: tenant A timeline contains only tenant A data."""
+def test_t8_cross_tenant_timeline_body_contains_no_foreign_event_data() -> None:
+    """T8 (event-level): cross-tenant event/site isolation in /timeline.
+    Related incident/investigation/LKG references are not serialized by this
+    endpoint and therefore cannot leak here; that safety is proven on the read
+    surfaces where those references are actually exposed."""
 
     factory = get_session_factory()
 
