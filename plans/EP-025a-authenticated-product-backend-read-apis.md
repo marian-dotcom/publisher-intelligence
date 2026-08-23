@@ -78,6 +78,13 @@
       C3 evidence pack read surface (PackBuilder/EvidenceRepository contract);
       C4 remaining LKG visibility; C5 monetization capability gating
       (RELATIVE_ONLY/ABSOLUTE/UNKNOWN fail-closed); then Investigate intake.
+      C2 implemented: each hypothesis in incident detail now carries nested
+      "evidence" rows (evidence_id, evidence_key, relation, source_kind, event_id,
+      manual_note_id, reason) loaded via tenant+hypothesis-scoped query; canonical
+      missing/unavailable representation is source_kind OBSERVATION_GAP (ranking.py:
+      degraded observations = missing-evidence context only) — never serialized as
+      CONTRADICTS; only safe identifying metadata exposed (no Event.details/raw
+      payloads); persisted supporting/contradicting counts untouched.
       P2-C work (incident detail/evidence depth, investigations, LKG visibility,
       monetization exposure) remains;
       incident detail/evidence/LKG remain for P2-C):

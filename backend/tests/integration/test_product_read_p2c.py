@@ -6,7 +6,7 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
-from app.hypotheses.models import Hypothesis
+from app.hypotheses.models import Hypothesis, HypothesisEvidence
 from app.main import app
 from tests.integration.product.factories import (
     create_incident,
@@ -164,4 +164,169 @@ def test_c1_incident_detail_exposes_ranked_hypothesis_state_with_leading() -> No
     assert str(leading_b_id) not in body_text
     assert key_b not in body_text
     assert "Tenant B private causal statement." not in body_text
+    assert str(site_b) not in body_text
+
+
+async def seed_evidence(
+    tenant_id: uuid.UUID,
+    hypothesis_id: uuid.UUID,
+    *,
+    evidence_key: str,
+    relation: str,
+    source_kind: str,
+    reason: str,
+) -> uuid.UUID:
+    factory = get_session_factory()
+    evidence_id = uuid.uuid4()
+    async with factory() as session, session.begin():
+        session.add(
+            HypothesisEvidence(
+                id=evidence_id,
+                tenant_id=tenant_id,
+                hypothesis_id=hypothesis_id,
+                evidence_key=evidence_key,
+                source_kind=source_kind,
+                relation=relation,
+                weight=1 if relation == "SUPPORTS" else (-1 if relation == "CONTRADICTS" else 0),
+                reason=reason,
+            )
+        )
+    return evidence_id
+
+
+def test_c2_hypothesis_evidence_relationships_serialize_with_missing_semantics() -> None:
+    """C2: SUPPORTS/CONTRADICTS/missing evidence exposed distinctly and tenant-safe."""
+    get_session_factory()
+
+    async def seed_two_tenants() -> tuple[
+        str, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, str, uuid.UUID
+    ]:
+        slug_a = f"c2a-{uuid.uuid4().hex[:8]}"
+        slug_b = f"c2b-{uuid.uuid4().hex[:8]}"
+        tenant_a = await create_tenant(slug_a)
+        site_a = await create_site(tenant_a)
+        incident_a = await create_incident(tenant_a, site_a, title="Incident A evidence")
+        _op, email_a = await create_operator(tenant_a, f"op-{slug_a}@example.com")
+        hyp_a = await seed_hypothesis(
+            tenant_a,
+            site_a,
+            incident_a,
+            hypothesis_key="gam_outage_window",
+            statement="GAM ad-serving gap aligns with reported revenue drop.",
+            status="LEADING",
+            rank=1,
+        )
+        sup_a = await seed_evidence(
+            tenant_a,
+            hyp_a,
+            evidence_key="ev-supports-gap",
+            relation="SUPPORTS",
+            source_kind="EVENT",
+            reason="Machine event supports the ad-serving gap.",
+        )
+        con_a = await seed_evidence(
+            tenant_a,
+            hyp_a,
+            evidence_key="ev-contradicts-recovery",
+            relation="CONTRADICTS",
+            source_kind="MANUAL_NOTE",
+            reason="Operator noted recovery before the reported onset.",
+        )
+        gap_a = await seed_evidence(
+            tenant_a,
+            hyp_a,
+            evidence_key="ev-gap-cmp-telemetry",
+            relation="CONTEXT",
+            source_kind="OBSERVATION_GAP",
+            reason="CMP telemetry unavailable during the window.",
+        )
+
+        tenant_b = await create_tenant(slug_b)
+        site_b = await create_site(tenant_b)
+        incident_b = await create_incident(tenant_b, site_b, title="Incident B evidence")
+        hyp_b = await seed_hypothesis(
+            tenant_b,
+            site_b,
+            incident_b,
+            hypothesis_key="tenant_b_secret_cause",
+            statement="Tenant B private causal statement.",
+            status="LEADING",
+            rank=1,
+        )
+        secret_b = await seed_evidence(
+            tenant_b,
+            hyp_b,
+            evidence_key="tenant-b-secret-evidence",
+            relation="SUPPORTS",
+            source_kind="EVENT",
+            reason="Tenant B private supporting evidence.",
+        )
+        return (
+            email_a,
+            tenant_a,
+            incident_a,
+            sup_a,
+            con_a,
+            gap_a,
+            secret_b,
+            "tenant-b-secret-evidence",
+            site_b,
+        )
+
+    (
+        email_a,
+        tenant_a,
+        incident_a,
+        sup_a_id,
+        con_a_id,
+        gap_a_id,
+        _secret_b_id,
+        key_b,
+        site_b,
+    ) = asyncio.run(seed_two_tenants())
+
+    client = TestClient(app)
+    cookies = _login(client, email_a, tenant_a)
+
+    response = client.get(f"/incidents/{incident_a}", cookies=cookies)
+    assert response.status_code == 200
+
+    hypotheses = response.json()["hypotheses"]
+    assert len(hypotheses) == 1
+    evidence = hypotheses[0]["evidence"]
+    assert len(evidence) == 3
+
+    by_relation = {e["relation"]: e for e in evidence}
+    # 1. SUPPORTS exposed as SUPPORTS with stable identity.
+    assert by_relation["SUPPORTS"]["evidence_id"] == str(sup_a_id)
+    assert by_relation["SUPPORTS"]["evidence_key"] == "ev-supports-gap"
+    assert by_relation["SUPPORTS"]["source_kind"] == "EVENT"
+    # 2. CONTRADICTS exposed as CONTRADICTS.
+    assert by_relation["CONTRADICTS"]["evidence_id"] == str(con_a_id)
+    assert by_relation["CONTRADICTS"]["source_kind"] == "MANUAL_NOTE"
+    # 3. Missing/unavailable evidence is explicit via canonical OBSERVATION_GAP
+    #    source_kind — never serialized as CONTRADICTS.
+    assert by_relation["CONTEXT"]["evidence_id"] == str(gap_a_id)
+    assert by_relation["CONTEXT"]["source_kind"] == "OBSERVATION_GAP"
+    assert by_relation["CONTEXT"]["reason"] == "CMP telemetry unavailable during the window."
+    assert all(
+        e["relation"] != "CONTRADICTS" for e in evidence if e["source_kind"] == "OBSERVATION_GAP"
+    )
+
+    # 7. No raw payload/debug fields on any evidence row.
+    for e in evidence:
+        assert set(e.keys()) == {
+            "evidence_id",
+            "evidence_key",
+            "relation",
+            "source_kind",
+            "event_id",
+            "manual_note_id",
+            "reason",
+        }
+
+    # 6. No tenant B evidence relationship/data leaks.
+    body_text = response.text
+    assert key_b not in body_text
+    assert "Tenant B private supporting evidence." not in body_text
     assert str(site_b) not in body_text

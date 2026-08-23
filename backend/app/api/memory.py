@@ -17,6 +17,7 @@ from app.auth.dependencies import ActorContext, get_current_actor
 from app.db.session import get_session_factory
 from app.events.models import Event
 from app.evidence.models import ManualNote
+from app.hypotheses.models import HypothesisEvidence
 from app.hypotheses.persistence import HypothesisRepository
 from app.incidents.models import (
     Incident,
@@ -173,6 +174,23 @@ async def incident_detail(
     hypotheses = await HypothesisRepository(factory).list_for_incident(
         tenant_id=actor.tenant_id, incident_id=incident_id
     )
+    evidence_by_hypothesis: dict[uuid.UUID, list[HypothesisEvidence]] = {}
+    if hypotheses:
+        async with factory() as session:
+            rows = list(
+                (
+                    await session.scalars(
+                        select(HypothesisEvidence)
+                        .where(
+                            HypothesisEvidence.tenant_id == actor.tenant_id,
+                            HypothesisEvidence.hypothesis_id.in_([h.id for h in hypotheses]),
+                        )
+                        .order_by(HypothesisEvidence.hypothesis_id, HypothesisEvidence.created_at)
+                    )
+                ).all()
+            )
+        for row in rows:
+            evidence_by_hypothesis.setdefault(row.hypothesis_id, []).append(row)
     return {
         "incident": {
             "incident_id": str(incident.id),
@@ -223,6 +241,23 @@ async def incident_detail(
                 "contradicting_count": h.contradicting_count,
                 "rationale": h.rationale,
                 "engine_version": h.engine_version,
+                # Evidence relationships keep the canonical domain meanings:
+                # SUPPORTS / CONTRADICTS are typed evidence edges; source_kind
+                # OBSERVATION_GAP is the canonical missing/unavailable evidence
+                # representation (never serialized as contradiction). Only safe
+                # identifying metadata is exposed — never raw source payloads.
+                "evidence": [
+                    {
+                        "evidence_id": str(e.id),
+                        "evidence_key": e.evidence_key,
+                        "relation": e.relation,
+                        "source_kind": e.source_kind,
+                        "event_id": str(e.event_id) if e.event_id else None,
+                        "manual_note_id": str(e.manual_note_id) if e.manual_note_id else None,
+                        "reason": e.reason,
+                    }
+                    for e in evidence_by_hypothesis.get(h.id, [])
+                ],
             }
             for h in hypotheses
         ],
