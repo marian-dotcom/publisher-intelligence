@@ -25,7 +25,9 @@
       authenticated tenant fetches own incident detail with site scope and empty
       symptom_segments exposed explicitly; cross-tenant incident detail is non-disclosing
       (tenant-scoped 404, no B-side identifiers or content in response body);
-      symptom/scope/status serialization depth remains for I5;
+      I5 canonical symptom/scope/status serialization verified (symptom_family, status
+      incl. RESOLVED, site_id scope, title, description round-trip exactly as stored);
+      onset/window semantics remain for I6;
       incident detail/evidence/LKG remain for P2-C):
       (leading hypothesis, supporting/contradicting/missing, rationale), evidence pack view,
       LKG visibility, source-health (HEALTHY/DEGRADED/BLOCKED/ACTION_REQUIRED/UNKNOWN) separate

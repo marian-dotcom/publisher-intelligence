@@ -292,3 +292,45 @@ def test_i4_cross_tenant_incident_detail_is_non_disclosing() -> None:
     assert str(site_b_id) not in body_text
     assert "Tenant B secret incident" not in body_text
     assert "GAM_ADSERVING" not in body_text
+
+
+def test_i5_symptom_scope_status_serialize_correctly() -> None:
+    """I5: canonical symptom/scope/status fields serialize exactly as stored."""
+    get_session_factory()
+
+    async def seed() -> tuple[uuid.UUID, uuid.UUID, uuid.UUID, str]:
+        slug = f"i5-{uuid.uuid4().hex[:8]}"
+        tenant_id = await create_tenant(slug)
+        site_id = await create_site(tenant_id)
+        incident_id = await create_incident(
+            tenant_id,
+            site_id,
+            title="Canonical serialization probe",
+            status="RESOLVED",
+        )
+        _operator_id, email = await create_operator(tenant_id, f"op-{slug}@example.com")
+        return tenant_id, site_id, incident_id, email
+
+    tenant_id, site_id, incident_id, email = asyncio.run(seed())
+
+    client = TestClient(app)
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "email": email,
+            "password": "correct-horse-battery",
+            "tenant_id": str(tenant_id),
+        },
+    )
+    assert login_response.status_code == 200
+    cookies = dict(login_response.cookies)
+
+    response = client.get(f"/incidents/{incident_id}", cookies=cookies)
+    assert response.status_code == 200
+
+    incident = response.json()["incident"]
+    assert incident["symptom_family"] == "GAM_ADSERVING"
+    assert incident["status"] == "RESOLVED"
+    assert incident["site_id"] == str(site_id)
+    assert incident["title"] == "Canonical serialization probe"
+    assert incident["description"] == "Description for Canonical serialization probe"
