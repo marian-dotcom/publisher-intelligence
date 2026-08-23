@@ -17,7 +17,12 @@
       integration coverage for scenarios 15/16/17/21/24/26/27);
       cookie semantics; CSRF for state-changing requests; account-disabled behavior
 - [x] M3 — Product read APIs PARTIAL (P2-A: Home/status + source health + publisher/site
-      condition shipped; Timeline/incidents/detail/evidence/LKG remain for P2-B/P2-C):
+      condition shipped; P2-B Timeline T1–T9 shipped (own-timeline read, cross-tenant
+      exclusion, machine_observed vs human_reported provenance, observed_at preserved,
+      occurred_at only when EXACT, internal payload data absent from serialization);
+      P2-B Incidents I1–I2 shipped (authenticated tenant lists own incidents; tenant A
+      incident list excludes tenant B incidents and site identifiers server-side);
+      incident detail/evidence/LKG remain for P2-C):
       (leading hypothesis, supporting/contradicting/missing, rationale), evidence pack view,
       LKG visibility, source-health (HEALTHY/DEGRADED/BLOCKED/ACTION_REQUIRED/UNKNOWN) separate
       from publisher/site health, provenance (machine_observed vs human_reported; observed_at vs
