@@ -441,3 +441,59 @@ async def add_bounded_event(
             )
         )
     return event_id
+
+
+async def add_event_with_internal_details(
+    tenant_id: uuid.UUID, site_id: uuid.UUID
+) -> uuid.UUID:
+    """Event with populated internal details/metadata for leakage testing."""
+    factory = get_session_factory()
+    event_id = uuid.uuid4()
+    when = datetime(2026, 8, 22, 12, tzinfo=UTC)
+    monitored_url_id, template_id = uuid.uuid4(), uuid.uuid4()
+    async with factory() as session, session.begin():
+        session.add(
+            Template(
+                id=template_id, tenant_id=tenant_id, site_id=site_id,
+                code="article", display_name="Article", status="ACTIVE",
+            )
+        )
+        await session.flush()
+        session.add(
+            MonitoredUrl(
+                id=monitored_url_id, tenant_id=tenant_id, site_id=site_id,
+                template_id=template_id,
+                url=f"https://{site_id.hex}.example.com/a", status="ACTIVE",
+            )
+        )
+        window_id = uuid.uuid4()
+        session.add(
+            CheckpointWindow(
+                id=window_id, tenant_id=tenant_id, site_id=site_id,
+                scheduled_for=when, window_start=when,
+                window_end=when + timedelta(minutes=30),
+            )
+        )
+        await session.flush()
+        session.add(
+            Event(
+                id=event_id, tenant_id=tenant_id, site_id=site_id,
+                event_definition_id=definition_id("NOINDEX_ADDED"),
+                template_id=None, started_at=when,
+                occurred_after_at=None, occurred_before_at=when,
+                time_precision="WINDOW",
+                detected_at=when + timedelta(minutes=5),
+                severity="MEDIUM", observation_confidence="HIGH",
+                status="RECORDED", source_kind="BROWSER_CHECKPOINT",
+                source_version="e3-v1", condition_key=None,
+                scope={"config_type": "ROBOTS_TXT"},
+                summary="T9 raw-payload fixture event",
+                details={
+                    "internal_debug": "raw_dom_snapshot_data_here",
+                    "session_storage_dump": {"key": "value"},
+                    "connector_api_response": {"rows": [1, 2, 3]},
+                    "absolute_revenue_eur": 12345.67,
+                },
+            )
+        )
+    return event_id
