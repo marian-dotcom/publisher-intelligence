@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import ActorContext, get_current_actor
 from app.browser.models import CheckpointRun, Publisher, Site
@@ -55,9 +56,6 @@ def _connector_health(status: str | None) -> str:
         "AUTH_EXPIRED": "ACTION_REQUIRED",
         "PERMISSION_ERROR": "BLOCKED",
     }.get(status, "UNKNOWN")
-
-
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def _source_health_rows(

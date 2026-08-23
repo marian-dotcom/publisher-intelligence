@@ -185,3 +185,46 @@ def test_t4_human_reported_provenance_distinct_from_machine() -> None:
     assert all("text" in e for e in human_entries)
     for entry in machine_entries:
         assert entry["provenance"] == "machine_observed"
+
+
+def test_t5_observed_at_preserved_occurred_at_remains_unknown() -> None:
+    """T5: observation time does NOT imply occurrence time."""
+    from tests.integration.product.factories import (
+        add_scheduled_event,
+        create_operator,
+        create_site,
+        create_tenant,
+    )
+
+    async def setup() -> tuple[uuid.UUID, uuid.UUID, str]:
+        slug = f"t5-{uuid.uuid4().hex[:8]}"
+        tenant_id = await create_tenant(slug)
+        _operator_id, email = await create_operator(tenant_id, f"op-{slug}@example.com")
+        site_id = await create_site(tenant_id)
+        event_id = await add_scheduled_event(tenant_id, site_id)
+        return tenant_id, site_id, email
+
+    tenant_id, site_id, email = asyncio.run(setup())
+
+    client = TestClient(app)
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "email": email,
+            "password": "correct-horse-battery",
+            "tenant_id": str(tenant_id),
+        },
+    )
+    assert login_response.status_code == 200
+
+    response = client.get("/timeline", cookies=dict(login_response.cookies))
+    assert response.status_code == 200
+    entries = response.json()["entries"]
+    assert len(entries) >= 1
+
+    for entry in entries:
+        # observed_at is always populated (detection time is known).
+        assert entry["observed_at"] is not None
+        # Non-EXACT events must NOT fabricate an exact occurred_at.
+        if entry["time_precision"] != "EXACT":
+            assert entry["occurred_at"] is None

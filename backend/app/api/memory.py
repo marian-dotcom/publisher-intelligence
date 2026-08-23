@@ -76,6 +76,7 @@ async def timeline(
                 "provenance": "machine_observed",
                 "severity": item.severity,
                 "status": item.status,
+                "time_precision": item.time_precision,
                 "observed_at": _iso(item.detected_at),
                 "occurred_at": exact_occurred,
                 "occurrence_window_start": _iso(item.occurred_after_at),
