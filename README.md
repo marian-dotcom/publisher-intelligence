@@ -361,7 +361,8 @@ evidence-based time/scope localization with frozen Last Known Good references, a
 incident-diagnostic checkpoints under a persistent budget ledger — service layer only, no UI. EP-021 adds typed append-only evidence relationships, auditable
 manual operational notes (human-reported evidence kept separate from machine observation), and
 deterministic content-hashed evidence packs. EP-022 adds a replaceable Inspect AI eval runtime
-behind an adapter boundary (ADR-129): Inspect is the eval engine, EVALS.md remains the contract. No path delivers alerts or makes indexing,
+behind an adapter boundary (ADR-129): Inspect is the eval engine, EVALS.md remains the contract. EP-023 adds deterministic hypothesis lifecycle, contradiction
+handling, and ranked explanations over stored evidence (no LLM, no causal overclaiming). No path delivers alerts or makes indexing,
 authorization, revenue, or causal claims.
 
 The repository still excludes production OAuth onboarding, a managed secret provider, provider

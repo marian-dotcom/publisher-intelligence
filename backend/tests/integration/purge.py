@@ -8,6 +8,8 @@ from sqlalchemy import text
 PURGE_ORDER = (
     "event_evidence_refs",
     "event_relations",
+    "hypothesis_evidence",
+    "hypotheses",
     "events",
     "evidence_packs",
     "manual_notes",

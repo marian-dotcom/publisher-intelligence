@@ -41,3 +41,32 @@ def lkg_eligible(run: dict[str, Any], fingerprints: dict[str, str]) -> bool:
 
 def within_budget(resource_kind: str, used: int) -> bool:
     return used < DEFAULT_RESOURCE_LIMITS.get(resource_kind, 0)
+
+
+def build_ranking_inputs(candidates: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in candidates.items()
+        if key in {"families", "events", "relations", "degraded_observations", "human_notes"}
+    }
+
+
+def rank_candidates(candidates: dict[str, Any]) -> list[dict[str, Any]]:
+    """Delegate deterministic ranking to the application core (EP-023)."""
+    from app.hypotheses.ranking import build_candidates, rank
+
+    inputs = {
+        key: value
+        for key, value in candidates.items()
+        if key in {"families", "events", "relations", "degraded_observations", "human_notes"}
+    }
+    ranked = rank(build_candidates(**inputs))
+    return [
+        {
+            "hypothesis_key": item.hypothesis_key,
+            "status": item.status,
+            "confidence": item.confidence,
+            "rank": item.rank,
+        }
+        for item in ranked
+    ]

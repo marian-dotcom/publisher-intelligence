@@ -68,6 +68,8 @@ async def test_schema_is_minimal_and_rejects_cancelled_status() -> None:
             "event_definitions",
             "event_relations",
             "evidence_packs",
+            "hypotheses",
+            "hypothesis_evidence",
             "manual_notes",
             "event_evidence_refs",
             "events",
