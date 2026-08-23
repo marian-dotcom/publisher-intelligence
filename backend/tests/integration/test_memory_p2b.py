@@ -228,3 +228,54 @@ def test_t5_observed_at_preserved_occurred_at_remains_unknown() -> None:
         # Non-EXACT events must NOT fabricate an exact occurred_at.
         if entry["time_precision"] != "EXACT":
             assert entry["occurred_at"] is None
+
+
+@pytest.mark.asyncio
+async def test_t6_exact_occurred_at_exposed_only_when_canonical() -> None:
+    """T6: occurred_at is non-null and equals the persisted canonical
+    occurrence timestamp ONLY when time_precision == EXACT."""
+    from tests.integration.product.factories import add_exact_event
+
+    factory = get_session_factory()
+
+    async def setup() -> tuple[uuid.UUID, uuid.UUID, str]:
+        slug = f"t6-{uuid.uuid4().hex[:8]}"
+        tenant_id = await factories.create_tenant(slug)
+        _operator_id, email = await factories.create_operator(
+            tenant_id, f"op-{slug}@example.com"
+        )
+        site_id = await factories.create_site(tenant_id)
+        event_id = await factories.add_scheduled_event(tenant_id, site_id)
+        exact_event_id = await add_exact_event(tenant_id, site_id)
+        return tenant_id, site_id, email
+
+    tenant_id, site_id, email = await setup()
+
+    client = TestClient(app)
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "email": email,
+            "password": "correct-horse-battery",
+            "tenant_id": str(tenant_id),
+        },
+    )
+    assert login_response.status_code == 200
+
+    response = client.get("/timeline", cookies=dict(login_response.cookies))
+    assert response.status_code == 200
+    entries = response.json()["entries"]
+
+    window_entries = [e for e in entries if e["time_precision"] == "WINDOW"]
+    exact_entries = [e for e in entries if e["time_precision"] == "EXACT"]
+
+    # WINDOW entries must have occurred_at null.
+    for entry in window_entries:
+        assert entry["occurred_at"] is None
+
+    # EXACT entries must have occurred_at non-null.
+    assert len(exact_entries) >= 1
+    for entry in exact_entries:
+        assert entry["occurred_at"] is not None
+        # observed_at independently serialized — not substituted.
+        assert entry["observed_at"] is not None

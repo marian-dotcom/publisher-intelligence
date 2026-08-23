@@ -197,3 +197,75 @@ async def create_manual_note(tenant_id: uuid.UUID, site_id: uuid.UUID, note_text
             )
         )
     return note_id
+
+
+async def add_exact_event(tenant_id: uuid.UUID, site_id: uuid.UUID) -> uuid.UUID:
+    """Event with canonical exact occurrence time (time_precision=EXACT)."""
+    factory = get_session_factory()
+    event_id = uuid.uuid4()
+    occurred_at = datetime(2026, 8, 21, 14, 30, tzinfo=UTC)
+    async with factory() as session, session.begin():
+        site = await session.scalar(select(Site).where(Site.id == site_id))
+        assert site is not None
+        monitored_url_id, template_id, scenario_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        session.add(
+            Template(
+                id=template_id, tenant_id=tenant_id, site_id=site_id,
+                code="exact", display_name="Exact", status="ACTIVE",
+            )
+        )
+        await session.flush()
+        session.add(
+            MonitoredUrl(
+                id=monitored_url_id, tenant_id=tenant_id, site_id=site_id,
+                template_id=template_id,
+                url=f"https://{site_id.hex}.example.com/exact", status="ACTIVE",
+            )
+        )
+        scenario_id2 = uuid.uuid4()
+        session.add(
+            BrowserScenario(
+                id=scenario_id2, tenant_id=tenant_id, site_id=site_id,
+                code=f"core_desktop_{scenario_id2.hex[:6]}", version=1, status="ACTIVE",
+            )
+        )
+        window_id = uuid.uuid4()
+        when = datetime.now(UTC) - timedelta(hours=1)
+        session.add(
+            CheckpointWindow(
+                id=window_id, tenant_id=tenant_id, site_id=site_id,
+                scheduled_for=when, window_start=when,
+                window_end=when + timedelta(minutes=30),
+            )
+        )
+        await session.flush()
+        session.add(
+            CheckpointRun(
+                id=uuid.uuid4(), tenant_id=tenant_id, site_id=site_id,
+                checkpoint_window_id=window_id,
+                monitored_url_id=monitored_url_id,
+                template_id=template_id, scenario_id=scenario_id2,
+                observation_kind="SCHEDULED", scheduled_for=when,
+                started_at=when, completed_at=when + timedelta(minutes=5),
+                status="COMPLETE", attempt_count=1,
+                collector_bundle_version="b8-v1",
+                environment={"is_mobile": False}, limitations=[], manifest={},
+            )
+        )
+        await session.flush()
+        session.add(
+            Event(
+                id=event_id, tenant_id=tenant_id, site_id=site_id,
+                event_definition_id=definition_id("NOINDEX_ADDED"),
+                template_id=None, started_at=occurred_at,
+                occurred_after_at=None, occurred_before_at=occurred_at,
+                time_precision="EXACT",
+                detected_at=occurred_at + timedelta(minutes=5),
+                severity="MEDIUM", observation_confidence="HIGH",
+                status="RECORDED", source_kind="BROWSER_CHECKPOINT",
+                source_version="e3-v1", condition_key=None,
+                scope={"config_type": "ROBOTS_TXT"},
+                summary="P2-B exact-occurrence fixture event", details={},
+            )
+        )
+    return event_id
