@@ -208,3 +208,45 @@ def test_i2_tenant_a_incident_list_excludes_tenant_b_incidents() -> None:
     assert str(incident_b_id) not in listed_ids
     assert str(incident_b_id) not in response.text
     assert str(site_b_id) not in response.text
+
+
+def test_i3_authenticated_tenant_can_fetch_own_incident_detail() -> None:
+    """I3: authenticated tenant can fetch its own incident detail."""
+    get_session_factory()
+
+    async def seed() -> tuple[uuid.UUID, uuid.UUID, uuid.UUID, str]:
+        slug = f"i3-{uuid.uuid4().hex[:8]}"
+        tenant_id = await create_tenant(slug)
+        site_id = await create_site(tenant_id)
+        incident_id = await create_incident(tenant_id, site_id, title="Detail view revenue drop")
+        _operator_id, email = await create_operator(tenant_id, f"op-{slug}@example.com")
+        return tenant_id, site_id, incident_id, email
+
+    tenant_id, site_id, incident_id, email = asyncio.run(seed())
+
+    client = TestClient(app)
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "email": email,
+            "password": "correct-horse-battery",
+            "tenant_id": str(tenant_id),
+        },
+    )
+    assert login_response.status_code == 200
+    cookies = dict(login_response.cookies)
+
+    response = client.get(f"/incidents/{incident_id}", cookies=cookies)
+    assert response.status_code == 200
+
+    body = response.json()
+    incident = body["incident"]
+    assert incident["incident_id"] == str(incident_id)
+    assert incident["title"] == "Detail view revenue drop"
+    assert incident["symptom_family"] == "GAM_ADSERVING"
+    assert incident["description"] == "Description for Detail view revenue drop"
+    assert incident["status"] == "OPEN"
+    assert incident["site_id"] == str(site_id)
+
+    # No symptom segments were seeded; the detail contract exposes them explicitly.
+    assert body["symptom_segments"] == []

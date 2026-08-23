@@ -20,8 +20,10 @@
       condition shipped; P2-B Timeline T1–T9 shipped (own-timeline read, cross-tenant
       exclusion, machine_observed vs human_reported provenance, observed_at preserved,
       occurred_at only when EXACT, internal payload data absent from serialization);
-      P2-B Incidents I1–I2 shipped (authenticated tenant lists own incidents; tenant A
-      incident list excludes tenant B incidents and site identifiers server-side);
+      P2-B Incidents I1–I3 shipped (authenticated tenant lists own incidents; tenant A
+      incident list excludes tenant B incidents and site identifiers server-side;
+      authenticated tenant fetches own incident detail with site scope and empty
+      symptom_segments exposed explicitly); cross-tenant detail coverage remains for I4;
       incident detail/evidence/LKG remain for P2-C):
       (leading hypothesis, supporting/contradicting/missing, rationale), evidence pack view,
       LKG visibility, source-health (HEALTHY/DEGRADED/BLOCKED/ACTION_REQUIRED/UNKNOWN) separate
