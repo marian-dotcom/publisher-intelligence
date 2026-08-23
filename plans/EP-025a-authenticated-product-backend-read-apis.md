@@ -85,6 +85,13 @@
       degraded observations = missing-evidence context only) — never serialized as
       CONTRADICTS; only safe identifying metadata exposed (no Event.details/raw
       payloads); persisted supporting/contradicting counts untouched.
+      C3 implemented: new authenticated GET /evidence/packs/{pack_id} route
+      (memory.py) reads the persisted EvidencePack entity directly (stable UUID
+      identity, tenant-scoped 404 on foreign packs, read-only — no rebuild);
+      response exposes canonical pack metadata (pack_id/site_id/incident_id/
+      window bounds/fingerprints/content_hash/engine_version/created_at) plus the
+      builder's deterministic whitelisted content sections; provenance and
+      temporal fields pass through unaltered.
       P2-C work (incident detail/evidence depth, investigations, LKG visibility,
       monetization exposure) remains;
       incident detail/evidence/LKG remain for P2-C):

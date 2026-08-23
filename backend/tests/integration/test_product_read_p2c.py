@@ -2,10 +2,13 @@
 
 import asyncio
 import uuid
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
+from app.evidence.models import EvidencePack
 from app.hypotheses.models import Hypothesis, HypothesisEvidence
 from app.main import app
 from tests.integration.product.factories import (
@@ -330,3 +333,127 @@ def test_c2_hypothesis_evidence_relationships_serialize_with_missing_semantics()
     assert key_b not in body_text
     assert "Tenant B private supporting evidence." not in body_text
     assert str(site_b) not in body_text
+
+
+async def build_and_persist_pack(
+    tenant_id: uuid.UUID,
+    site_id: uuid.UUID,
+    incident_id: uuid.UUID | None,
+) -> uuid.UUID:
+    """Persist a pack through the canonical builder + repository semantics."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.evidence.builder import EvidencePackBuilder
+    from app.evidence.persistence import EvidenceRepository
+
+    factory = get_session_factory()
+    start = datetime.now(UTC) - timedelta(hours=3)
+    end = datetime.now(UTC) - timedelta(hours=1)
+    content = await EvidencePackBuilder(factory).build(
+        tenant_id=tenant_id,
+        site_id=site_id,
+        incident_id=incident_id,
+        window_start=start,
+        window_end=end,
+    )
+    pack, _created = await EvidenceRepository(factory).persist_pack(
+        tenant_id=tenant_id,
+        site_id=site_id,
+        content=content,
+        fingerprints={"collector_bundle": "b8-v1"},
+        window_start=start,
+        window_end=end,
+        incident_id=incident_id,
+        engine_version=str(content["engine_version"]),
+    )
+    return pack.id
+
+
+def test_c3_evidence_pack_read_is_tenant_safe_and_read_only() -> None:
+    """C3: GET /evidence/packs/{id} returns own persisted packs; foreign → 404."""
+    get_session_factory()
+
+    async def seed_two_tenants() -> tuple[str, uuid.UUID, uuid.UUID, tuple[Any, ...], uuid.UUID]:
+        slug_a = f"c3a-{uuid.uuid4().hex[:8]}"
+        slug_b = f"c3b-{uuid.uuid4().hex[:8]}"
+        tenant_a = await create_tenant(slug_a)
+        site_a = await create_site(tenant_a)
+        incident_a = await create_incident(tenant_a, site_a, title="Incident A pack")
+        _op, email_a = await create_operator(tenant_a, f"op-{slug_a}@example.com")
+        pack_a = await build_and_persist_pack(tenant_a, site_a, incident_a)
+
+        tenant_b = await create_tenant(slug_b)
+        site_b = await create_site(tenant_b)
+        incident_b = await create_incident(tenant_b, site_b, title="Incident B pack")
+        pack_b = await build_and_persist_pack(tenant_b, site_b, incident_b)
+
+        # Snapshot pack A's stored row to prove the GET does not mutate it.
+        factory = get_session_factory()
+        async with factory() as session:
+            row = await session.scalar(select(EvidencePack).where(EvidencePack.id == pack_a))
+            assert row is not None
+            before = (
+                str(row.id),
+                dict(row.fingerprints),
+                dict(row.content),
+                row.content_hash,
+                row.engine_version,
+                row.created_at.isoformat(),
+            )
+        return email_a, tenant_a, pack_a, before, pack_b
+
+    email_a, tenant_a, pack_a_id, pack_before, pack_b_id = asyncio.run(seed_two_tenants())
+
+    client = TestClient(app)
+    cookies = _login(client, email_a, tenant_a)
+
+    response = client.get(f"/evidence/packs/{pack_a_id}", cookies=cookies)
+    assert response.status_code == 200
+
+    body = response.json()
+    pack = body["pack"]
+    assert pack["pack_id"] == str(pack_a_id)
+    assert pack["incident_id"] is not None
+    assert pack["window_start"] is not None
+    assert pack["window_end"] is not None
+    assert pack["engine_version"]
+    assert pack["content_hash"]
+
+    content = body["content"]
+    assert content["machine_observed_sections"] == [
+        "scheduled_checkpoints",
+        "public_config_states",
+        "events",
+        "relations",
+    ]
+    for section in (
+        "scheduled_checkpoints",
+        "public_config_states",
+        "events",
+        "relations",
+        "human_reported_notes",
+    ):
+        assert isinstance(content[section], list)
+
+    # Cross-tenant read of pack B uses the existing non-disclosing behavior.
+    foreign = client.get(f"/evidence/packs/{pack_b_id}", cookies=cookies)
+    assert foreign.status_code == 404
+    assert str(pack_b_id) not in foreign.text
+
+    # Read-only proof: persisted row identical after both GETs.
+    async def read_row() -> tuple[Any, ...]:
+        factory = get_session_factory()
+        async with factory() as session:
+            row = await session.scalar(select(EvidencePack).where(EvidencePack.id == pack_a_id))
+            assert row is not None
+            return (
+                str(row.id),
+                dict(row.fingerprints),
+                dict(row.content),
+                row.content_hash,
+                row.engine_version,
+                row.created_at.isoformat(),
+            )
+
+    pack_after = asyncio.run(read_row())
+    assert pack_after == pack_before
