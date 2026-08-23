@@ -6,6 +6,7 @@ integration database (DATABASE_URL); production databases are never touched
 because application settings resolve that URL exclusively from environment
 configuration.
 """
+
 import asyncio
 
 import pytest
@@ -16,6 +17,5 @@ from tests.integration.purge import make_purge
 
 @pytest.fixture(autouse=True)
 def clean_integration_database() -> None:
-    factory = get_session_factory()
-    purge = make_purge(factory)
+    purge = make_purge(get_session_factory)
     asyncio.run(purge())

@@ -24,7 +24,7 @@ pytestmark = pytest.mark.integration
 @pytest.fixture(autouse=True)
 def _clean_db() -> None:
     factory = get_session_factory()
-    asyncio.run(make_purge(factory)())
+    asyncio.run(make_purge(get_session_factory)())
 
 
 @pytest.fixture
