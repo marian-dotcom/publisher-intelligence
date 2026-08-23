@@ -3,6 +3,7 @@
 import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -580,3 +581,190 @@ def test_i8_frozen_lkg_reference_remains_tenant_safe() -> None:
     assert str(ref_b_id) not in response.text
     assert ref_b_scope not in response.text
     assert str(site_b_id) not in response.text
+
+
+def test_i9_incident_detail_read_does_not_mutate_frozen_lkg() -> None:
+    """I9: GET /incidents/{id} is observational only for frozen LKG state."""
+    factory = get_session_factory()
+
+    async def seed_lkg_ref(
+        tenant_id: uuid.UUID,
+        site_id: uuid.UUID,
+        incident_id: uuid.UUID,
+        *,
+        scope_key: str,
+    ) -> tuple[uuid.UUID, uuid.UUID]:
+        """Minimal canonical frozen LKG reference (same shape as I8)."""
+        template_id, monitored_url_id, scenario_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        run_id, window_id = uuid.uuid4(), uuid.uuid4()
+        ref_id = uuid.uuid4()
+        when = datetime.now(UTC) - timedelta(hours=2)
+        async with factory() as session, session.begin():
+            session.add(
+                Template(
+                    id=template_id,
+                    tenant_id=tenant_id,
+                    site_id=site_id,
+                    code="article",
+                    display_name="Article",
+                    status="ACTIVE",
+                )
+            )
+            await session.flush()
+            session.add(
+                MonitoredUrl(
+                    id=monitored_url_id,
+                    tenant_id=tenant_id,
+                    site_id=site_id,
+                    template_id=template_id,
+                    url=f"https://{site_id.hex}.example.com/a",
+                    status="ACTIVE",
+                )
+            )
+            session.add(
+                BrowserScenario(
+                    id=scenario_id,
+                    tenant_id=tenant_id,
+                    site_id=site_id,
+                    code=f"core_desktop_{scenario_id.hex[:6]}",
+                    version=1,
+                    status="ACTIVE",
+                )
+            )
+            session.add(
+                CheckpointWindow(
+                    id=window_id,
+                    tenant_id=tenant_id,
+                    site_id=site_id,
+                    scheduled_for=when,
+                    window_start=when,
+                    window_end=when + timedelta(minutes=30),
+                )
+            )
+            await session.flush()
+            session.add(
+                CheckpointRun(
+                    id=run_id,
+                    tenant_id=tenant_id,
+                    site_id=site_id,
+                    checkpoint_window_id=window_id,
+                    monitored_url_id=monitored_url_id,
+                    template_id=template_id,
+                    scenario_id=scenario_id,
+                    observation_kind="SCHEDULED",
+                    scheduled_for=when,
+                    started_at=when,
+                    completed_at=when + timedelta(minutes=5),
+                    status="COMPLETE",
+                    attempt_count=1,
+                    environment={},
+                    limitations=[],
+                    manifest={},
+                )
+            )
+            session.add(
+                LastKnownGoodRef(
+                    id=ref_id,
+                    tenant_id=tenant_id,
+                    site_id=site_id,
+                    scope_key=scope_key,
+                    checkpoint_run_id=run_id,
+                    valid_for_incident_id=incident_id,
+                    selected_at=datetime(2026, 8, 20, 9, 0, tzinfo=UTC),
+                    selection_method="MANUAL_OPERATOR",
+                    selection_version="lkg-v1",
+                    reason=f"Frozen baseline for {scope_key}",
+                    fingerprints={"collector_bundle": "b8-v1", "robots": "robots-rfc9309-v1"},
+                )
+            )
+        return ref_id, run_id
+
+    async def seed_one_tenant_with_lkg() -> tuple[str, uuid.UUID, uuid.UUID, tuple[Any, ...]]:
+        slug = f"i9-{uuid.uuid4().hex[:8]}"
+        tenant_id = await create_tenant(slug)
+        site_id = await create_site(tenant_id)
+        incident_id = await create_incident(tenant_id, site_id, title="LKG immutability probe")
+        _op_id, email = await create_operator(tenant_id, f"op-{slug}@example.com")
+        _ref_id, _run_id = await seed_lkg_ref(
+            tenant_id, site_id, incident_id, scope_key="site::desktop"
+        )
+
+        async def read_persisted_lkg() -> tuple[Any, ...]:
+            async with factory() as session:
+                rows = (
+                    await session.scalars(
+                        select(LastKnownGoodRef).where(
+                            LastKnownGoodRef.valid_for_incident_id == incident_id
+                        )
+                    )
+                ).all()
+                assert len(rows) == 1
+                row = rows[0]
+                return (
+                    row.id,
+                    row.scope_key,
+                    row.checkpoint_run_id,
+                    row.valid_for_incident_id,
+                    row.selected_at.isoformat(),
+                    row.selection_method,
+                    row.selection_version,
+                    row.reason,
+                    dict(row.fingerprints),
+                )
+
+        before = await read_persisted_lkg()
+        return email, tenant_id, incident_id, before
+
+    email, tenant_id, incident_id, before = asyncio.run(seed_one_tenant_with_lkg())
+
+    client = TestClient(app)
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "email": email,
+            "password": "correct-horse-battery",
+            "tenant_id": str(tenant_id),
+        },
+    )
+    assert login_response.status_code == 200
+
+    response = client.get(f"/incidents/{incident_id}", cookies=dict(login_response.cookies))
+    assert response.status_code == 200
+
+    async def verify_after_read() -> tuple[tuple[Any, ...], int]:
+        async with factory() as session:
+            rows = (
+                await session.scalars(
+                    select(LastKnownGoodRef).where(
+                        LastKnownGoodRef.valid_for_incident_id == incident_id
+                    )
+                )
+            ).all()
+            row = rows[0]
+            after = (
+                row.id,
+                row.scope_key,
+                row.checkpoint_run_id,
+                row.valid_for_incident_id,
+                row.selected_at.isoformat(),
+                row.selection_method,
+                row.selection_version,
+                row.reason,
+                dict(row.fingerprints),
+            )
+            return after, len(rows)
+
+    after, lkg_row_count = asyncio.run(verify_after_read())
+
+    # Exactly one LKG row still exists — the read created/removed/replaced nothing.
+    assert lkg_row_count == 1
+    # Every persisted field is identical before vs after the HTTP read.
+    assert after == before
+
+    # The response still carries the same single frozen reference.
+    body = response.json()
+    lkg_refs = body["last_known_good_references"]
+    assert len(lkg_refs) == 1
+    assert lkg_refs[0]["reference_id"] == str(before[0])
+    assert lkg_refs[0]["scope_key"] == before[1]
+    assert lkg_refs[0]["checkpoint_run_id"] == str(before[2])

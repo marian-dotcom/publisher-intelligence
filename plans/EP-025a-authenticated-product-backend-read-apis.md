@@ -40,6 +40,13 @@
       authenticated tenant's LKG refs; tenant A's frozen reference serialized with
       canonical reference_id/scope_key/selection_method/selection_version/selected_at/
       fingerprints; tenant B's ref id, scope_key, and site id absent from response);
+      I9 incident-detail read proven observational for frozen LKG (DB state compared
+      before vs after the HTTP read: same single row, reference_id/scope_key/
+      checkpoint_run_id/valid_for_incident_id/selected_at/selection_method/
+      selection_version/reason/fingerprints all unchanged; no rows created or
+      replaced). P2-B incident-read scenarios I1–I9 complete (I7 N/A by contract);
+      P2-C work (incident detail/evidence depth, investigations, LKG visibility,
+      monetization exposure) remains;
       incident detail/evidence/LKG remain for P2-C):
       (leading hypothesis, supporting/contradicting/missing, rationale), evidence pack view,
       LKG visibility, source-health (HEALTHY/DEGRADED/BLOCKED/ACTION_REQUIRED/UNKNOWN) separate
