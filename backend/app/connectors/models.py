@@ -46,6 +46,10 @@ class DataConnection(Base):
             name="uq_data_connections_property",
         ),
         Index("ix_data_connections_tenant_provider", "tenant_id", "provider", "status"),
+        CheckConstraint(
+            "monetization_capability IN ('ABSOLUTE','RELATIVE_ONLY','UNKNOWN')",
+            name="ck_data_connections_monetization_capability",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -59,6 +63,9 @@ class DataConnection(Base):
     external_account_id: Mapped[str | None] = mapped_column(String(200))
     external_property_id: Mapped[str] = mapped_column(String(200), nullable=False)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="PENDING")
+    monetization_capability: Mapped[str] = mapped_column(
+        String(30), nullable=False, server_default=text("'UNKNOWN'")
+    )
     scopes: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     secret_reference: Mapped[str] = mapped_column(Text, nullable=False)
     connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
