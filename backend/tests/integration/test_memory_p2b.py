@@ -21,7 +21,7 @@ def _clean_db() -> None:
     asyncio.run(make_purge(get_session_factory)())
 
 
-def _login_and_get_cookies(tenant_id, email):
+def _login_and_get_cookies(tenant_id: uuid.UUID, email: str) -> tuple[TestClient, dict[str, str]]:
 
     client = TestClient(app)
     response = client.post(
@@ -35,7 +35,7 @@ def _login_and_get_cookies(tenant_id, email):
 def test_t1_authenticated_tenant_can_read_own_timeline() -> None:
     factory = get_session_factory()
 
-    async def setup():
+    async def setup() -> tuple[uuid.UUID, uuid.UUID, uuid.UUID, str]:
         slug = f"t1-{uuid.uuid4().hex[:8]}"
         tenant_id = await factories.create_tenant(slug)
         operator_id, email = await factories.create_operator(tenant_id, f"op-{slug}@example.com")
@@ -45,7 +45,7 @@ def test_t1_authenticated_tenant_can_read_own_timeline() -> None:
 
     tenant_id, site_id, event_id, email = asyncio.run(setup())
 
-    async def verify_event() -> None:
+    async def verify_event() -> tuple[str, str, str]:
         async with factory() as session:
             event = await session.scalar(select(Event).where(Event.id == event_id))
             assert event is not None
@@ -66,3 +66,45 @@ def test_t1_authenticated_tenant_can_read_own_timeline() -> None:
     assert entry["observed_at"] is not None
     # No unrestricted raw payload dump in the product schema.
     assert "details" not in entry and "manifest" not in entry
+
+
+def test_t2_tenant_a_timeline_excludes_tenant_b_events() -> None:
+    factory = get_session_factory()
+
+    async def setup_two_tenants() -> tuple[uuid.UUID, uuid.UUID, uuid.UUID, str]:
+        slug_a = f"t2a-{uuid.uuid4().hex[:8]}"
+        tenant_a = await factories.create_tenant(slug_a)
+        operator_id_a, email_a = await factories.create_operator(
+            tenant_a, f"op-{slug_a}@example.com"
+        )
+        site_a = await factories.create_site(tenant_a)
+        await factories.add_scheduled_event(tenant_a, site_a)
+
+        slug_b = f"t2b-{uuid.uuid4().hex[:8]}"
+        tenant_b = await factories.create_tenant(slug_b)
+        site_b = await factories.create_site(tenant_b)
+        await factories.add_scheduled_event(tenant_b, site_b)
+        return tenant_a, site_a, site_b, email_a
+
+    tenant_a, site_a, site_b, email_a = asyncio.run(setup_two_tenants())
+    client = TestClient(app)
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "email": email_a,
+            "password": "correct-horse-battery",
+            "tenant_id": str(tenant_a),
+        },
+    )
+    assert login_response.status_code == 200
+    cookies = dict(login_response.cookies)
+
+    response = client.get("/timeline", cookies=cookies)
+    assert response.status_code == 200
+    body = response.text
+    entries = response.json()["entries"]
+    # Server-side filtering: only tenant A events returned; no tenant B data.
+    assert len(entries) == 1
+    assert entries[0]["site_id"] == str(site_a)
+    assert str(site_b) not in body
+    assert entries[0]["provenance"] == "machine_observed"
