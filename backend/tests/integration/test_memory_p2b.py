@@ -2,6 +2,7 @@
 
 import asyncio
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -43,6 +44,8 @@ def test_t1_authenticated_tenant_can_read_own_timeline() -> None:
         event_id = await factories.add_scheduled_event(tenant_id, site_id)
         return tenant_id, site_id, event_id, email
 
+    window_start = datetime(2026, 8, 21, 10, 0, tzinfo=UTC)
+    window_end = datetime(2026, 8, 21, 14, 0, tzinfo=UTC)
     tenant_id, site_id, event_id, email = asyncio.run(setup())
 
     async def verify_event() -> tuple[str, str, str]:
@@ -241,9 +244,7 @@ async def test_t6_exact_occurred_at_exposed_only_when_canonical() -> None:
     async def setup() -> tuple[uuid.UUID, uuid.UUID, str]:
         slug = f"t6-{uuid.uuid4().hex[:8]}"
         tenant_id = await factories.create_tenant(slug)
-        _operator_id, email = await factories.create_operator(
-            tenant_id, f"op-{slug}@example.com"
-        )
+        _operator_id, email = await factories.create_operator(tenant_id, f"op-{slug}@example.com")
         site_id = await factories.create_site(tenant_id)
         event_id = await factories.add_scheduled_event(tenant_id, site_id)
         exact_event_id = await add_exact_event(tenant_id, site_id)
@@ -279,3 +280,113 @@ async def test_t6_exact_occurred_at_exposed_only_when_canonical() -> None:
         assert entry["occurred_at"] is not None
         # observed_at independently serialized — not substituted.
         assert entry["observed_at"] is not None
+
+
+@pytest.mark.asyncio
+async def _add_bounded_event(
+    tenant_id: uuid.UUID,
+    site_id: uuid.UUID,
+    *,
+    window_start: datetime,
+    window_end: datetime,
+) -> uuid.UUID:
+    factory = get_session_factory()
+    event_id = uuid.uuid4()
+    async with factory() as session, session.begin():
+        monitored_url = await session.scalar(
+            select(MonitoredUrl).where(MonitoredUrl.tenant_id == tenant_id)
+        )
+        template = await session.scalar(select(Template).where(Template.tenant_id == tenant_id))
+        scenario = await session.scalar(
+            select(BrowserScenario).where(BrowserScenario.tenant_id == tenant_id)
+        )
+        assert monitored_url and template and scenario
+        window_id = uuid.uuid4()
+        when = datetime.now(UTC) - timedelta(hours=1)
+        session.add(
+            CheckpointWindow(
+                id=window_id,
+                tenant_id=tenant_id,
+                site_id=site_id,
+                scheduled_for=when,
+                window_start=when,
+                window_end=when + timedelta(minutes=30),
+            )
+        )
+        await session.flush()
+        session.add(
+            Event(
+                id=event_id,
+                tenant_id=tenant_id,
+                site_id=site_id,
+                event_definition_id=definition_id("NOINDEX_ADDED"),
+                template_id=None,
+                started_at=when,
+                occurred_after_at=window_start,
+                occurred_before_at=window_end,
+                time_precision="WINDOW",
+                detected_at=when + timedelta(minutes=5),
+                severity="MEDIUM",
+                observation_confidence="HIGH",
+                status="RECORDED",
+                source_kind="BROWSER_CHECKPOINT",
+                source_version="e3-v1",
+                condition_key=None,
+                scope={"config_type": "ROBOTS_TXT"},
+                summary="bounded-window fixture event",
+                details={},
+            )
+        )
+    return event_id
+
+
+def test_t7_bounded_occurrence_window_survives_serialization() -> None:
+    """T7: both occurrence-window bounds survive serialization without
+    fabricated precision and occurred_at remains null."""
+    from tests.integration.product.factories import (
+        add_bounded_event,
+        create_operator,
+        create_site,
+        create_tenant,
+    )
+
+    window_start = datetime(2026, 8, 21, 10, 0, tzinfo=UTC)
+    window_end = datetime(2026, 8, 21, 14, 0, tzinfo=UTC)
+
+    async def setup():
+        slug = f"t7-{uuid.uuid4().hex[:8]}"
+        tenant_id = await create_tenant(slug)
+        _operator_id, email = await create_operator(tenant_id, f"op-{slug}@example.com")
+        site_id = await create_site(tenant_id)
+        event_id = await add_bounded_event(
+            tenant_id,
+            site_id,
+            window_start=window_start,
+            window_end=window_end,
+        )
+        return tenant_id, site_id, email
+
+    tenant_id, site_id, email = asyncio.run(setup())
+    client = TestClient(app)
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "email": email,
+            "password": "correct-horse-battery",
+            "tenant_id": str(tenant_id),
+        },
+    )
+    assert login_response.status_code == 200
+
+    response = client.get("/timeline", cookies=dict(login_response.cookies))
+    assert response.status_code == 200
+    entries = response.json()["entries"]
+    matching = [e for e in entries if e["site_id"] == str(site_id)]
+    assert len(matching) == 1
+    entry = matching[0]
+
+    # Bounded interval preserved exactly.
+    assert entry["time_precision"] == "WINDOW"
+    assert entry["occurred_at"] is None
+    assert entry["occurrence_window_start"] == window_start.isoformat()
+    assert entry["occurrence_window_end"] == window_end.isoformat()
