@@ -50,6 +50,9 @@ PURGE_ORDER = (
     "sites",
     "publishers",
     "jobs",
+    "sessions",
+    "operator_tenants",
+    "operators",
     "tenants",
 )
 
