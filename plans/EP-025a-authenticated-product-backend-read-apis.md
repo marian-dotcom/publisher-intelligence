@@ -30,6 +30,12 @@
       I6 onset/window semantics verified (reported_start_at/reported_end_at bounded
       window round-trips exactly via ISO serialization, opened_at exact, resolved_at
       stays explicitly null — no timestamp substitution/fabrication);
+      I7 associated-investigation-reference tenant-safety classified NOT APPLICABLE to
+      the current incident-detail contract (GET /incidents/{incident_id} serializes
+      exactly incident / symptom_segments / last_known_good_references; no investigation
+      reference is exposed on any read surface yet, so no nested-leakage path exists;
+      investigation-ref tenant safety must be tested on the read surface that actually
+      exposes it when such a surface ships);
       incident detail/evidence/LKG remain for P2-C):
       (leading hypothesis, supporting/contradicting/missing, rationale), evidence pack view,
       LKG visibility, source-health (HEALTHY/DEGRADED/BLOCKED/ACTION_REQUIRED/UNKNOWN) separate
