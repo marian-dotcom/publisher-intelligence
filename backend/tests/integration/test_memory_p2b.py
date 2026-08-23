@@ -390,3 +390,43 @@ def test_t7_bounded_occurrence_window_survives_serialization() -> None:
     assert entry["occurred_at"] is None
     assert entry["occurrence_window_start"] == window_start.isoformat()
     assert entry["occurrence_window_end"] == window_end.isoformat()
+
+
+def test_t8_cross_tenant_timeline_isolation() -> None:
+    """T8: tenant A timeline contains only tenant A data."""
+
+    factory = get_session_factory()
+
+    async def setup_two_tenants():
+        slug_a = f"iso-a-{uuid.uuid4().hex[:8]}"
+        slug_b = f"iso-b-{uuid.uuid4().hex[:8]}"
+        tenant_a = await factories.create_tenant(slug_a)
+        tenant_b = await factories.create_tenant(slug_b)
+        op_a_email = f"op-{slug_a}@example.com"
+        await factories.create_operator(tenant_a, op_a_email)
+        site_a = await factories.create_site(tenant_a)
+        event_a = await factories.add_scheduled_event(tenant_a, site_a)
+        site_b = await factories.create_site(tenant_b)
+        event_b = await factories.add_scheduled_event(tenant_b, site_b)
+        return tenant_a, tenant_b, site_a, site_b, event_a, event_b, op_a_email
+
+    tenant_a, tenant_b, site_a, site_b, event_a, event_b, op_a_email = asyncio.run(
+        setup_two_tenants()
+    )
+
+    client = TestClient(app)
+    login_response = client.post(
+        "/auth/login",
+        json={"email": op_a_email, "password": "correct-horse-battery", "tenant_id": str(tenant_a)},
+    )
+    assert login_response.status_code == 200
+    cookies = dict(login_response.cookies)
+
+    response = client.get("/timeline", cookies=cookies)
+    assert response.status_code == 200
+    body = response.text
+    entries = response.json()["entries"]
+    assert len(entries) == 1
+    assert str(event_a) in body or any(e["site_id"] == str(site_a) for e in entries)
+    assert str(site_b) not in body
+    assert str(event_b) not in body
