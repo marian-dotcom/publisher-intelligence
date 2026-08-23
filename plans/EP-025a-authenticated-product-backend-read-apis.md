@@ -10,8 +10,8 @@
 
 ## Progress
 
-- [ ] M0 — Baseline verification and auth design reconciliation
-- [ ] M1 — Migration 0023: operators + sessions schema; Argon2id hashing boundary
+- [x] M0 — Baseline verification and auth design reconciliation
+- [x] M1 — Migration 0023: operators + sessions schema; Argon2id hashing boundary
 - [ ] M2 — First-party auth boundary: login/logout/session restoration/current-actor endpoints;
       cookie semantics; CSRF for state-changing requests; account-disabled behavior
 - [ ] M3 — Product read APIs: Home/status, Timeline, incidents list/detail, investigation detail
