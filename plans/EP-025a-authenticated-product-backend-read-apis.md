@@ -23,7 +23,9 @@
       P2-B Incidents I1–I3 shipped (authenticated tenant lists own incidents; tenant A
       incident list excludes tenant B incidents and site identifiers server-side;
       authenticated tenant fetches own incident detail with site scope and empty
-      symptom_segments exposed explicitly); cross-tenant detail coverage remains for I4;
+      symptom_segments exposed explicitly; cross-tenant incident detail is non-disclosing
+      (tenant-scoped 404, no B-side identifiers or content in response body);
+      symptom/scope/status serialization depth remains for I5;
       incident detail/evidence/LKG remain for P2-C):
       (leading hypothesis, supporting/contradicting/missing, rationale), evidence pack view,
       LKG visibility, source-health (HEALTHY/DEGRADED/BLOCKED/ACTION_REQUIRED/UNKNOWN) separate

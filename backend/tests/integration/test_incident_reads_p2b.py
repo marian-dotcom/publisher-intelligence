@@ -250,3 +250,45 @@ def test_i3_authenticated_tenant_can_fetch_own_incident_detail() -> None:
 
     # No symptom segments were seeded; the detail contract exposes them explicitly.
     assert body["symptom_segments"] == []
+
+
+def test_i4_cross_tenant_incident_detail_is_non_disclosing() -> None:
+    """I4: tenant A cannot read tenant B's incident detail."""
+    get_session_factory()
+
+    async def seed() -> tuple[uuid.UUID, str, uuid.UUID, uuid.UUID, uuid.UUID]:
+        slug_a = f"i4a-{uuid.uuid4().hex[:8]}"
+        slug_b = f"i4b-{uuid.uuid4().hex[:8]}"
+        tenant_a_id = await create_tenant(slug_a)
+        await create_site(tenant_a_id)
+        _operator_id_a, email_a = await create_operator(tenant_a_id, f"op-{slug_a}@example.com")
+        tenant_b_id = await create_tenant(slug_b)
+        site_b_id = await create_site(tenant_b_id)
+        incident_b_id = await create_incident(
+            tenant_b_id, site_b_id, title="Tenant B secret incident"
+        )
+        return tenant_a_id, email_a, incident_b_id, site_b_id, tenant_b_id
+
+    tenant_a_id, email_a, incident_b_id, site_b_id, _tenant_b_id = asyncio.run(seed())
+
+    client = TestClient(app)
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "email": email_a,
+            "password": "correct-horse-battery",
+            "tenant_id": str(tenant_a_id),
+        },
+    )
+    assert login_response.status_code == 200
+    cookies = dict(login_response.cookies)
+
+    response = client.get(f"/incidents/{incident_b_id}", cookies=cookies)
+    assert response.status_code == 404
+
+    # No tenant B data may leak in any serialized form.
+    body_text = response.text
+    assert str(incident_b_id) not in body_text
+    assert str(site_b_id) not in body_text
+    assert "Tenant B secret incident" not in body_text
+    assert "GAM_ADSERVING" not in body_text
