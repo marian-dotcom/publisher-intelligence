@@ -17,6 +17,7 @@ from app.auth.dependencies import ActorContext, get_current_actor
 from app.db.session import get_session_factory
 from app.events.models import Event
 from app.evidence.models import ManualNote
+from app.hypotheses.persistence import HypothesisRepository
 from app.incidents.models import (
     Incident,
     IncidentSymptomSegment,
@@ -167,6 +168,11 @@ async def incident_detail(
                 )
             ).all()
         )
+    # Canonical deterministic hypothesis state (EP-023): tenant+incident scoped,
+    # ordered by rank. The LLM never decides this state; it is read-only here.
+    hypotheses = await HypothesisRepository(factory).list_for_incident(
+        tenant_id=actor.tenant_id, incident_id=incident_id
+    )
     return {
         "incident": {
             "incident_id": str(incident.id),
@@ -203,5 +209,21 @@ async def incident_detail(
                 "fingerprints": ref.fingerprints,
             }
             for ref in lkg_refs
+        ],
+        "hypotheses": [
+            {
+                "hypothesis_id": str(h.id),
+                "hypothesis_key": h.hypothesis_key,
+                "family": h.family,
+                "statement": h.statement,
+                "status": h.status,
+                "confidence": h.confidence,
+                "rank": h.rank,
+                "supporting_count": h.supporting_count,
+                "contradicting_count": h.contradicting_count,
+                "rationale": h.rationale,
+                "engine_version": h.engine_version,
+            }
+            for h in hypotheses
         ],
     }

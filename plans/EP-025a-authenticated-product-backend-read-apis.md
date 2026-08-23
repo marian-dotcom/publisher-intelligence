@@ -61,6 +61,23 @@
       full mypy scope now green (240 files); remaining full-scope Ruff findings are
       pre-existing category-B files outside P2-B (test_product_http_auth.py,
       test_product_read_p2a.py); completion-gate evidence remains valid;
+- [ ] P2-C — remaining product read depth (IN_PROGRESS). Contract reconciliation:
+      ranked hypotheses live in app/hypotheses (Hypothesis: status
+      LEADING/CONTENDER/WEAKENED/UNRESOLVED, confidence LOW/MEDIUM/HIGH, rank,
+      hypothesis_key stable identity, rationale, engine_version, supporting/
+      contradicting counts; HypothesisEvidence relation SUPPORTS/CONTRADICTS/CONTEXT
+      with source_kind EVENT/MANUAL_NOTE/OBSERVATION_GAP; HypothesisRepository.
+      list_for_incident is tenant+incident scoped, rank-ordered). LKG refs and
+      symptom segments already exposed by P2-B detail. C1 implemented:
+      GET /incidents/{id} now serializes "hypotheses" via
+      HypothesisRepository.list_for_incident (hypothesis_id, hypothesis_key,
+      family, statement, status, confidence, rank, counts, rationale,
+      engine_version); tenant-B hypothesis data proven absent; deterministic
+      rank order + LEADING representation proven (test_product_read_p2c.py).
+      Remaining: C2 SUPPORTS/CONTRADICTS/MISSING evidence relationships;
+      C3 evidence pack read surface (PackBuilder/EvidenceRepository contract);
+      C4 remaining LKG visibility; C5 monetization capability gating
+      (RELATIVE_ONLY/ABSOLUTE/UNKNOWN fail-closed); then Investigate intake.
       P2-C work (incident detail/evidence depth, investigations, LKG visibility,
       monetization exposure) remains;
       incident detail/evidence/LKG remain for P2-C):
