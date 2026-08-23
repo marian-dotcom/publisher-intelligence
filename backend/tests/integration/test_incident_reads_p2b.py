@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from app.browser.models import Publisher, Site
 from app.db.models import Tenant
@@ -334,3 +335,70 @@ def test_i5_symptom_scope_status_serialize_correctly() -> None:
     assert incident["site_id"] == str(site_id)
     assert incident["title"] == "Canonical serialization probe"
     assert incident["description"] == "Description for Canonical serialization probe"
+
+
+def test_i6_incident_onset_window_semantics_remain_accurate() -> None:
+    """I6: bounded onset/window round-trips exactly; unknown times stay unknown."""
+    factory = get_session_factory()
+
+    async def seed_and_set_window() -> tuple[
+        str, "datetime", "datetime", "datetime", uuid.UUID, uuid.UUID
+    ]:
+        slug = f"i6-{uuid.uuid4().hex[:8]}"
+        tenant_id = await create_tenant(slug)
+        site_id = await create_site(tenant_id)
+        incident_id = await create_incident(tenant_id, site_id, title="Onset window probe")
+        _operator_id, email = await create_operator(tenant_id, f"op-{slug}@example.com")
+
+        # Canonical bounded onset/window: known start/end, unresolved end state absent.
+        window_start = datetime(2026, 8, 10, 6, 30, 15, 123456, tzinfo=UTC)
+        window_end = datetime(2026, 8, 10, 11, 0, 0, 654321, tzinfo=UTC)
+        async with factory() as session, session.begin():
+            incident = await session.scalar(select(Incident).where(Incident.id == incident_id))
+            assert incident is not None
+            incident.reported_start_at = window_start
+            incident.reported_end_at = window_end
+            await session.flush()
+            return (
+                email,
+                incident.opened_at,
+                incident.reported_start_at,
+                incident.reported_end_at,
+                tenant_id,
+                incident_id,
+            )
+
+    (
+        email_a,
+        opened_at_db,
+        reported_start_db,
+        reported_end_db,
+        tenant_id,
+        incident_id,
+    ) = asyncio.run(seed_and_set_window())
+
+    client = TestClient(app)
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "email": email_a,
+            "password": "correct-horse-battery",
+            "tenant_id": str(tenant_id),
+        },
+    )
+    assert login_response.status_code == 200
+    cookies = dict(login_response.cookies)
+
+    response = client.get(f"/incidents/{incident_id}", cookies=cookies)
+    assert response.status_code == 200
+
+    incident = response.json()["incident"]
+    # Bounded window round-trips exactly — no rounding, no re-zoning drift beyond ISO form.
+    assert incident["reported_start_at"] == reported_start_db.isoformat()
+    assert incident["reported_end_at"] == reported_end_db.isoformat()
+    assert incident["reported_start_at"] != incident["reported_end_at"]
+    # Known onset round-trips exactly.
+    assert incident["opened_at"] == opened_at_db.isoformat()
+    # Unknown resolution time must remain explicitly unknown — never substituted
+    # with another observation timestamp.
+    assert incident["resolved_at"] is None

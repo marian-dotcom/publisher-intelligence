@@ -27,7 +27,9 @@
       (tenant-scoped 404, no B-side identifiers or content in response body);
       I5 canonical symptom/scope/status serialization verified (symptom_family, status
       incl. RESOLVED, site_id scope, title, description round-trip exactly as stored);
-      onset/window semantics remain for I6;
+      I6 onset/window semantics verified (reported_start_at/reported_end_at bounded
+      window round-trips exactly via ISO serialization, opened_at exact, resolved_at
+      stays explicitly null — no timestamp substitution/fabrication);
       incident detail/evidence/LKG remain for P2-C):
       (leading hypothesis, supporting/contradicting/missing, rationale), evidence pack view,
       LKG visibility, source-health (HEALTHY/DEGRADED/BLOCKED/ACTION_REQUIRED/UNKNOWN) separate
