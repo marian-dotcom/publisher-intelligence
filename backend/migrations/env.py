@@ -13,6 +13,7 @@ from app.db import models  # noqa: F401
 from app.db.base import Base
 from app.events import models as event_models  # noqa: F401
 from app.evidence import models as evidence_models  # noqa: F401
+from app.hypotheses import models as hypothesis_models  # noqa
 from app.incidents import models as incident_models  # noqa: F401
 from app.metrics import models as metric_models  # noqa: F401
 from app.public_config import models as public_config_models  # noqa: F401
