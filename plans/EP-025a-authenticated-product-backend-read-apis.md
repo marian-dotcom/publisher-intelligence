@@ -36,6 +36,10 @@
       reference is exposed on any read surface yet, so no nested-leakage path exists;
       investigation-ref tenant safety must be tested on the read surface that actually
       exposes it when such a surface ships);
+      I8 frozen LKG reference tenant safety verified (incident detail returns only the
+      authenticated tenant's LKG refs; tenant A's frozen reference serialized with
+      canonical reference_id/scope_key/selection_method/selection_version/selected_at/
+      fingerprints; tenant B's ref id, scope_key, and site id absent from response);
       incident detail/evidence/LKG remain for P2-C):
       (leading hypothesis, supporting/contradicting/missing, rationale), evidence pack view,
       LKG visibility, source-health (HEALTHY/DEGRADED/BLOCKED/ACTION_REQUIRED/UNKNOWN) separate

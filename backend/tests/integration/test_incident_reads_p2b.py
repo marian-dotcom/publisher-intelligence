@@ -2,15 +2,23 @@
 
 import asyncio
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from app.browser.models import Publisher, Site
+from app.browser.models import (
+    BrowserScenario,
+    CheckpointRun,
+    CheckpointWindow,
+    MonitoredUrl,
+    Publisher,
+    Site,
+    Template,
+)
 from app.db.models import Tenant
-from app.incidents.models import Incident
+from app.incidents.models import Incident, LastKnownGoodRef
 from app.main import app
 from tests.integration.product.factories import (
     create_incident,
@@ -402,3 +410,173 @@ def test_i6_incident_onset_window_semantics_remain_accurate() -> None:
     # Unknown resolution time must remain explicitly unknown — never substituted
     # with another observation timestamp.
     assert incident["resolved_at"] is None
+
+
+def test_i8_frozen_lkg_reference_remains_tenant_safe() -> None:
+    """I8: incident detail returns only the authenticated tenant's frozen LKG refs."""
+    factory = get_session_factory()
+
+    async def seed_lkg_ref(
+        tenant_id: uuid.UUID,
+        site_id: uuid.UUID,
+        incident_id: uuid.UUID,
+        *,
+        scope_key: str,
+    ) -> tuple[uuid.UUID, str]:
+        """Minimal canonical frozen LKG reference: template/url/scenario/window/run."""
+        template_id, monitored_url_id, scenario_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        run_id, window_id = uuid.uuid4(), uuid.uuid4()
+        ref_id = uuid.uuid4()
+        selected_at = datetime(2026, 8, 20, 9, 0, tzinfo=UTC)
+        when = datetime.now(UTC) - timedelta(hours=2)
+        async with factory() as session, session.begin():
+            session.add(
+                Template(
+                    id=template_id,
+                    tenant_id=tenant_id,
+                    site_id=site_id,
+                    code="article",
+                    display_name="Article",
+                    status="ACTIVE",
+                )
+            )
+            await session.flush()
+            session.add(
+                MonitoredUrl(
+                    id=monitored_url_id,
+                    tenant_id=tenant_id,
+                    site_id=site_id,
+                    template_id=template_id,
+                    url=f"https://{site_id.hex}.example.com/a",
+                    status="ACTIVE",
+                )
+            )
+            session.add(
+                BrowserScenario(
+                    id=scenario_id,
+                    tenant_id=tenant_id,
+                    site_id=site_id,
+                    code=f"core_desktop_{scenario_id.hex[:6]}",
+                    version=1,
+                    status="ACTIVE",
+                )
+            )
+            session.add(
+                CheckpointWindow(
+                    id=window_id,
+                    tenant_id=tenant_id,
+                    site_id=site_id,
+                    scheduled_for=when,
+                    window_start=when,
+                    window_end=when + timedelta(minutes=30),
+                )
+            )
+            await session.flush()
+            session.add(
+                CheckpointRun(
+                    id=run_id,
+                    tenant_id=tenant_id,
+                    site_id=site_id,
+                    checkpoint_window_id=window_id,
+                    monitored_url_id=monitored_url_id,
+                    template_id=template_id,
+                    scenario_id=scenario_id,
+                    observation_kind="SCHEDULED",
+                    scheduled_for=when,
+                    started_at=when,
+                    completed_at=when + timedelta(minutes=5),
+                    status="COMPLETE",
+                    attempt_count=1,
+                    environment={},
+                    limitations=[],
+                    manifest={},
+                )
+            )
+            session.add(
+                LastKnownGoodRef(
+                    id=ref_id,
+                    tenant_id=tenant_id,
+                    site_id=site_id,
+                    scope_key=scope_key,
+                    checkpoint_run_id=run_id,
+                    valid_for_incident_id=incident_id,
+                    selected_at=selected_at,
+                    selection_method="MANUAL_OPERATOR",
+                    selection_version="lkg-v1",
+                    reason=f"Frozen baseline for {scope_key}",
+                    fingerprints={"collector_bundle": "b8-v1", "robots": "robots-rfc9309-v1"},
+                )
+            )
+        return ref_id, scope_key
+
+    async def seed_two_tenants_with_lkg() -> tuple[
+        tuple[uuid.UUID, str, uuid.UUID, uuid.UUID, uuid.UUID, str, uuid.UUID], str
+    ]:
+        slug_a, slug_b = f"i8a-{uuid.uuid4().hex[:8]}", f"i8b-{uuid.uuid4().hex[:8]}"
+        tenant_a_id = await create_tenant(slug_a)
+        site_a_id = await create_site(tenant_a_id)
+        incident_a_id = await create_incident(tenant_a_id, site_a_id, title="Incident A LKG")
+        _op_id_a, email_a = await create_operator(tenant_a_id, f"op-{slug_a}@example.com")
+        ref_a_id, ref_a_scope = await seed_lkg_ref(
+            tenant_a_id, site_a_id, incident_a_id, scope_key="site-a::desktop"
+        )
+
+        tenant_b_id = await create_tenant(slug_b)
+        site_b_id = await create_site(tenant_b_id)
+        incident_b_id = await create_incident(tenant_b_id, site_b_id, title="Incident B LKG")
+        ref_b_id, ref_b_scope = await seed_lkg_ref(
+            tenant_b_id, site_b_id, incident_b_id, scope_key="site-b::desktop"
+        )
+        return (
+            tenant_a_id,
+            email_a,
+            incident_a_id,
+            ref_a_id,
+            ref_b_id,
+            ref_b_scope,
+            site_b_id,
+        ), ref_a_scope
+
+    seeded, ref_a_scope = asyncio.run(seed_two_tenants_with_lkg())
+    (
+        tenant_a_id,
+        email_a,
+        incident_a_id,
+        ref_a_id,
+        ref_b_id,
+        ref_b_scope,
+        site_b_id,
+    ) = seeded
+
+    client = TestClient(app)
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "email": email_a,
+            "password": "correct-horse-battery",
+            "tenant_id": str(tenant_a_id),
+        },
+    )
+    assert login_response.status_code == 200
+    cookies = dict(login_response.cookies)
+
+    response = client.get(f"/incidents/{incident_a_id}", cookies=cookies)
+    assert response.status_code == 200
+
+    body = response.json()
+    lkg_refs = body["last_known_good_references"]
+    assert len(lkg_refs) == 1
+
+    # Tenant A's frozen reference is returned with canonical frozen fields intact.
+    ref = lkg_refs[0]
+    assert ref["reference_id"] == str(ref_a_id)
+    assert ref["scope_key"] == ref_a_scope
+    assert ref["selection_method"] == "MANUAL_OPERATOR"
+    assert ref["selection_version"] == "lkg-v1"
+    assert ref["selected_at"] is not None
+    assert ref["fingerprints"] == {"collector_bundle": "b8-v1", "robots": "robots-rfc9309-v1"}
+
+    # Tenant B's frozen reference and identifiers must not leak anywhere.
+    assert str(ref_b_id) not in response.text
+    assert ref_b_scope not in response.text
+    assert str(site_b_id) not in response.text
