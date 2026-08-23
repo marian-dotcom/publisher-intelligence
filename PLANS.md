@@ -1680,7 +1680,8 @@ Parallel product/operations track:
 
 ```text
 EP-019 ──→ EP-024 — Connector OAuth, managed secrets & site onboarding  [HARD PILOT BLOCKER]
-EP-021 ──→ EP-025 — Home / Timeline & minimal Investigate product surface [HARD PILOT BLOCKER]
+EP-021 ──→ EP-025a — Authenticated product backend & read APIs   [HARD PILOT BLOCKER]
+              └──→ EP-025b — Home / Timeline & minimal Investigate frontend
 
 EP-024 + EP-025 + EP-023
    ↓

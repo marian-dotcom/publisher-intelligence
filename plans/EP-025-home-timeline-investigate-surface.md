@@ -1,6 +1,6 @@
 # EP-025 — Home / Timeline & Minimal Investigate Product Surface
 
-**Status:** BLOCKED_AT_HUMAN_GATE (authentication architecture)
+**Status:** SPLIT — superseded by EP-025a (backend contracts) + EP-025b (frontend); product boundary unchanged
 **Owner:** Codex / Engineering
 **Created:** 2026-08-23
 
@@ -95,3 +95,15 @@ those endpoints behind a stubbed actor header — leaving only the login/session
 ## Non-goals
 Billing, chat, ticketing, collaboration, enterprise RBAC, LLM synthesis, causal-certainty
 wording beyond deterministic statuses.
+
+## DELIVERY SPLIT (human roadmap decision 2026-08-23)
+
+One approved product scope,
+two sequential delivery milestones. EP-025a establishes and validates the authenticated backend
+product contracts (Option A operator accounts/sessions, tenant+actor authorization, read/query
+APIs for Home/Timeline/incidents/investigations/evidence/LKG/source-health distinct from
+publisher health, minimal Investigate intake endpoint using EP-020 semantics,
+hypothesis/ranking/provenance exposure, privacy-preserving monetization contracts
+ABSOLUTE/RELATIVE_ONLY/UNKNOWN). EP-025b builds the operational-memory-first frontend consuming
+those contracts after EP-025a merges green. Detailed EP-025a ExecPlan is created at fresh-context
+execution start; EP-025b detail follows only after EP-025a merges.
