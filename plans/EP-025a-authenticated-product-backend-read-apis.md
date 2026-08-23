@@ -12,7 +12,9 @@
 
 - [x] M0 — Baseline verification and auth design reconciliation
 - [x] M1 — Migration 0023: operators + sessions schema; Argon2id hashing boundary
-- [ ] M2 — First-party auth boundary: login/logout/session restoration/current-actor endpoints;
+- [x] M2 — First-party auth boundary implemented (security.py Argon2id + CSPRNG tokens +
+      hash-at-rest; service.py login/rotation/restore/logout with fail-closed checks;
+      integration coverage for scenarios 15/16/17/21/24/26/27);
       cookie semantics; CSRF for state-changing requests; account-disabled behavior
 - [ ] M3 — Product read APIs: Home/status, Timeline, incidents list/detail, investigation detail
       (leading hypothesis, supporting/contradicting/missing, rationale), evidence pack view,
