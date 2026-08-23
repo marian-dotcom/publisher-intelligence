@@ -1,6 +1,6 @@
 # EP-025a — Authenticated Product Backend & Read APIs
 
-**Status:** READY
+**Status:** IN_PROGRESS
 **Owner:** Codex / Engineering
 **Created:** 2026-08-23
 **Updated:** 2026-08-23
@@ -113,57 +113,60 @@ expired/disabled rejection; no absolute revenue leakage when capability ≠ ABSO
 independent of publisher health; zero inspect_ai imports under app/; full ladder green locally +
 CI.
 
-## 10. Test Cases
+## 10. SECURITY + CONTRACT VALIDATION GATE (release blocker)
 
-See §8 scenario list plus: wrong-password rate-safe generic error; revoked session reuse;
-disabled-account login; CSRF-missing write rejection; RELATIVE_ONLY pack hides absolute fields;
-observed_at-only event renders null occurred_at; window uncertainty preserved as bounds.
+Both A and B must pass before COMPLETE. Critical paths exercise the real HTTP boundary,
+auth dependency, PostgreSQL-backed operator/session state, and tenant authorization — not
+helper-call mocks.
 
-## 11. Final Validation
+### A. Product / data contract
 
-Full ladder as EP-019–022 plus explicit auth/intake/contract integration files.
+1. healthy browser source + healthy publisher/site
+2. degraded browser/source without publisher/site failure
+3. missing/unavailable connector represented as unavailable evidence, not publisher failure
+4. incident with LEADING hypothesis
+5. supporting evidence exposed correctly
+6. contradicting evidence exposed correctly
+7. missing/unavailable evidence exposed explicitly
+8. human_reported distinguishable from machine_observed
+9. observed_at known while occurred_at unknown (null occurred_at)
+10. bounded time-window uncertainty without fabricated precision
+11. RELATIVE_ONLY monetization with zero absolute revenue disclosure
+12. ABSOLUTE values exposed only when capability == ABSOLUTE AND evidence contains them
+13. minimal Investigate intake preserving tenant ownership, actor provenance,
+    EP-020 localization semantics
 
-## 12. Security / Privacy Impact
+### B. Authentication / authorization failure cases
 
-This plan IS the security boundary implementation: Argon2id params configured+tested, sessions
-hashed at rest, cookies hardened, CSRF enforced, tenant checks on every route. No secrets logged.
-Absolute revenue never exposed unless capability=ABSOLUTE and value exists in stored evidence.
+14. cross-tenant read rejected server-side for: site, incident, investigation, evidence,
+    source-health state, LKG data, timeline entries, Home/status aggregates
+15. expired session rejected; no authenticated actor context restored
+16. explicitly revoked session rejected; reuse of prior credential rejected
+17. disabled operator rejected even with otherwise-valid session (checked at restoration,
+    not only login)
+18. missing CSRF token on cookie-authenticated state-changing request rejected
+19. mismatched/invalid CSRF token rejected
+20. unauthenticated request to protected product endpoint rejected (401)
+21. logout invalidates session; replay of previous session credential rejected
+22. session/actor binding cannot escape tenant membership or tenant authorization
+23. removal/invalidation of tenant membership causes subsequent tenant-scoped access to fail closed
+24. invalid password does not create a persisted session
+25. failed authentication returns a generic error that does not leak credential-sensitive
+    internal state
+26. disabled operator cannot obtain a new login session
+27. session expiry enforced server-side; stale browser cookie cannot bypass it
 
-## 13. Observability / Failure Handling
+### C. Security invariants
 
-Typed AuthError/EvidenceStateError mapped to 401/403/409 responses; structured logs carry
-actor_subject_id + tenant only.
+Demonstrated via tests/inspection:
+- plaintext passwords never persisted; hashing is one-way (Argon2id) with configured parameters;
+- raw session secrets not stored recoverable (server stores hash only);
+- password hashes / raw session tokens / CSRF secrets never emitted to logs;
+- disabled-account check occurs during session restoration;
+- tenant authorization enforced server-side (frontend filtering never authoritative);
+- CSRF applies to state-changing cookie-authenticated routes; GETs remain side-effect free;
+- failed authentication creates no persisted authenticated session;
+- auth/session errors do not leak secret material or credential internals.
 
-## 14. Rollback Strategy
+Any failure in a security-critical scenario above is an EP-025a release blocker.
 
-Migration guarded downgrade refuses while operators/sessions exist; revert removes routes; no
-collection paths affected.
-
-## 15. Known Risks
-
-CSRF/session subtleties → mitigated by established patterns + negative tests. Endpoint shape may
-need adjustment when EP-025b lands — additive only.
-
-## 16. Open Decisions
-
-None block implementation (Option A fully specified by human decision).
-
-## 17. Decision Log
-
-### 2026-08-23 — Sessions hashed server-side; cookie carries opaque raw token
-Standard practice: DB cannot leak usable tokens. ### 2026-08-23 — ADMIN/OPERATOR introduced
-Only because intake writes are operator-gated while read surface is any active member; documented
-per split decision §6.
-
-## 18. Discoveries / Surprises
-
-To be recorded during implementation.
-
-## 19. Progress Log
-
-### 2026-08-23 — Created after split decision; marked READY (Option A fully specified; no human
-gates outstanding). Implementation begins immediately on this branch.
-
-## 20. Final Outcome / Retrospective
-
-Pending implementation.
