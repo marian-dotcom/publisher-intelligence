@@ -20,6 +20,7 @@ from app.db.models import Tenant
 from app.db.session import get_session_factory
 from app.events.models import Event
 from app.events.registry import definition_id
+from app.evidence.models import ManualNote
 
 
 async def create_tenant(slug: str) -> uuid.UUID:
@@ -178,3 +179,21 @@ async def add_scheduled_event(tenant_id: uuid.UUID, site_id: uuid.UUID) -> uuid.
             )
         )
     return event_id
+
+
+async def create_manual_note(tenant_id: uuid.UUID, site_id: uuid.UUID, note_text: str) -> uuid.UUID:
+    factory = get_session_factory()
+    note_id = uuid.uuid4()
+    async with factory() as session, session.begin():
+        session.add(
+            ManualNote(
+                id=note_id,
+                tenant_id=tenant_id,
+                site_id=site_id,
+                incident_id=None,
+                note_type="OTHER",
+                note_text=note_text,
+                source="operator",
+            )
+        )
+    return note_id

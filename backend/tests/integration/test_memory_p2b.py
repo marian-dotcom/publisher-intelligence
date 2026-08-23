@@ -144,3 +144,44 @@ def test_t3_machine_observed_provenance_is_explicitly_serialized() -> None:
         # Explicit field, canonical value — not inferred from source/type.
         assert "provenance" in entry
         assert entry["provenance"] == "machine_observed"
+
+
+def test_t4_human_reported_provenance_distinct_from_machine() -> None:
+    """T4: human_reported and machine_observed are explicit, distinguishable
+    provenance classes in the serialized Timeline contract."""
+    factory = get_session_factory()
+
+    async def setup() -> tuple[uuid.UUID, uuid.UUID, str]:
+        slug = f"t4-{uuid.uuid4().hex[:8]}"
+        tenant_id = await factories.create_tenant(slug)
+        _operator_id, email = await factories.create_operator(tenant_id, f"op-{slug}@example.com")
+        site_id = await factories.create_site(tenant_id)
+        note_id = await factories.create_manual_note(
+            tenant_id, site_id, "Operator confirmed the CMP banner was removed."
+        )
+        return tenant_id, site_id, email
+
+    tenant_id, site_id, email_a = asyncio.run(setup())
+    client = TestClient(app)
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "email": email_a,
+            "password": "correct-horse-battery",
+            "tenant_id": str(tenant_id),
+        },
+    )
+    assert login_response.status_code == 200
+    cookies = dict(login_response.cookies)
+
+    response = client.get("/timeline", cookies=cookies)
+    assert response.status_code == 200
+    entries = response.json()["entries"]
+
+    human_entries = [e for e in entries if e.get("provenance") == "human_reported"]
+    machine_entries = [e for e in entries if e.get("provenance") == "machine_observed"]
+    assert human_entries, "human_reported entry must appear when manual notes exist"
+    assert all(e["provenance"] == "human_reported" for e in human_entries)
+    assert all("text" in e for e in human_entries)
+    for entry in machine_entries:
+        assert entry["provenance"] == "machine_observed"
