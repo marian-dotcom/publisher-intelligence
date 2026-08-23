@@ -108,3 +108,39 @@ def test_t2_tenant_a_timeline_excludes_tenant_b_events() -> None:
     assert entries[0]["site_id"] == str(site_a)
     assert str(site_b) not in body
     assert entries[0]["provenance"] == "machine_observed"
+
+
+def test_t3_machine_observed_provenance_is_explicitly_serialized() -> None:
+    """The product contract must carry provenance as an explicit field —
+    the frontend must not infer it from event type/source/timestamps."""
+    factory = get_session_factory()
+
+    async def setup() -> tuple[uuid.UUID, uuid.UUID, str]:
+        slug = f"t3-{uuid.uuid4().hex[:8]}"
+        tenant_id = await factories.create_tenant(slug)
+        operator_id, email = await factories.create_operator(tenant_id, f"op-{slug}@example.com")
+        site_id = await factories.create_site(tenant_id)
+        await factories.add_scheduled_event(tenant_id, site_id)
+        return tenant_id, site_id, email
+
+    _tenant_id, _site_id, email_a = asyncio.run(setup())
+    client = TestClient(app)
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "email": email_a,
+            "password": "correct-horse-battery",
+            "tenant_id": str(_tenant_id),
+        },
+    )
+    assert login_response.status_code == 200
+    cookies = dict(login_response.cookies)
+
+    response = client.get("/timeline", cookies=cookies)
+    assert response.status_code == 200
+    entries = response.json()["entries"]
+    assert len(entries) >= 1
+    for entry in entries:
+        # Explicit field, canonical value — not inferred from source/type.
+        assert "provenance" in entry
+        assert entry["provenance"] == "machine_observed"
