@@ -16,7 +16,8 @@
       hash-at-rest; service.py login/rotation/restore/logout with fail-closed checks;
       integration coverage for scenarios 15/16/17/21/24/26/27);
       cookie semantics; CSRF for state-changing requests; account-disabled behavior
-- [ ] M3 — Product read APIs: Home/status, Timeline, incidents list/detail, investigation detail
+- [x] M3 — Product read APIs PARTIAL (P2-A: Home/status + source health + publisher/site
+      condition shipped; Timeline/incidents/detail/evidence/LKG remain for P2-B/P2-C):
       (leading hypothesis, supporting/contradicting/missing, rationale), evidence pack view,
       LKG visibility, source-health (HEALTHY/DEGRADED/BLOCKED/ACTION_REQUIRED/UNKNOWN) separate
       from publisher/site health, provenance (machine_observed vs human_reported; observed_at vs
