@@ -68,6 +68,29 @@ with Option C acceptable as a Limited-Pilot stopgap if no cloud account exists y
 What can proceed without the decision: everything already merged in this PR (capability modes,
 identity documentation/runbook); token-lifecycle implementation itself cannot proceed.
 
+## 4a. OPTION C REVISIT TRIGGER (operator-assisted secret-reference path)
+
+Option C is a TEMPORARY Limited-Pilot exception, not an accepted production onboarding
+architecture. It MUST be revisited at the earliest of:
+
+1. onboarding of the second simultaneously active external publisher using OAuth-backed
+   connectors;
+2. any requirement for self-service publisher onboarding;
+3. any requirement for automatic credential rotation / reauthorization without operator
+   intervention;
+4. 30 days after the first external Limited Pilot publisher is connected.
+
+When any trigger fires:
+
+- Option C may not silently continue as the default path;
+- the team must explicitly choose either:
+  a) proceed with the first-party OAuth flow backed by a production SecretStore implementation; or
+  b) record a new human-approved decision extending the exception, with rationale, risks, and a
+     new revisit trigger.
+
+Invariant: no new external pilot publisher may be onboarded through Option C after a revisit
+trigger has fired unless a new explicit human decision authorizes the extension.
+
 ## 5. Non-negotiables carried into M2+
 
 No stealth/evasion/CAPTCHA solving/fingerprint spoofing/proxy rotation (ADR-020); read-only
@@ -82,3 +105,19 @@ documented egress identity requirement stands regardless of vendor choice.
 
 ruff/mypy/unit/integration suites green locally and in CI; migration 0022 upgrade/downgrade cycle
 validated in CI PostgreSQL job.
+
+### 2026-08-23 — Option C recorded as temporary exception with hard revisit triggers
+
+**Decision:** The operator-assisted secret-reference path (Option C) is authorized only as a
+temporary Limited-Pilot exception with the revisit triggers listed in §4a (second simultaneous
+OAuth publisher, self-service onboarding need, automatic rotation/reauthorization need, or
+30 days after first external pilot connection — whichever comes first).
+
+**Reason:** Balances pilot speed against credential-handling maturity per ADR-091; explicit
+triggers prevent silent normalization of operator-assisted credentials into the default path.
+
+**Alternatives:** Unconditional Option C — rejected: would defer OAuth indefinitely without a
+forcing function; immediate full OAuth build — deferred by human gate pending provider decisions.
+
+**Impact:** EP-020+ workflows may consume secret references; onboarding of NEW external
+publishers via Option C after a trigger fires requires a new explicit human decision.
