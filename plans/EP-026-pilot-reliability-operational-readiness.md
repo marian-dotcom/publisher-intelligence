@@ -128,8 +128,38 @@
 - [ ] M2 — Monitoring network reliability closeout (allowlistable egress
       identity HUMAN GATE, documented non-deceptive User-Agent rollout,
       compatibility self-check diagnostic)
-- [ ] M3 — Retention enforcement proof + connector staleness/freshness
-      operationalization
+- [x] M3a-0 — retention class reconciliation COMPLETE @ efea202: routine
+      browser screenshots (viewport/pre-consent/post-consent/full-page)
+      reclassified CORE_MEDIUM -> RAW_MEDIUM per SECURITY.md §105-106
+      (CORE_MEDIUM is not a canonical class); RAW_DOM stays RAW_MEDIUM,
+      NORMALIZED_DOM stays CORE_LONG; artifact types/filenames/capture
+      timing/storage/schema untouched; real-path checkpoint tests pin exact
+      retention class per artifact type; zero production CORE_MEDIUM writes.
+- [x] M3a — retention enforcement + auditable execution proof COMPLETE:
+      migration 0026_retention_runs (additive append-only audit table:
+      id/started_at/finished_at NULLable/rows_deleted_per_table JSONB/
+      hold_conflicts_skipped; global execution scope so NO fabricated
+      tenant_id); ENFORCE_RETENTION job type enqueued once per UTC day by
+      RetentionSchedulingService (idempotency key enforce-retention:{date},
+      priority -20, max_attempts 3), consumed by narrow worker handler via
+      existing queue lifecycle; RetentionService deletes expired RAW_MEDIUM
+      artifacts (screenshots 90d, RAW_DOM 30d, keyed by retention_class +
+      artifact_type) in bounded batches of 50, object-store delete BEFORE DB
+      row delete (absent objects idempotent), active RetentionHold always
+      prevents deletion and is counted as hold_conflicts_skipped;
+      finished_at written only on success — failed executions leave an open
+      run plus FAILED/RETRY job truthfully. Missed/stalled visibility:
+      deterministic retention_health helper (HEALTHY/MISSED/STALLED/FAILED)
+      over runs + job lifecycle for M6 wiring. RED→GREEN proven through the
+      production chain (scheduler→claim→handle_job→S3→DB→retention_runs):
+      RED 4 collected / 1 passed / 3 failed (no enforcement path existed)
+      → GREEN 5 passed incl. hold preservation, fresh/CORE_LONG controls,
+      idempotent second run appending audit history (deletion count 0),
+      storage-outage failure leaving row + open run, all four health states.
+      Full integration 135 passed / 0 failed; unit 331 passed; ruff/mypy(260)/
+      secrets clean; scheduler+worker live smoke clean. Connector freshness
+      (M3b) NOT started.
+- [ ] M3 — connector staleness/freshness operationalization (M3b)
 - [ ] M4 — Cost telemetry, hard caps & circuit breakers
 - [ ] M5 — DST/timezone cross-source hardening regression
 - [ ] M6 — Minimal self-observability (scheduler/worker/queue/retention/
