@@ -309,8 +309,29 @@ def test_logout_revokes_and_replay_fails(
             "tenant_id": str(tenants[0]),
         },
     )
+    csrf_token = login_response.json()["csrf_token"]
     cookies = dict(login_response.cookies)
-    logout_response = client.post("/auth/logout", cookies=cookies)
+
+    # Missing CSRF → rejected; session must remain valid.
+    missing = client.post("/auth/logout", cookies=cookies)
+    assert missing.status_code == 403
+
+    # Mismatched CSRF → rejected; session must remain valid.
+    mismatched = client.post(
+        "/auth/logout",
+        headers={"X-CSRF-Token": "wrong-token"},
+        cookies=cookies,
+    )
+    assert mismatched.status_code == 403
+    still_valid = client.get("/auth/session", cookies=cookies)
+    assert still_valid.status_code == 200
+
+    # Valid CSRF → revoked; replay afterwards fails as contracted.
+    logout_response = client.post(
+        "/auth/logout",
+        headers={"X-CSRF-Token": csrf_token},
+        cookies=cookies,
+    )
     assert logout_response.status_code == 200
     assert logout_response.json()["revoked"] is True
     replay = client.get("/auth/session", cookies=cookies)
