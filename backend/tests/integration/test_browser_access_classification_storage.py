@@ -6,8 +6,8 @@ begin_attempt/finalize perform the production attempt/finalize lifecycle.
 
 import asyncio
 import uuid
-import uuid as _uuid_mod
-from typing import Any, cast
+from datetime import UTC, datetime
+from typing import cast
 
 from sqlalchemy import select
 
@@ -17,9 +17,6 @@ from app.db.session import get_session_factory
 
 
 async def _seed(slug: str) -> dict[str, object]:
-    from tests.integration.product.factories import seed_diagnostic_event_chain
-
-    return await seed_diagnostic_event_chain(slug=slug)
     from tests.integration.product.factories import seed_diagnostic_event_chain
 
     return await seed_diagnostic_event_chain(slug=slug)
@@ -35,17 +32,20 @@ def test_monitoring_user_agent_documented() -> None:
 
 def test_diagnostic_finalize_persists_bounded_classification() -> None:
     """PARTIAL DIAGNOSTIC + HTTP 403 -> bounded degraded classification."""
-    """PARTIAL DIAGNOSTIC run with HTTP 403 -> bounded degraded classification."""
     repository = _repository()
     seeded = asyncio.run(_seed(f"m2b-{uuid.uuid4().hex[:8]}"))
+    tenant_id = seeded["tenant_id"]
+    diagnostic_run_id = seeded["diagnostic_run_id"]
+    site_id = seeded["site_id"]
+
     target = asyncio.run(
         repository.begin_attempt(
-            tenant_id=cast(_uuid_mod.UUID, seeded["tenant_id"]),
-            checkpoint_run_id=cast(_uuid_mod.UUID, seeded["diagnostic_run_id"]),
+            tenant_id=cast(uuid.UUID, tenant_id),
+            checkpoint_run_id=cast(uuid.UUID, diagnostic_run_id),
             attempt_number=1,
         )
     )
-    now = __import__("datetime").datetime.now(__import__("datetime").UTC)
+    now = datetime.now(UTC)
     evidence = BrowserEvidence(
         status="PARTIAL",
         started_at=now,
@@ -66,42 +66,57 @@ def test_diagnostic_finalize_persists_bounded_classification() -> None:
         )
     )
 
-    async def verify() -> Any:
+    async def verify() -> tuple[str, str, str, str, str, str]:
         from app.browser.models import CheckpointRun
 
         factory = get_session_factory()
         async with factory() as session:
-            return await session.scalar(
-                select(CheckpointRun).where(CheckpointRun.id == target.checkpoint_run_id)
+            run = await session.scalar(
+                select(CheckpointRun).where(CheckpointRun.id == diagnostic_run_id)
+            )
+            assert run is not None
+            classification = run.browser_access_classification or {}
+            return (
+                run.status,
+                run.observation_kind,
+                str(classification.get("state", "")),
+                " ".join(str(classification.get("reason", "")).split()),
+                str(run.tenant_id),
+                str(run.site_id),
             )
 
-    run = asyncio.run(verify())
-    assert run is not None
-    assert run.status == "PARTIAL"
-    assert run.observation_kind == "DIAGNOSTIC"
-    assert run.tenant_id == seeded["tenant_id"] if False else True
-    classification = run.browser_access_classification
-    assert classification is not None
+    status, observation_kind, state, reason, persisted_tenant, persisted_site = asyncio.run(
+        verify()
+    )
+    classification = {"state": state, "reason": reason}
+
+    assert status == "PARTIAL"
+    assert observation_kind == "DIAGNOSTIC"
+    # Real ownership evidence (values compared, not tautologies).
+    assert persisted_tenant == str(tenant_id)
+    assert persisted_site == str(site_id)
     assert set(classification.keys()) == {"state", "reason"}
-    # Canonical classifier truth for a 403 diagnostic observation.
-    assert classification["state"] == "degraded"
-    assert "403" in classification["reason"]
-    assert "<html" not in str(classification).lower()
+    assert state == "degraded"
+    assert "403" in reason
+    assert "<html" not in (classification.get("reason") or "").lower()
 
 
 def test_non_diagnostic_finalize_leaves_classification_null() -> None:
     """SCHEDULED COMPLETE finalize keeps browser_access_classification NULL."""
     repository = _repository()
     seeded = asyncio.run(_seed(f"m2bs-{uuid.uuid4().hex[:8]}"))
+    tenant_id = seeded["tenant_id"]
+    baseline_run_id = seeded["baseline_run_id"]
+    site_id = seeded["site_id"]
+
     target = asyncio.run(
         repository.begin_attempt(
-            tenant_id=cast(_uuid_mod.UUID, seeded["tenant_id"]),
-            checkpoint_run_id=cast(_uuid_mod.UUID, seeded["baseline_run_id"]),
+            tenant_id=cast(uuid.UUID, tenant_id),
+            checkpoint_run_id=cast(uuid.UUID, baseline_run_id),
             attempt_number=1,
         )
     )
-    dt = __import__("datetime")
-    now = dt.datetime.now(dt.UTC)
+    now = datetime.now(UTC)
     evidence = BrowserEvidence(
         status="COMPLETE",
         started_at=now,
@@ -122,16 +137,25 @@ def test_non_diagnostic_finalize_leaves_classification_null() -> None:
         )
     )
 
-    async def verify() -> Any:
+    async def verify() -> tuple[dict[str, object] | None, str, str, str]:
         from app.browser.models import CheckpointRun
 
         factory = get_session_factory()
         async with factory() as session:
-            return await session.scalar(
-                select(CheckpointRun).where(CheckpointRun.id == target.checkpoint_run_id)
+            run = await session.scalar(
+                select(CheckpointRun).where(CheckpointRun.id == baseline_run_id)
+            )
+            assert run is not None
+            return (
+                run.browser_access_classification,
+                run.status,
+                str(run.tenant_id),
+                str(run.site_id),
             )
 
-    run = asyncio.run(verify())
-    assert run is not None
-    assert run.status == "COMPLETE"
-    assert run.browser_access_classification is None
+    classification, status, persisted_tenant, persisted_site = asyncio.run(verify())
+    assert classification is None
+    assert status == "COMPLETE"
+    # Real ownership evidence for the scheduled path as well.
+    assert persisted_tenant == str(tenant_id)
+    assert persisted_site == str(site_id)
