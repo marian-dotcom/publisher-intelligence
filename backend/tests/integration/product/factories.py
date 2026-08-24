@@ -604,7 +604,7 @@ async def seed_diagnostic_event_chain(*, slug: str | None = None) -> dict[str, o
                 scheduled_for=when,
                 started_at=when,
                 completed_at=when + timedelta(minutes=5),
-                status="COMPLETE",
+                status="RUNNING",
                 collector_bundle_version="b8-v1",
                 **common,
             )
@@ -620,7 +620,7 @@ async def seed_diagnostic_event_chain(*, slug: str | None = None) -> dict[str, o
                 scheduled_for=when + timedelta(minutes=40),
                 started_at=when + timedelta(minutes=41),
                 completed_at=when + timedelta(minutes=46),
-                status="PARTIAL",
+                status="RUNNING",
                 http_status=403,
                 final_url=f"https://{site_id.hex}.example.com/a",
                 collector_bundle_version="b8-v1",

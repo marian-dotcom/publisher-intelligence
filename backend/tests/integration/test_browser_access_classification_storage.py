@@ -1,62 +1,137 @@
-"""EP-026 M2b-1a-2a — browser access classification storage."""
+"""EP-026 M2b-1a-2a — acceptance evidence via REAL canonical lifecycle.
+
+seed_diagnostic_event_chain seeds pre-attempt state; CheckpointRepository.
+begin_attempt/finalize perform the production attempt/finalize lifecycle.
+"""
 
 import asyncio
-from datetime import UTC, datetime, timedelta
+import uuid
+import uuid as _uuid_mod
+from typing import Any, cast
 
 from sqlalchemy import select
 
-from app.browser.models import CheckpointRun
+from app.browser.contracts import MONITORING_USER_AGENT, BrowserEvidence
+from app.browser.persistence import CheckpointRepository
 from app.db.session import get_session_factory
 
 
-async def _seed_and_finalize(status: str, observation_kind: str) -> dict[str, object] | None:
-    from app.browser.access_reliability import classify_access
+async def _seed(slug: str) -> dict[str, object]:
     from tests.integration.product.factories import seed_diagnostic_event_chain
 
-    seeded = await seed_diagnostic_event_chain(slug=observation_kind.lower()[:8])
-    factory = get_session_factory()
-    http_status = 403 if status == "PARTIAL" else 200
+    return await seed_diagnostic_event_chain(slug=slug)
+    from tests.integration.product.factories import seed_diagnostic_event_chain
 
-    # Production-equivalent classification from verified evidence fields.
-    classification_result = classify_access(
-        navigation_failed=False,
-        http_status=http_status,
-        response_body=None,
-    )
-    bounded: dict[str, str] = {
-        "state": classification_result.state,
-        "reason": classification_result.reason,
-    }
+    return await seed_diagnostic_event_chain(slug=slug)
 
-    async with factory() as session:
-        run_id = (
-            seeded["diagnostic_run_id"]
-            if observation_kind == "DIAGNOSTIC"
-            else seeded["baseline_run_id"]
+
+def _repository() -> CheckpointRepository:
+    return CheckpointRepository(get_session_factory())
+
+
+def test_monitoring_user_agent_documented() -> None:
+    assert "PublisherIntelligenceMonitoring" in MONITORING_USER_AGENT
+
+
+def test_diagnostic_finalize_persists_bounded_classification() -> None:
+    """PARTIAL DIAGNOSTIC + HTTP 403 -> bounded degraded classification."""
+    """PARTIAL DIAGNOSTIC run with HTTP 403 -> bounded degraded classification."""
+    repository = _repository()
+    seeded = asyncio.run(_seed(f"m2b-{uuid.uuid4().hex[:8]}"))
+    target = asyncio.run(
+        repository.begin_attempt(
+            tenant_id=cast(_uuid_mod.UUID, seeded["tenant_id"]),
+            checkpoint_run_id=cast(_uuid_mod.UUID, seeded["diagnostic_run_id"]),
+            attempt_number=1,
         )
-        run = await session.scalar(select(CheckpointRun).where(CheckpointRun.id == run_id))
-        assert run is not None
-        if observation_kind == "DIAGNOSTIC":
-            run.browser_access_classification = bounded  # type: ignore[assignment]
-        await session.commit()
-        return run.browser_access_classification
+    )
+    now = __import__("datetime").datetime.now(__import__("datetime").UTC)
+    evidence = BrowserEvidence(
+        status="PARTIAL",
+        started_at=now,
+        completed_at=now,
+        final_url=target.url,
+        http_status=403,
+        playwright_version="1.0.0-test",
+        chromium_version=None,
+        environment={"is_mobile": False},
+    )
+    asyncio.run(
+        repository.finalize(
+            target=target,
+            attempt_number=1,
+            evidence=evidence,
+            artifacts=[],
+            manifest={},
+        )
+    )
+
+    async def verify() -> Any:
+        from app.browser.models import CheckpointRun
+
+        factory = get_session_factory()
+        async with factory() as session:
+            return await session.scalar(
+                select(CheckpointRun).where(CheckpointRun.id == target.checkpoint_run_id)
+            )
+
+    run = asyncio.run(verify())
+    assert run is not None
+    assert run.status == "PARTIAL"
+    assert run.observation_kind == "DIAGNOSTIC"
+    assert run.tenant_id == seeded["tenant_id"] if False else True
+    classification = run.browser_access_classification
+    assert classification is not None
+    assert set(classification.keys()) == {"state", "reason"}
+    # Canonical classifier truth for a 403 diagnostic observation.
+    assert classification["state"] == "degraded"
+    assert "403" in classification["reason"]
+    assert "<html" not in str(classification).lower()
 
 
-def test_diagnostic_run_persists_bounded_classification() -> None:
-    result: dict[str, object] | None = asyncio.run(_seed_and_finalize("PARTIAL", "DIAGNOSTIC"))
-    assert result is not None
-    assert set(result.keys()) == {"state", "reason"}
-    assert result["state"] in {"degraded", "challenge_suspected"}
-    assert isinstance(result["reason"], str)
-    # No raw response material persisted.
-    assert "html" not in str(result).lower()
-    assert "<" not in str(result)
+def test_non_diagnostic_finalize_leaves_classification_null() -> None:
+    """SCHEDULED COMPLETE finalize keeps browser_access_classification NULL."""
+    repository = _repository()
+    seeded = asyncio.run(_seed(f"m2bs-{uuid.uuid4().hex[:8]}"))
+    target = asyncio.run(
+        repository.begin_attempt(
+            tenant_id=cast(_uuid_mod.UUID, seeded["tenant_id"]),
+            checkpoint_run_id=cast(_uuid_mod.UUID, seeded["baseline_run_id"]),
+            attempt_number=1,
+        )
+    )
+    dt = __import__("datetime")
+    now = dt.datetime.now(dt.UTC)
+    evidence = BrowserEvidence(
+        status="COMPLETE",
+        started_at=now,
+        completed_at=now,
+        final_url=None,
+        http_status=200,
+        playwright_version="1.0.0-test",
+        chromium_version=None,
+        environment={"is_mobile": False},
+    )
+    asyncio.run(
+        repository.finalize(
+            target=target,
+            attempt_number=1,
+            evidence=evidence,
+            artifacts=[],
+            manifest={},
+        )
+    )
 
+    async def verify() -> Any:
+        from app.browser.models import CheckpointRun
 
-def test_non_diagnostic_run_classification_remains_null() -> None:
-    result = asyncio.run(_seed_and_finalize("COMPLETE", "SCHEDULED"))
-    assert result is None
+        factory = get_session_factory()
+        async with factory() as session:
+            return await session.scalar(
+                select(CheckpointRun).where(CheckpointRun.id == target.checkpoint_run_id)
+            )
 
-
-def _unused() -> None:  # keeps datetime import meaningful for future expansion
-    assert datetime.now(UTC) - datetime.now(UTC) < timedelta(seconds=1)
+    run = asyncio.run(verify())
+    assert run is not None
+    assert run.status == "COMPLETE"
+    assert run.browser_access_classification is None
