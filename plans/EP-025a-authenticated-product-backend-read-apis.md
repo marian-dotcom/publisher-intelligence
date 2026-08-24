@@ -132,6 +132,16 @@
       authenticated actor_subject_id, tenant/site ownership, verbatim WHAT,
       bounded/unknown WHEN preserved, investigation_key stability. Remaining:
       D2 negative/security matrix; then M5/M6 gate.
+      D2 classified GAP CLOSED (test-only, no production change): scenario
+      matrix — unauth 401/403, missing/mismatched CSRF 403, cross-tenant 404,
+      valid happy path (all pre-existing in test_product_http_auth.py); NEW
+      focused coverage in test_investigate_intake_p2d.py: rejected writes
+      (missing CSRF / cross-tenant / nonexistent site 404 / malformed site 404)
+      leave incident count unchanged (no partial state, no side effects);
+      spoofed extra fields tenant_id/actor_subject_id are ignored and
+      non-authoritative (persisted tenant + created_by still derive from
+      ActorContext only); Pydantic extras policy documented as
+      ignore-and-non-authoritative. No security defect found.
       C4 classified ALREADY SATISFIED by P2-B: INCIDENT.md §88 requires selection
       to record method/reason/scope/checkpoint-ID — all four are product-visible
       on GET /incidents/{incident_id} (selection_method, reason, scope_key,

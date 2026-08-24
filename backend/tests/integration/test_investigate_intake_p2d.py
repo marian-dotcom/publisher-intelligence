@@ -143,3 +143,125 @@ def test_d1_authenticated_intake_persists_incident_with_actor_provenance() -> No
     assert start_at == datetime.fromisoformat(reported_start)
     assert start_at.tzinfo is not None and start_at.utcoffset() == UTC.utcoffset(start_at)
     assert end_at is None
+
+
+def test_d2_rejected_intakes_have_no_side_effects_and_extras_have_no_authority() -> None:
+    """D2: rejections persist nothing; client-supplied identity is inert."""
+    get_session_factory()
+
+    async def seed_two_tenants() -> tuple[str, uuid.UUID, uuid.UUID, uuid.UUID]:
+        slug_a = f"d2a-{uuid.uuid4().hex[:8]}"
+        slug_b = f"d2b-{uuid.uuid4().hex[:8]}"
+        tenant_a = await create_tenant(slug_a)
+        site_a = await create_site(tenant_a)
+        _op, email_a = await create_operator(tenant_a, f"op-{slug_a}@example.com")
+        tenant_b = await create_tenant(slug_b)
+        site_b = await create_site(tenant_b)
+        return email_a, tenant_a, site_a, site_b
+
+    async def incident_count() -> int:
+        factory = get_session_factory()
+        async with factory() as session:
+            return len(list((await session.scalars(select(Incident))).all()))
+
+    email_a, tenant_a, site_a_id, site_b_id = asyncio.run(seed_two_tenants())
+    assert asyncio.run(incident_count()) == 0
+
+    client = TestClient(app)
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "email": email_a,
+            "password": "correct-horse-battery",
+            "tenant_id": str(tenant_a),
+        },
+    )
+    csrf_token = login_response.json()["csrf_token"]
+    cookies = dict(login_response.cookies)
+    subject_id = asyncio.run(actor_subject_of(email_a))
+
+    # Missing CSRF: rejected, nothing persisted.
+    missing = client.post("/investigations", json=_payload(site_a_id), cookies=cookies)
+    assert missing.status_code == 403
+    assert asyncio.run(incident_count()) == 0
+
+    # Cross-tenant site: non-disclosing 404, nothing persisted.
+    cross = client.post(
+        "/investigations",
+        headers={"X-CSRF-Token": csrf_token},
+        cookies=cookies,
+        json=_payload(site_b_id),
+    )
+    assert cross.status_code == 404
+    assert asyncio.run(incident_count()) == 0
+
+    # Nonexistent syntactically-valid site: non-disclosing 404, nothing persisted.
+    ghost_site = uuid.uuid4()
+    ghost = client.post(
+        "/investigations",
+        headers={"X-CSRF-Token": csrf_token},
+        cookies=cookies,
+        json=_payload(ghost_site),
+    )
+    assert ghost.status_code == 404
+    assert str(ghost_site) not in ghost.text
+    assert asyncio.run(incident_count()) == 0
+
+    # Malformed site id: non-disclosing 404.
+    malformed = client.post(
+        "/investigations",
+        headers={"X-CSRF-Token": csrf_token},
+        cookies=cookies,
+        json=_payload("not-a-uuid"),
+    )
+    assert malformed.status_code == 404
+    assert asyncio.run(incident_count()) == 0
+
+    # Spoofed identity extras are ignored: persisted state still derives from
+    # the authenticated ActorContext only.
+    spoofed = client.post(
+        "/investigations",
+        headers={"X-CSRF-Token": csrf_token},
+        cookies=cookies,
+        json={
+            **_payload(site_a_id),
+            "tenant_id": str(site_b_id),
+            "actor_subject_id": str(ghost_site),
+        },
+    )
+    assert spoofed.status_code == 200
+    body = spoofed.json()
+    assert set(body.keys()) == {"incident_id", "investigation_key", "status"}
+
+    async def verify_spoof_ignored() -> tuple[uuid.UUID, uuid.UUID | None]:
+        factory = get_session_factory()
+        async with factory() as session:
+            incident = await session.scalar(
+                select(Incident).where(Incident.id == uuid.UUID(body["incident_id"]))
+            )
+            assert incident is not None
+            return incident.tenant_id, incident.created_by
+
+    persisted_tenant, created_by = asyncio.run(verify_spoof_ignored())
+    assert persisted_tenant == tenant_a
+    assert created_by == subject_id
+    # Exactly one incident exists: the successful intake only.
+    assert asyncio.run(incident_count()) == 1
+
+
+def _payload(site_id: uuid.UUID | str) -> dict[str, str]:
+    return {
+        "site_id": str(site_id),
+        "title": "D2 probe",
+        "description": "Security matrix fixture.",
+    }
+
+
+async def actor_subject_of(email_address: str) -> uuid.UUID:
+    from app.auth.models import Operator
+
+    factory = get_session_factory()
+    async with factory() as session:
+        operator = await session.scalar(select(Operator).where(Operator.email == email_address))
+        assert operator is not None
+        return operator.actor_subject_id
