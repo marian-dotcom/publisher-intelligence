@@ -5,10 +5,6 @@ classifier + canonical registry path with a controlled synthetic HTTP fixture
 (no external WAF vendor, no organic publisher case required).
 """
 
-import asyncio
-
-import pytest
-
 from app.browser.access_reliability import classify_access
 from app.events.registry import RULES_BY_CODE, definition_id
 

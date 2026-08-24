@@ -17,7 +17,7 @@ from app.events.registry import RULES_BY_CODE
 class _ChallengeHandler(http.server.BaseHTTPRequestHandler):
     challenge_mode = True
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         if _ChallengeHandler.challenge_mode:
             body = b"<html>Attention Required! | Cloudflare captcha</html>"
             self.send_response(403)
@@ -29,7 +29,7 @@ class _ChallengeHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def log_message(self, *args) -> None:  # noqa: ANN002, ANN003
+    def log_message(self, *args) -> None:
         pass
 
 
@@ -44,6 +44,7 @@ def challenge_server():
 
 
 def _observe(url: str) -> tuple[str, int]:
+    import urllib.error
     import urllib.request
 
     request = urllib.request.Request(
