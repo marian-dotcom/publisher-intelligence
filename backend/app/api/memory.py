@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 
 from app.auth.dependencies import ActorContext, get_current_actor
+from app.connectors.models import DataConnection, MetricPoint, MetricSeries
 from app.db.session import get_session_factory
 from app.events.models import Event
 from app.evidence.models import EvidencePack, ManualNote
@@ -191,6 +192,66 @@ async def incident_detail(
             )
         for row in rows:
             evidence_by_hypothesis.setdefault(row.hypothesis_id, []).append(row)
+    # Privacy-preserving monetization exposure (EP-025a P2-C C5). Capability
+    # comes from the tenant's data connection for this site; UNKNOWN fails
+    # closed. RELATIVE_ONLY suppresses CURRENCY-unit series (absolute revenue);
+    # ABSOLUTE exposes only values that actually exist in persisted evidence.
+    # No derivation, no imputation, no currency conversion.
+    connection = await session.scalar(
+        select(DataConnection).where(
+            DataConnection.tenant_id == actor.tenant_id,
+            DataConnection.site_id == incident.site_id,
+            DataConnection.provider.in_(("ga4", "gam")),
+        )
+    )
+    capability = connection.monetization_capability if connection else "UNKNOWN"
+    monetization_metrics: list[dict[str, Any]] = []
+    if capability in ("RELATIVE_ONLY", "ABSOLUTE"):
+        async with factory() as session:
+            series_rows = list(
+                (
+                    await session.scalars(
+                        select(MetricSeries).where(
+                            MetricSeries.tenant_id == actor.tenant_id,
+                            MetricSeries.site_id == incident.site_id,
+                        )
+                    )
+                ).all()
+            )
+            visible_series = [
+                s for s in series_rows if capability == "ABSOLUTE" or s.unit != "CURRENCY"
+            ]
+            for series in visible_series:
+                points = list(
+                    (
+                        await session.scalars(
+                            select(MetricPoint)
+                            .where(
+                                MetricPoint.series_id == series.id,
+                                MetricPoint.freshness_status.in_(("MATURE", "PRELIMINARY")),
+                            )
+                            .order_by(MetricPoint.period_start)
+                            .limit(200)
+                        )
+                    ).all()
+                )
+                monetization_metrics.append(
+                    {
+                        "metric_code": series.metric_code,
+                        "unit": series.unit,
+                        "source": series.source,
+                        "granularity": series.granularity,
+                        "points": [
+                            {
+                                "period_start": _iso(point.period_start),
+                                "period_end": _iso(point.period_end),
+                                "value": point.value,
+                                "freshness_status": point.freshness_status,
+                            }
+                            for point in points
+                        ],
+                    }
+                )
     return {
         "incident": {
             "incident_id": str(incident.id),
@@ -261,6 +322,10 @@ async def incident_detail(
             }
             for h in hypotheses
         ],
+        "monetization": {
+            "capability": capability,
+            "metrics": monetization_metrics,
+        },
     }
 
 

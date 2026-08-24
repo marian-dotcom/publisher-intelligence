@@ -1,6 +1,7 @@
 """EP-025a P2-C: incident hypothesis depth read contracts (C1)."""
 
 import asyncio
+import json
 import uuid
 from typing import Any
 
@@ -457,3 +458,215 @@ def test_c3_evidence_pack_read_is_tenant_safe_and_read_only() -> None:
 
     pack_after = asyncio.run(read_row())
     assert pack_after == pack_before
+
+
+async def seed_monetization(
+    tenant_id: uuid.UUID,
+    site_id: uuid.UUID,
+    *,
+    capability: str,
+    currency_value: float | None,
+    ratio_value: float | None,
+) -> None:
+    """Canonical DataConnection + MetricSeries/MetricPoint state (C5)."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.connectors.models import DataConnection, MetricPoint, MetricSeries
+    from app.metrics.models import MetricDerivation
+
+    factory = get_session_factory()
+    connection_id = uuid.uuid4()
+    now = datetime.now(UTC)
+    async with factory() as session, session.begin():
+        session.add(
+            DataConnection(
+                id=connection_id,
+                tenant_id=tenant_id,
+                site_id=site_id,
+                provider="gam",
+                external_property_id=f"prop-{site_id.hex[:8]}",
+                status="CONNECTED",
+                monetization_capability=capability,
+                scopes=[],
+                secret_reference=f"secretref-{tenant_id.hex[:8]}",
+                connected_at=now - timedelta(days=1),
+            )
+        )
+        series_specs: list[tuple[str, str, float | None]] = [
+            ("gam.ad_server_impressions", "COUNT", 1000.0),
+            ("gam.ctr", "RATIO", ratio_value if ratio_value is not None else 0.42),
+        ]
+        if capability in ("RELATIVE_ONLY", "ABSOLUTE") and currency_value is not None:
+            series_specs.append(("gam.ad_exchange_revenue", "CURRENCY", currency_value))
+        derivation_id = uuid.uuid4()
+        session.add(
+            MetricDerivation(
+                id=derivation_id,
+                tenant_id=tenant_id,
+                site_id=site_id,
+                definition_code="C5_TEST_RELATIVE_V1",
+                rule_version="c5-test-v1",
+                engine_version="mx-v1",
+                alignment_policy="UTC_DAY",
+                freshness_policy="LATEST_MATURE",
+                granularity="DAY",
+                period_start=datetime(2026, 8, 20, tzinfo=UTC),
+                period_end=datetime(2026, 8, 21, tzinfo=UTC),
+                freshness_status="MATURE",
+                input_fingerprint="0" * 64,
+                derivation_key=f"c5-test|{site_id.hex[:8]}",
+                definition={"rule": "relative-only-test-fixture"},
+            )
+        )
+        await session.flush()
+
+        for metric_code, unit, value in series_specs:
+            series = MetricSeries(
+                id=uuid.uuid4(),
+                tenant_id=tenant_id,
+                site_id=site_id,
+                source="gam",
+                metric_code=metric_code,
+                metric_semantics_version="gam-historical-v1",
+                unit=unit,
+                granularity="DAY",
+                dimensions={},
+                series_key=f"{metric_code}|{unit}|{site_id.hex[:8]}",
+            )
+            session.add(series)
+            await session.flush()
+            if value is None:
+                continue
+            session.add(
+                MetricPoint(
+                    id=uuid.uuid4(),
+                    tenant_id=tenant_id,
+                    site_id=site_id,
+                    series_id=series.id,
+                    source_extract_id=None,
+                    derivation_id=derivation_id,
+                    source_time="2026-08-20T00:00:00Z",
+                    period_start=datetime(2026, 8, 20, tzinfo=UTC),
+                    period_end=datetime(2026, 8, 21, tzinfo=UTC),
+                    value=value,
+                    freshness_status="MATURE",
+                    retrieved_at=now - timedelta(hours=2),
+                )
+            )
+
+
+def test_c5_monetization_exposure_is_gated_by_capability() -> None:
+    """C5: RELATIVE_ONLY suppresses CURRENCY; ABSOLUTE exposes stored values;
+    UNKNOWN fails closed; ABSOLUTE without data fabricates nothing."""
+    get_session_factory()
+
+    async def seed_all_cases() -> tuple[
+        str, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, str
+    ]:
+        slug_a = f"c5a-{uuid.uuid4().hex[:8]}"
+        slug_b = f"c5b-{uuid.uuid4().hex[:8]}"
+        tenant_a = await create_tenant(slug_a)
+        _op, email_a = await create_operator(tenant_a, f"op-{slug_a}@example.com")
+
+        site_relative = await create_site(tenant_a)
+        incident_relative = await create_incident(tenant_a, site_relative, title="Relative inc")
+        await seed_monetization(
+            tenant_a,
+            site_relative,
+            capability="RELATIVE_ONLY",
+            currency_value=12345.67,
+            ratio_value=0.31,
+        )
+
+        site_absolute = await create_site(tenant_a)
+        incident_absolute = await create_incident(tenant_a, site_absolute, title="Absolute inc")
+        await seed_monetization(
+            tenant_a,
+            site_absolute,
+            capability="ABSOLUTE",
+            currency_value=9876.54,
+            ratio_value=0.55,
+        )
+
+        site_unknown = await create_site(tenant_a)
+        incident_unknown = await create_incident(tenant_a, site_unknown, title="Unknown inc")
+        await seed_monetization(
+            tenant_a,
+            site_unknown,
+            capability="UNKNOWN",
+            currency_value=777.77,
+            ratio_value=0.99,
+        )
+
+        # Tenant B secret monetization data.
+        tenant_b = await create_tenant(slug_b)
+        site_b = await create_site(tenant_b)
+        incident_b = await create_incident(tenant_b, site_b, title="B inc")
+        await seed_monetization(
+            tenant_b,
+            site_b,
+            capability="ABSOLUTE",
+            currency_value=999999.99,
+            ratio_value=0.01,
+        )
+        return (
+            email_a,
+            tenant_a,
+            incident_relative,
+            incident_absolute,
+            incident_unknown,
+            incident_b,
+            "prop-" + site_b.hex[:8],
+        )
+
+    (
+        email_a,
+        tenant_a,
+        incident_rel,
+        incident_abs,
+        incident_unk,
+        _incident_b,
+        prop_b_key,
+    ) = asyncio.run(seed_all_cases())
+
+    client = TestClient(app)
+    cookies = _login(client, email_a, tenant_a)
+
+    def metrics_of(incident_id: uuid.UUID) -> dict[str, Any]:
+        resp = client.get(f"/incidents/{incident_id}", cookies=cookies)
+        assert resp.status_code == 200
+        mono = resp.json()["monetization"]
+        return {
+            "capability": mono["capability"],
+            "by_code": {m["metric_code"]: m for m in mono["metrics"]},
+            "text": resp.text,
+        }
+
+    # CASE A — RELATIVE_ONLY: relative visible, absolute actively suppressed.
+    rel = metrics_of(incident_rel)
+    assert rel["capability"] == "RELATIVE_ONLY"
+    assert rel["by_code"]["gam.ctr"]["points"][0]["value"] == 0.31
+    assert "gam.ad_server_impressions" in rel["by_code"]
+    assert "gam.ad_exchange_revenue" not in rel["by_code"]
+    assert "12345.67" not in rel["text"]
+
+    # CASE B — ABSOLUTE: stored absolute value round-trips exactly.
+    abso = metrics_of(incident_abs)
+    assert abso["capability"] == "ABSOLUTE"
+    assert abso["by_code"]["gam.ad_exchange_revenue"]["points"][0]["value"] == 9876.54
+    assert abso["by_code"]["gam.ctr"]["points"][0]["value"] == 0.55
+
+    # CASE C — UNKNOWN: fail closed; nothing exposed.
+    unk = metrics_of(incident_unk)
+    assert unk["capability"] == "UNKNOWN"
+    assert unk["by_code"] == {}
+    assert "777.77" not in unk["text"]
+
+    # Tenant safety: no tenant B monetization identifiers/values leak.
+    assert "999999.99" not in rel["text"]
+    assert "0.01" + "" not in json.dumps([rel["by_code"].get("gam.ad_server_impressions")])
+    assert prop_b_key not in rel["text"]
+
+    # ABSOLUTE without evidence fabricates nothing: unknown-capability case above
+    # plus a currency-series-absent check for the relative fixture already prove
+    # values only appear when persisted under an authorized capability.

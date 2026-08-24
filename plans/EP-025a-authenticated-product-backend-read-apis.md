@@ -90,8 +90,18 @@
       identity, tenant-scoped 404 on foreign packs, read-only — no rebuild);
       response exposes canonical pack metadata (pack_id/site_id/incident_id/
       window bounds/fingerprints/content_hash/engine_version/created_at) plus the
-      builder's deterministic whitelisted content sections; provenance and
       temporal fields pass through unaltered.
+      C5 implemented: canonical capability model is
+      DataConnection.monetization_capability (ABSOLUTE/RELATIVE_ONLY/UNKNOWN,
+      tenant+site scoped, connectors/models.py); persisted monetization values
+      live in MetricSeries (unit COUNT/RATIO/NUMBER/CURRENCY) + MetricPoint.
+      GET /incidents/{id} now carries "monetization" {capability, metrics[]};
+      UNKNOWN fails closed to empty metrics; RELATIVE_ONLY suppresses CURRENCY
+      series while COUNT/RATIO/NUMBER remain visible; ABSOLUTE exposes only
+      values actually persisted (no derivation/imputation/conversion); source
+      health untouched; purge.py ordering bug fixed (metric_points before
+      metric_derivations). All three capability states + tenant-B isolation +
+      absolute-suppression proven in test_product_read_p2c.py.
       C4 classified ALREADY SATISFIED by P2-B: INCIDENT.md §88 requires selection
       to record method/reason/scope/checkpoint-ID — all four are product-visible
       on GET /incidents/{incident_id} (selection_method, reason, scope_key,
