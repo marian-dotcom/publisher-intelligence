@@ -13,7 +13,20 @@
 - [x] (planning) Repository reconciliation @ main 3c96157: SECURITY.md §201 present;
       ADR-131 present and pointing at §201; PLANS.md §76.1 states EP-026 is a
       mandatory prerequisite for Limited Pilot; EP-025b COMPLETE. No contradictions.
-- [ ] M1 — SECURE-COOKIE PRE-PILOT HARD GATE (first milestone; see §M1 below)
+- [x] M1 — SECURE-COOKIE PRE-PILOT HARD GATE COMPLETE (code-complete;
+      pilot-gate-pending-HTTPS-smoke): Settings gained environment-aware
+      cookie_secure (default False) with fail-closed model_validator —
+      staging/production MUST set cookie_secure=True or construction raises
+      (SECURITY.md §201 wording); _set_session_cookies defense-in-depth
+      raises on Secure=False emission outside local/test and now emits
+      secure=cookie_secure for both pi_session (HttpOnly preserved) and
+      pi_csrf (JS-readable preserved), SameSite=lax documented. RED→GREEN:
+      RED 3 failed/1 passed (no cookie_secure field, no validator, insecure
+      emission) → GREEN 5/5 + 4/4 fail-closed negative tests. Auth
+      regression: test_product_http_auth.py + test_auth_boundary.py →
+      18 passed. Unit suite 298 passed. mypy full scope green. Remaining
+      deployment verification: real HTTPS smoke of browser-visible cookie
+      attributes (procedure in runbook, M7).
 - [ ] M2 — Monitoring network reliability (allowlistable egress identity,
       documented non-deceptive User-Agent, compatibility self-check diagnostic,
       browser-source health events + recovery re-check)
