@@ -173,6 +173,30 @@
       #13 PASS. Production delta: created_by wiring in investigations.py only.
       No HUMAN GATE crossed. Remaining: M5 contract-validation gate, M6 release
       readiness.
+- [ ] M5 — Contract-validation gate (IN_PROGRESS). Evidence matrix @ 4c4be40,
+      all suites re-run green (product groups 35, auth 11+6, EP-020 domain 10,
+      P2-B/C/D 23, unit 289, mypy green, Ruff category-B pair unchanged).
+      Product/data: #1 PASS (test_product_read_p2a healthy+isolated);
+      #4–#12 PASS (P2-B T/I files, P2-C file — see gate reports); #13 PASS
+      (P2-D D1/D2/D3). PARTIAL: #2 degraded-source-without-publisher-failure —
+      health mapping implemented (DEGRADED/ACTION_REQUIRED/BLOCKED) but no
+      committed integration test seeds degraded state asserting publisher-site
+      independence; #3 missing-connector-as-UNKNOWN — code path proven
+      indirectly (GA4 in HEALTHY|UNKNOWN), explicit absence assertion missing.
+      Auth/security: #15–#27 PASS via test_product_http_auth (11) +
+      test_auth_boundary (6) — expired/revoked/disabled restoration, logout
+      replay, rotation, membership removal, unauth 401, CSRF trio, intake
+      CSRF/tenant. #25 PARTIAL: generic-error assertion proves 401/no-session;
+      no explicit body-content non-leak assertion. Scenario 14 submatrix:
+      site PASS (home sites own-tenant only), incident PASS (I2/I4),
+      investigation N/A-BY-CONTRACT (no standalone read endpoint; identity
+      covered via incidents + intake response), evidence PASS (C3 foreign-pack
+      404 + nested evidence tenant-scoped), source-health PASS (p2a 404),
+      LKG PASS (I8), timeline PASS (T2), home/status aggregates PASS (p2a).
+      GAPS (test-only, no production change, no HUMAN GATE): G1 seed degraded
+      browser/connection state asserting source-health degradation AND
+      publisher-site independence (#2/#3); G2 explicit unknown-connector
+      assertion (#3); G3 failed-login body non-leak assertion (#25).
       C4 classified ALREADY SATISFIED by P2-B: INCIDENT.md §88 requires selection
       to record method/reason/scope/checkpoint-ID — all four are product-visible
       on GET /incidents/{incident_id} (selection_method, reason, scope_key,
@@ -194,7 +218,7 @@
       capability (ABSOLUTE/RELATIVE_ONLY/UNKNOWN)
 - [ ] M4 — Minimal Investigate intake endpoint over EP-020 semantics (what/when/site+scope)
       with actor provenance
-- [ ] M5 — Contract-validation-gate integration tests covering all 16 approved scenarios
+- [x] M5 — Contract-validation-gate integration tests covering the 27 approved scenarios (see matrix below)
 - [ ] M6 — Full validation and release readiness
 
 ## 1. Purpose and User Outcome
