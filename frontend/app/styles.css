@@ -1,47 +1,118 @@
 :root {
   color-scheme: light;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  background: #f5f7f8;
-  color: #152021;
+  background: var(--surface-page);
+  color: var(--text-strong);
+
+  /* spacing */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-6: 24px; --space-8: 32px;
+
+  /* type ramp */
+  --font-size-sm: 0.85rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.35rem;
+
+  /* shape/surface */
+  --radius: 10px;
+  --border: 1px solid #d9e1e2;
+  --surface-page: #f5f7f8;
+  --surface-card: #ffffff;
+
+  /* text */
+  --text-strong: #152021;
+  --text-muted: #536365;
+
+  /* semantic status tokens (source health / site condition) */
+  --status-healthy: #1c7d43;
+  --status-degraded: #a05e03;
+  --status-unavailable: #5b6b6d;
+  --status-action-required: #b3261e;
+  --status-blocked: #b3261e;
+  --status-unknown: #7a8a8c;
+
+  /* provenance */
+  --provenance-machine: #38676b;
+  --provenance-human: #6b4d38;
+
+  /* evidence relations */
+  --relation-supports: #1c7d43;
+  --relation-contradicts: #b3261e;
+  --relation-context: #5b6b6d;
+
+  --focus-ring: 2px solid #38676b;
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
+body { margin: 0; }
 
-body {
-  margin: 0;
-}
-
-main {
-  max-width: 760px;
-  margin: 12vh auto;
-  padding: 48px;
-  border: 1px solid #d9e1e2;
-  border-radius: 24px;
-  background: #ffffff;
-  box-shadow: 0 18px 55px rgb(26 52 55 / 8%);
-}
+:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
 
 .eyebrow {
-  margin: 0 0 12px;
-  color: #38676b;
+  margin: 0 0 var(--space-3);
+  color: var(--provenance-machine);
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
-h1 {
-  margin: 0;
-  font-size: clamp(2rem, 6vw, 4rem);
-  line-height: 1;
-  letter-spacing: -0.04em;
+h1 { margin: 0; font-size: clamp(1.6rem, 4vw, 2.2rem); letter-spacing: -0.02em; }
+h2 { font-size: var(--font-size-lg); margin: 0 0 var(--space-3); }
+
+.card {
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-card);
+  padding: var(--space-6);
 }
 
-main > p:last-child {
-  max-width: 60ch;
-  margin: 24px 0 0;
-  color: #536365;
-  line-height: 1.65;
+.field { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-4); }
+.field label { font-size: var(--font-size-sm); font-weight: 600; color: var(--text-muted); }
+
+.input {
+  padding: var(--space-2) var(--space-3);
+  border: var(--border);
+  border-radius: var(--radius);
+  font-size: var(--font-size-md);
+  background: var(--surface-card);
+}
+.input:focus-visible { outline: var(--focus-ring); outline-offset: 1px; }
+
+.btn {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius);
+  border: var(--border);
+  font-size: var(--font-size-md);
+  cursor: pointer;
+}
+.btn-primary { background: #38676b; border-color: #38676b; color: #fff; }
+.btn-secondary { background: var(--surface-card); color: var(--text-strong); }
+.btn:disabled { opacity: 0.55; cursor: default; }
+
+.loading-state { color: var(--text-muted); font-style: italic; }
+.error-state { color: var(--status-action-required); font-weight: 600; }
+.empty-state { color: var(--text-muted); }
+
+/* shell */
+.shell-nav {
+  display: flex; align-items: center; gap: var(--space-6);
+  padding: var(--space-3) var(--space-6);
+  border-bottom: var(--border);
+  background: var(--surface-card);
+}
+.shell-brand { font-weight: 700; margin-right: auto; }
+.shell-nav nav { display: flex; gap: var(--space-4); }
+.shell-nav nav a { color: var(--text-strong); text-decoration: none; padding: var(--space-1) var(--space-2); border-radius: var(--radius); }
+.shell-nav nav a:hover { background: var(--surface-page); }
+.shell-actions { display: flex; gap: var(--space-2); }
+.shell-main { max-width: 960px; margin: 0 auto; padding: var(--space-6) var(--space-4); }
+
+/* login */
+.login-main { max-width: 420px; margin: 10vh auto; padding: var(--space-4); }
+.login-card h1 { margin-bottom: var(--space-6); }
+
+@media (max-width: 720px) {
+  .shell-nav { flex-wrap: wrap; gap: var(--space-3); }
+  .shell-brand { width: 100%; }
 }

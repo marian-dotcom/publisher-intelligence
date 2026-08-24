@@ -16,7 +16,23 @@
       tiny local components over plain CSS (no Tailwind/shadcn adoption — see
       §8 rationale); semantic component inventory defined; auth client state
       machine defined; test strategy defined.
-- [ ] M1 — Login/session + authenticated shell + typed fetch wrapper + CSRF handling
+- [x] M1 — Login/session + authenticated shell + typed fetch wrapper + CSRF handling
+      COMPLETE: auth state machine checking→authenticated|unauthenticated via
+      GET /auth/session on mount (async apply, no sync setState-in-effect);
+      typed fetch wrapper lib/api.ts (same-origin credentials, ApiError kinds
+      unauthorized/forbidden/not_found/server/network, X-CSRF-Token injected
+      from server-set pi_csrf double-submit cookie on writes); login page
+      (email/password/tenant_id → generic failure only); protected shell
+      (Home/Timeline/Incidents nav + Investigate CTA placeholder disabled +
+      functional logout) with no-protected-flash guard and 401 redirect;
+      route map /(protected) group; local primitives (Button/Input/Field/Card/
+      LoadingState/ErrorState/EmptyState); design tokens in styles.css.
+      Contract note: logout does not require CSRF header per merged backend
+      (frontend sends it when present — harmless/future-proof); CSRF after
+      session restore is available via the server-set pi_csrf cookie, so no
+      backend contract gap exists. Tests: 12 passed across api/auth/shell/
+      login suites. Validation: lint clean; typecheck clean; 12 tests passed;
+      build compiled. Dependency footprint remains ZERO new runtime deps.
 - [ ] M2 — Home/status + source health + site selection
 - [ ] M3 — Timeline
 - [ ] M4 — Incident list/detail + hypotheses/evidence/LKG/monetization + evidence pack view
