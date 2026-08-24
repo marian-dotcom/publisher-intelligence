@@ -27,6 +27,18 @@
       18 passed. Unit suite 298 passed. mypy full scope green. Remaining
       deployment verification: real HTTPS smoke of browser-visible cookie
       attributes (procedure in runbook, M7).
+- [x] M2a — browser-source taxonomy + classifier + monitoring UA +
+      challenge/recovery HTTP scenario COMPLETE
+- [x] M2b-1a-1 — additive DIAGNOSTIC derive input path COMPLETE
+      (load_diagnostic_input / DiagnosticInput; DIAGNOSTIC_NO_EVENT_RULES)
+- [x] M2b-1a-2a — classification storage COMPLETE @ eb4d4ed: migration
+      0024_browser_access_class (single nullable JSONB column
+      checkpoint_runs.browser_access_classification; downgrade drops only it);
+      CheckpointRun model field; DIAGNOSTIC-only finalize hook persists bounded
+      {state, reason} via classify_access(status-only); non-DIAGNOSTIC runs
+      remain NULL; storage tests green; full unit 303 passed; integration
+      baseline unchanged (12 browser-env failures); mypy green.
+- [ ] M2b-1a-2b — DiagnosticInput classification → canonical Event mapping
 - [ ] M2 — Monitoring network reliability (allowlistable egress identity,
       documented non-deceptive User-Agent, compatibility self-check diagnostic,
       browser-source health events + recovery re-check)
