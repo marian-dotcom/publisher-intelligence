@@ -37,9 +37,7 @@ def classify_access(
         return AccessClassification("degraded", "navigation failed")
     if http_status is not None and (http_status >= 400 or 300 <= http_status < 400):
         # Redirect/status anomaly alone is degraded-context, not a challenge claim.
-        return AccessClassification(
-            "degraded", f"unexpected HTTP status {http_status}"
-        )
+        return AccessClassification("degraded", f"unexpected HTTP status {http_status}")
     lowered = (response_body or "").lower()
     matched = [marker for marker in CHALLENGE_MARKERS if marker in lowered]
     if matched:
