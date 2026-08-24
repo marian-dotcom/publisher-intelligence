@@ -7,7 +7,7 @@ from app.events.registry import RULES, RULES_BY_CODE, definition_id
 
 
 def test_registry_is_fixed_and_complete() -> None:
-    assert len(RULES) == len(RULES_BY_CODE) == 13
+    assert len(RULES) == len(RULES_BY_CODE) == 16
     assert {rule.code for rule in RULES} == {
         "THIRD_PARTY_DEPENDENCY_ADDED",
         "THIRD_PARTY_DEPENDENCY_REMOVED",
@@ -22,11 +22,14 @@ def test_registry_is_fixed_and_complete() -> None:
         "ADS_TXT_MISSING",
         "ADS_TXT_EMPTY_200",
         "ADS_TXT_INVALID",
+        "BROWSER_SOURCE_DEGRADED",
+        "BROWSER_ACCESS_CHALLENGE_SUSPECTED",
+        "BROWSER_SOURCE_RECOVERED",
     }
     assert definition_id("CANONICAL_CHANGED") == definition_id("CANONICAL_CHANGED")
     assert all(rule.kind in {"POINT", "CONDITION"} for rule in RULES)
     assert all(rule.schema_version == 2 for rule in RULES)
-    assert all(rule.rule_version in {"e1-v1", "e2-v1", "e3-v1"} for rule in RULES)
+    assert all(rule.rule_version in {"e1-v1", "e2-v1", "e3-v1", "e26-v1"} for rule in RULES)
     assert all(rule.domain_refs and rule.dedupe_strategy for rule in RULES)
     assert RULES_BY_CODE["JS_ERROR_STARTED"].confirmation == "TWO_CONSECUTIVE_CHECKPOINTS"
     assert RULES_BY_CODE["GPT_EXPECTED_SLOT_MISSING"].confirmation == "MULTI_URL_CORROBORATION"

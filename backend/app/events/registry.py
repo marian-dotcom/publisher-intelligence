@@ -61,6 +61,71 @@ RULES = (
         rule_version="e2-v1",
     ),
     EventRule(
+        code="BROWSER_SOURCE_DEGRADED",
+        family="BROWSER_MONITORING",
+        description=(
+            "Publisher Intelligence browser monitoring source is degraded, "
+            "blocked, or unreliable. This describes OUR observation source — "
+            "never publisher/site failure."
+        ),
+        kind="POINT",
+        default_severity="HIGH",
+        confirmation="SINGLE_STRONG_OBSERVATION",
+        evidence_kinds=("CHECKPOINT_RUN",),
+        subject_kind="MONITORING_SOURCE",
+        diff_operator="BROWSER_SOURCE_STATE",
+        aggregation_scope="SOURCE_LEVEL",
+        severity_policy="FIXED_DEFAULT",
+        resolution_rule="NONE_POINT_EVENT",
+        dedupe_strategy="ACTIVE_CONDITION_KEY",
+        domain_refs=("F-BR-002",),
+        noise_notes="Attributable only to the monitoring source.",
+        rule_version="e26-v1",
+    ),
+    EventRule(
+        code="BROWSER_ACCESS_CHALLENGE_SUSPECTED",
+        family="BROWSER_MONITORING",
+        description=(
+            "Deterministic challenge/WAF/access-block indicators were observed "
+            "on our monitoring access path. Evidence about our access path "
+            "only — not proof of publisher failure or malicious blocking."
+        ),
+        kind="POINT",
+        default_severity="MEDIUM",
+        confirmation="SINGLE_STRONG_OBSERVATION",
+        evidence_kinds=("CHECKPOINT_RUN",),
+        subject_kind="MONITORING_SOURCE",
+        diff_operator="ACCESS_CHALLENGE",
+        aggregation_scope="SOURCE_LEVEL",
+        severity_policy="FIXED_DEFAULT",
+        resolution_rule="NONE_POINT_EVENT",
+        dedupe_strategy="ACTIVE_CONDITION_KEY",
+        domain_refs=("F-BR-002",),
+        noise_notes="Correlation/evidence only; no causal claim.",
+        rule_version="e26-v1",
+    ),
+    EventRule(
+        code="BROWSER_SOURCE_RECOVERED",
+        family="BROWSER_MONITORING",
+        description=(
+            "A bounded diagnostic re-check after remediation succeeded; the "
+            "browser monitoring source returned to healthy observation state."
+        ),
+        kind="POINT",
+        default_severity="LOW",
+        confirmation="SINGLE_STRONG_OBSERVATION",
+        evidence_kinds=("CHECKPOINT_RUN",),
+        subject_kind="MONITORING_SOURCE",
+        diff_operator="BROWSER_SOURCE_STATE",
+        aggregation_scope="SOURCE_LEVEL",
+        severity_policy="FIXED_DEFAULT",
+        resolution_rule="NONE_POINT_EVENT",
+        dedupe_strategy="ACTIVE_CONDITION_KEY",
+        domain_refs=("F-BR-002",),
+        noise_notes="Requires an explicit successful re-check, not time passage.",
+        rule_version="e26-v1",
+    ),
+    EventRule(
         code="NOINDEX_ADDED",
         family="SEO",
         description="A rendered noindex directive appeared.",

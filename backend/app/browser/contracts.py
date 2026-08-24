@@ -3,6 +3,13 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal
 
+
+# EP-026 M2: documented, stable, non-deceptive monitoring identity for
+# publisher allowlisting. Not a consumer-browser impersonation string.
+MONITORING_USER_AGENT = (
+    "PublisherIntelligenceMonitoring/1.0 (+operational monitoring; "
+    "allowlisting contact: operator runbook)"
+)
 CheckpointStatus = Literal[
     "COMPLETE",
     "PARTIAL",
