@@ -96,12 +96,38 @@
       integration suite green locally with CI's BROWSER_ALLOW_PRIVATE_NETWORKS
       opt-in (the historical "12 browser-env failures" were that missing env
       var): 126 passed / 0 failed.
-- [ ] M2b-1a-2b-ii — BROWSER_SOURCE_RECOVERED post-remediation re-check flow
-      (explicit bounded re-check → recovery event; completes the M2 mandatory
-      degradation-and-recovery scenario end-to-end)
-- [ ] M2 — Monitoring network reliability (allowlistable egress identity,
-      documented non-deceptive User-Agent, compatibility self-check diagnostic,
-      browser-source health events + recovery re-check)
+- [x] M2b-2 — deterministic browser source health + recovery/recheck
+      COMPLETE: read-time projection over immutable reliability events (new
+      app/events/source_health.py: BrowserSourceHealth HEALTHY|DEGRADED with
+      reason/detected_at/source-event/trigger-run linkage; NO persistent
+      source-health state, no schema). Hysteresis contract resolved explicitly
+      (decision A): reliability Events are observation-level facts; one
+      confirmed DIAGNOSTIC degradation establishes source DEGRADED until a
+      qualifying recheck recovers it; routine SCHEDULED observations never
+      create or close episodes (ADR-130 untouched). Qualifying recovery = open
+      episode + full truthful context + healthy DIAGNOSTIC recheck strictly
+      AFTER the degradation evidence, different run;
+      BROWSER_SOURCE_RECOVERED POINT event with prior degraded run as BEFORE
+      evidence, recheck as TRIGGER_AFTER, occurred_after_at = prior detection
+      time (truthful lower bound); evaluation fails closed on partial
+      context. load_diagnostic_input surfaces bounded open-episode context.
+      /product/source-health reports a DEGRADED override for open episodes
+      plus additive browser_monitoring_detail (state/reason/timestamps/event
+      ids/explicit boundary wording); home_status honors the override;
+      connector states unchanged. RED→GREEN:
+      tests/integration/test_browser_source_recovery.py — behavioral RED 4
+      collected / 0 passed ('assert 0 == 1' recovered count after qualifying
+      recheck) → GREEN 4 passed: degradation→recovery full automatic path,
+      episode degrade→recover→degrade (history immutable), idempotent
+      reprocessing, unrelated-SCHEDULED-success control. Unit controls:
+      pre-degradation recheck cannot recover, partial context fail-closed,
+      self-recovery blocked. Full integration 130 passed / 0 failed; unit 331
+      passed; ruff/mypy(254)/secrets clean; scheduler+worker smoke clean.
+      Data-quality semantics documented in BROWSER.md §81.1 and EVENTS.md
+      §0.1. Remaining M2 item: egress-provider HUMAN GATE at M2 closeout.
+- [ ] M2 — Monitoring network reliability closeout (allowlistable egress
+      identity HUMAN GATE, documented non-deceptive User-Agent rollout,
+      compatibility self-check diagnostic)
 - [ ] M3 — Retention enforcement proof + connector staleness/freshness
       operationalization
 - [ ] M4 — Cost telemetry, hard caps & circuit breakers

@@ -12,6 +12,7 @@ from app.auth.dependencies import ActorContext, get_current_actor
 from app.browser.models import CheckpointRun, Publisher, Site
 from app.connectors.models import DataConnection
 from app.db.session import get_session_factory
+from app.events.source_health import browser_source_health
 from app.incidents.models import Incident
 
 router = APIRouter(prefix="/product", tags=["product"])
@@ -79,6 +80,12 @@ async def _source_health_rows(
     )
     if run is not None:
         health["BROWSER_MONITORING"] = _browser_source_health(run.status, run.completed_at)
+    # EP-026 M2b-2: an OPEN browser-source degradation episode (deterministic
+    # reliability evidence) overrides the run-status heuristic. This describes
+    # OUR observation source only — never publisher/site health.
+    reliability = await browser_source_health(session, tenant_id=tenant_id, site_id=site_id)
+    if reliability.state == "DEGRADED":
+        health["BROWSER_MONITORING"] = "DEGRADED"
     connections = list(
         (
             await session.scalars(
@@ -177,4 +184,31 @@ async def source_health(
     factory = get_session_factory()
     async with factory() as session:
         health = await _source_health_rows(session, tenant_id=actor.tenant_id, site_id=site_id)
-    return {"site_id": str(site_id), "sources": health}
+        reliability = await browser_source_health(
+            session, tenant_id=actor.tenant_id, site_id=site_id
+        )
+    response: dict[str, object] = {"site_id": str(site_id), "sources": health}
+    if reliability.source_event_id is not None:
+        # Machine-readable explanation of current browser-source health.
+        response["browser_monitoring_detail"] = {
+            "source": "BROWSER_MONITORING",
+            "state": reliability.state,
+            "reason": reliability.reason,
+            "detected_at": (
+                reliability.detected_at.isoformat() if reliability.detected_at else None
+            ),
+            "source_event_id": (
+                str(reliability.source_event_id) if reliability.source_event_id else None
+            ),
+            "source_event_code": reliability.source_event_code,
+            "evidence_checkpoint_run_id": (
+                str(reliability.evidence_checkpoint_run_id)
+                if reliability.evidence_checkpoint_run_id
+                else None
+            ),
+            "boundary": (
+                "Describes Publisher Intelligence's browser observation source, "
+                "not the publisher/site health."
+            ),
+        }
+    return response

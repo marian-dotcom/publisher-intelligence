@@ -30,17 +30,23 @@ def evaluate_diagnostic(value: DiagnosticInput) -> EvaluationResult:
     Invariants:
     - at most one event per diagnostic run (one bounded classification);
     - monitoring-source vocabulary only — never publisher/site failure;
-    - quiet by default: a healthy ("ok") classification produces no event.
-    BROWSER_SOURCE_RECOVERED is intentionally NOT emitted here; recovery
-    requires an explicit post-remediation re-check flow (EP-026 2b-ii).
+    - quiet by default: a healthy ("ok") classification produces no event
+      unless it qualifies as a recovery of an OPEN degradation episode for the
+      same tenant/site (EP-026 M2b-2).
+    Qualifying recovery requires ALL of:
+    - an open degradation episode (latest reliability event is a degradation
+      with no later BROWSER_SOURCE_RECOVERED);
+    - full truthful episode context (event id/code/time/trigger run);
+    - the recheck observation strictly AFTER the degradation evidence;
+    - the recheck is a different run than the degradation trigger.
     """
     classification = classification_from_storage(value.browser_access_classification)
     if classification is None:
         return EvaluationResult((), ("DIAGNOSTIC_NO_ACCESS_CLASSIFICATION",))
-    if classification.state == "ok":
-        return EvaluationResult((), ())
     if value.observed_at is None:
         return EvaluationResult((), ("DIAGNOSTIC_OBSERVATION_TIME_MISSING",))
+    if classification.state == "ok":
+        return _recovery_candidate_or_quiet(value, classification)
     code = _DIAGNOSTIC_EVENT_CODES[classification.state]
     if code == "BROWSER_SOURCE_DEGRADED":
         summary = f"Browser monitoring source degraded: {classification.reason}"
@@ -58,6 +64,50 @@ def evaluate_diagnostic(value: DiagnosticInput) -> EvaluationResult:
         occurred_before_at=value.observed_at,
         detected_at=value.observed_at,
         evidence=(
+            EvidencePointer(checkpoint_run_id=value.checkpoint_run_id, relation="TRIGGER_AFTER"),
+        ),
+    )
+    return EvaluationResult((candidate,), ())
+
+
+def _recovery_candidate_or_quiet(
+    value: DiagnosticInput,
+    classification: object,
+) -> EvaluationResult:
+    """Healthy recheck: emit BROWSER_SOURCE_RECOVERED only when it truthfully
+    closes an open degradation episode; otherwise stay quiet."""
+    context = (
+        value.open_degradation_event_id,
+        value.open_degradation_code,
+        value.open_degradation_detected_at,
+        value.open_degradation_checkpoint_run_id,
+    )
+    if any(item is None for item in context):
+        return EvaluationResult((), ())
+    assert value.open_degradation_detected_at is not None
+    if value.observed_at is None or value.observed_at <= value.open_degradation_detected_at:
+        # A healthy observation from before (or at) the degradation cannot
+        # recover a later episode.
+        return EvaluationResult((), ())
+    if value.checkpoint_run_id == value.open_degradation_checkpoint_run_id:
+        return EvaluationResult((), ())
+    candidate = EventCandidate(
+        code="BROWSER_SOURCE_RECOVERED",
+        subject="browser-monitoring",
+        summary="Browser monitoring source recovered on deterministic recheck.",
+        before=None,
+        after={"state": "ok", "reason": "healthy diagnostic recheck"},
+        confirmation=RULES_BY_CODE["BROWSER_SOURCE_RECOVERED"].confirmation,
+        action="RECORD",
+        scope={"site_id": str(value.site_id)},
+        occurred_after_at=value.open_degradation_detected_at,
+        occurred_before_at=value.observed_at,
+        detected_at=value.observed_at,
+        evidence=(
+            EvidencePointer(
+                checkpoint_run_id=value.open_degradation_checkpoint_run_id,
+                relation="BEFORE",
+            ),
             EvidencePointer(checkpoint_run_id=value.checkpoint_run_id, relation="TRIGGER_AFTER"),
         ),
     )

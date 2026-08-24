@@ -28,6 +28,7 @@ from app.events.contracts import (
 from app.events.lifecycle import condition_key, higher_severity, normalized_scope
 from app.events.models import Event, EventEvidenceRef
 from app.events.registry import RULES_BY_CODE, definition_id
+from app.events.source_health import open_degradation_episode
 
 EVENT_NAMESPACE = uuid.UUID("17e07874-cc3f-4bdd-9385-0ab662fb8fb2")
 EVIDENCE_NAMESPACE = uuid.UUID("b50e65ed-ad60-46c1-8e5e-96cf1714b9c5")
@@ -104,6 +105,11 @@ class EventRepository:
         # EP-026 M2b-1a-2b: surface the stored bounded access classification;
         # malformed/legacy rows fail closed to None (nothing derivable).
         classification = classification_from_storage(current.browser_access_classification)
+        # EP-026 M2b-2: bounded open-degradation context for recovery
+        # evaluation (same tenant/site only; facts, never fabricated links).
+        episode = await open_degradation_episode(
+            session, tenant_id=current.tenant_id, site_id=current.site_id
+        )
         return DiagnosticInput(
             tenant_id=current.tenant_id,
             site_id=current.site_id,
@@ -117,6 +123,10 @@ class EventRepository:
                 if classification is not None
                 else None
             ),
+            open_degradation_event_id=_episode_uuid(episode, "event_id"),
+            open_degradation_code=_episode_str(episode, "code"),
+            open_degradation_detected_at=_episode_time(episode, "detected_at"),
+            open_degradation_checkpoint_run_id=_episode_uuid(episode, "checkpoint_run_id"),
         )
 
     async def load_input(
@@ -323,7 +333,10 @@ class EventRepository:
                     site_id=value.site_id,
                     detected_at=observed_at,
                     occurred_before_at=candidate.occurred_before_at or observed_at,
-                    occurred_after_at=None,
+                    # Recovery candidates carry a truthful lower bound (the
+                    # prior degradation detection); degradation/challenge
+                    # candidates carry none.
+                    occurred_after_at=candidate.occurred_after_at,
                     previous_checkpoint_run_id=None,
                     current_checkpoint_run_id=value.checkpoint_run_id,
                     scope=normalized_scope(candidate.scope),
@@ -655,6 +668,21 @@ class EventRepository:
 
 def _mapping(value: object) -> dict[str, Any]:
     return {str(key): item for key, item in value.items()} if isinstance(value, dict) else {}
+
+
+def _episode_uuid(episode: dict[str, object] | None, key: str) -> uuid.UUID | None:
+    value = (episode or {}).get(key)
+    return value if isinstance(value, uuid.UUID) else None
+
+
+def _episode_str(episode: dict[str, object] | None, key: str) -> str | None:
+    value = (episode or {}).get(key)
+    return value if isinstance(value, str) else None
+
+
+def _episode_time(episode: dict[str, object] | None, key: str) -> datetime | None:
+    value = (episode or {}).get(key)
+    return value if isinstance(value, datetime) else None
 
 
 def _exact_scope(value: EvaluationInput) -> dict[str, object]:
