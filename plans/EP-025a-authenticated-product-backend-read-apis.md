@@ -119,7 +119,7 @@
       points→derivations requires points purged first; order now matches schema;
       test-infra only.
       Next: Investigate intake (P2-D per PLANS.md §76.1 split).
-- [ ] M4 — Minimal Investigate intake (IN_PROGRESS, P2-D). D1 reconciliation:
+- [x] M4 — Minimal Investigate intake (P2-D). D1 reconciliation:
       POST /investigations already existed (M4 slice) with CSRF via
       get_current_actor_with_csrf, server-side tenant derivation + site-ownership
       404s, delegation to canonical EP-020 IncidentIntakeService.open_investigation.
@@ -161,6 +161,18 @@
       (D1/D2 created_by==actor_subject_id), WHAT/WHEN capture (D1), EP-020
       localization semantics preserved unmodified and proven by EP-020's own
       suite. PASS on that basis.
+- [x] M4 — Minimal Investigate intake COMPLETE (gate @ 491fcb2): D1 happy
+      path + provenance wiring; D2 security matrix GAP CLOSED (rejected writes
+      leave zero state; spoofed extras inert; nonexistent/malformed site 404);
+      D3 OPEN-only disposition (localize() separate downstream, fingerprints
+      evidence-derived); D1/D2 2/2 normal AND reversed order; existing CSRF/
+      tenant scenario green; EP-020 domain regression 10 passed (incl. LKG
+      freeze + degraded-evidence semantics); product-read regression 35/35;
+      full integration 92 pass + unchanged 12 browser-env failures; unit 289;
+      full mypy green; Ruff clean except documented category-B pair. Acceptance
+      #13 PASS. Production delta: created_by wiring in investigations.py only.
+      No HUMAN GATE crossed. Remaining: M5 contract-validation gate, M6 release
+      readiness.
       C4 classified ALREADY SATISFIED by P2-B: INCIDENT.md §88 requires selection
       to record method/reason/scope/checkpoint-ID — all four are product-visible
       on GET /incidents/{incident_id} (selection_method, reason, scope_key,
