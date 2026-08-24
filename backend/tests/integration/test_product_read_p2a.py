@@ -153,7 +153,7 @@ async def test_home_status_and_source_health_healthy_and_isolated() -> None:
 
     client = TestClient(app)
     tenant_a, site_a = await _seed_tenant_site(slug="p2a-a")
-    tenant_b, site_b = await _seed_tenant_site(slug="p2a-b")
+    _tenant_b, site_b = await _seed_tenant_site(slug="p2a-b")
     await _add_connection(tenant_a, site_a, status="CONNECTED")
 
     actor = uuid.uuid4()

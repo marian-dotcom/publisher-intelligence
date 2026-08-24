@@ -260,9 +260,15 @@
       site_id query parameter instead of the selected site (tenant-scoped, no
       cross-tenant leak; cosmetic inconsistency only) — deferred as non-
       blocking cleanup for EP-025b polish.
-      Known deferred debt (non-blocking): 12 browser-environment failures
-      (environment limitation, owner: infra/browser workstream); two Ruff
-      category-B lint findings in legacy P2-A/auth test lines.
+      CI RECONCILIATION: official CI runs ruff check + full integration incl.
+      browser (Chromium provisioned in workflow) — ad06da6 run 32679221265
+      FAILED on the two Ruff findings, so they were release blockers, not
+      deferrable debt. Fixed minimally (unused assignment removed in
+      test_product_http_auth.py; tenant_b renamed to _tenant_b in
+      test_product_read_p2a.py); local ruff check exit 0. Browser failures are
+      local-environment-only: CI provisions Chromium and BROWSER_ALLOW_PRIVATE_NETWORKS,
+      so required CI can be green while local runs show the 12-failure baseline.
+      Known deferred debt now: none blocking.
       Deliverable inventory: ALL READY (auth boundary, product reads incl.
       hypotheses/evidence/packs/LKG/monetization gating, Investigate intake;
       localization intentionally separate per D3). No HUMAN GATE crossed

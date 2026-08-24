@@ -409,7 +409,7 @@ async def test_investigate_intake_csrf_and_tenant_scenarios(
         cookies=cookies,
     )
     assert valid.status_code == 200
-    incident_id = uuid.UUID(valid.json()["incident_id"])
+    uuid.UUID(valid.json()["incident_id"])
     assert valid.json()["status"] == "OPEN"
 
     anonymous = TestClient(app)
