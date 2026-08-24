@@ -16,7 +16,7 @@ RAW_MEDIUM browser artifacts via one auditable execution per run:
 
 import asyncio
 import uuid
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
@@ -54,10 +54,13 @@ class EnforcementResult:
 
 
 def _eligible_conditions(now: datetime) -> ColumnElement[bool]:
-    # Any RAW_MEDIUM artifact type whose canonical period has elapsed.
+    # Eligibility requires ALL of: canonical RAW_MEDIUM retention class, a
+    # supported artifact_type (unknown types are never eligible), and its
+    # artifact-type-specific UTC age cutoff (SECURITY.md §106).
     return or_(
         *[
-            (Artifact.artifact_type == artifact_type)
+            (Artifact.retention_class == "RAW_MEDIUM")
+            & (Artifact.artifact_type == artifact_type)
             & (Artifact.created_at.is_not(None))
             & (Artifact.created_at <= now - timedelta(days=days))
             for artifact_type, days in RAW_MEDIUM_POLICY_DAYS.items()
@@ -83,22 +86,34 @@ class RetentionService:
         self._session_factory = session_factory
         self._storage = storage
 
-    async def enforce(self, *, now: datetime | None = None) -> EnforcementResult:
+    async def enforce(
+        self,
+        *,
+        now: datetime | None = None,
+        _after_selection: Callable[[Sequence[uuid.UUID]], Awaitable[None]] | None = None,
+    ) -> EnforcementResult:
+        """Enforce retention.
+
+        ``_after_selection`` is a private, non-behavioral test seam invoked
+        once after batch selection and before any destructive finalization;
+        production callers never pass it.
+        """
         now = now or datetime.now(UTC)
         run_id = await self._open_run(now)
         deleted_total = 0
         holds_skipped = await self._count_hold_conflicts(now)
-        while True:
-            candidates = await self._select_batch(now)
-            if not candidates:
-                break
-            for _artifact_id, object_key in candidates:
-                # Object deletion first; a failure propagates and leaves both
-                # the artifact row and the run unfinished (retry is safe:
-                # absent objects are idempotent for S3-compatible deletes).
-                await asyncio.to_thread(self._storage.delete, key=object_key)
-            deleted = await self._delete_rows([row_id for row_id, _ in candidates])
-            deleted_total += deleted
+        candidates = await self._select_batch(now)
+        if _after_selection is not None:
+            await _after_selection([artifact_id for artifact_id, _ in candidates])
+        for artifact_id, object_key in candidates:
+            finalized = await self._finalize_artifact(artifact_id)
+            if not finalized:
+                # State changed between selection and finalization (e.g. an
+                # active RetentionHold appeared): the artifact stays.
+                holds_skipped += 1
+                continue
+            deleted_total += 1
+            del object_key  # object already deleted inside the locked finalize
         result = EnforcementResult(
             run_id=run_id,
             rows_deleted_per_table={"artifacts": deleted_total},
@@ -106,6 +121,38 @@ class RetentionService:
         )
         await self._finish_run(result, now or datetime.now(UTC))
         return result
+
+    async def _finalize_artifact(self, artifact_id: uuid.UUID) -> bool:
+        """Authoritative destructive finalization for one artifact.
+
+        A single short transaction re-checks full eligibility (class + type +
+        age) and absence of an active RetentionHold under a row lock, then
+        deletes the stored object and the DB row before committing. The row
+        lock conflicts with the FK key-share lock that a concurrent
+        ``create_retention_hold`` requires, so a hold cannot become ACTIVE
+        between this check and the committed deletion; a hold that commits
+        first makes this check skip the artifact entirely.         A storage failure
+        rolls everything back — the row survives and the run stays open.
+        A hard crash between successful object deletion and this transaction's
+        commit leaves row-present/object-absent; the next run re-selects the
+        row and repairs it idempotently (absent-object deletes are safe), so
+        no false audit count is ever produced.
+        """
+        async with self._session_factory() as session, session.begin():
+            object_key = await session.scalar(
+                select(Artifact.object_key)
+                .where(
+                    Artifact.id == artifact_id,
+                    _eligible_conditions(datetime.now(UTC)),
+                    ~_active_hold_clause(),
+                )
+                .with_for_update()
+            )
+            if object_key is None:
+                return False
+            await asyncio.to_thread(self._storage.delete, key=object_key)
+            await session.execute(delete(Artifact).where(Artifact.id == artifact_id))
+            return True
 
     async def _open_run(self, started_at: datetime) -> uuid.UUID:
         run_id = uuid.uuid4()
@@ -142,11 +189,3 @@ class RetentionService:
                 .where(_eligible_conditions(now), _active_hold_clause())
             )
             return int(count or 0)
-
-    async def _delete_rows(self, ids: Sequence[uuid.UUID]) -> int:
-        async with self._session_factory() as session, session.begin():
-            result = cast(
-                "CursorResult[Any]",
-                await session.execute(delete(Artifact).where(Artifact.id.in_(ids))),
-            )
-            return int(result.rowcount or 0)

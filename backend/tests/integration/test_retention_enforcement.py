@@ -7,6 +7,7 @@ DB delete → append-only retention_runs record.
 
 import asyncio
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import cast
 
@@ -363,3 +364,90 @@ def test_retention_health_states(_chain: dict[str, uuid.UUID]) -> None:
     asyncio.run(touch())
     health = asyncio.run(retention_health(factory))
     assert health.state == "HEALTHY"
+
+
+def test_core_long_managed_type_is_never_deleted(_chain: dict[str, uuid.UUID]) -> None:
+    """Defect-A regression: a retention-managed artifact_type with CORE_LONG
+    class must NEVER be eligible, regardless of age."""
+    dom_id, dom_key = _seed_artifact(
+        _chain,
+        artifact_type="RAW_DOM",
+        retention_class="CORE_LONG",
+        age_days=EXPIRED_CUTOFF_DAYS,
+    )
+    shot_id, shot_key = _seed_artifact(
+        _chain,
+        artifact_type="SCREENSHOT_VIEWPORT",
+        retention_class="CORE_LONG",
+        age_days=EXPIRED_CUTOFF_DAYS,
+        run_key="baseline_run_id",
+    )
+    result = asyncio.run(_service().enforce())
+    assert _object_exists(dom_key)
+    assert _artifact_exists(dom_id)
+    assert _object_exists(shot_key)
+    assert _artifact_exists(shot_id)
+    assert result.rows_deleted_per_table == {"artifacts": 0}
+
+
+def test_hold_created_after_selection_protects_artifact(
+    _chain: dict[str, uuid.UUID],
+) -> None:
+    """Defect-B regression: an ACTIVE RetentionHold that appears after batch
+    selection must still prevent both object and DB deletion."""
+    artifact_id, object_key = _seed_artifact(
+        _chain,
+        artifact_type="RAW_DOM",
+        retention_class="RAW_MEDIUM",
+        age_days=EXPIRED_CUTOFF_DAYS,
+    )
+    raced: list[uuid.UUID] = []
+
+    async def inject_late_hold(candidate_ids: Sequence[uuid.UUID]) -> None:
+        factory = get_session_factory()
+        raced.extend(candidate_ids)
+        for candidate_id in candidate_ids:
+            async with factory() as session, session.begin():
+                session.add(
+                    RetentionHold(
+                        id=uuid.uuid4(),
+                        tenant_id=_chain["tenant_id"],
+                        incident_id=None,
+                        artifact_id=candidate_id,
+                        source_extract_id=None,
+                        reason="race-hold",
+                        released_at=None,
+                    )
+                )
+
+    result = asyncio.run(_service().enforce(_after_selection=inject_late_hold))
+    assert raced == [artifact_id]
+    # Protected despite the hold appearing after selection.
+    assert _object_exists(object_key)
+    assert _artifact_exists(artifact_id)
+    assert result.rows_deleted_per_table == {"artifacts": 0}
+    assert result.hold_conflicts_skipped >= 1
+
+
+def test_supported_policy_types_are_explicit(_chain: dict[str, uuid.UUID]) -> None:
+    """Unknown RAW_MEDIUM artifact types are never eligible: eligibility is
+    keyed by the explicit canonical policy table only."""
+    from app.retention.service import RAW_MEDIUM_POLICY_DAYS
+
+    assert set(RAW_MEDIUM_POLICY_DAYS) == {
+        "SCREENSHOT_VIEWPORT",
+        "SCREENSHOT_VIEWPORT_PRECONSENT",
+        "SCREENSHOT_VIEWPORT_POSTCONSENT",
+        "SCREENSHOT_FULL_PAGE",
+        "RAW_DOM",
+    }
+    unknown_type_id, unknown_type_key = _seed_artifact(
+        _chain,
+        artifact_type="SOME_FUTURE_RAW_TYPE",
+        retention_class="RAW_MEDIUM",
+        age_days=EXPIRED_CUTOFF_DAYS,
+    )
+    result = asyncio.run(_service().enforce())
+    assert _object_exists(unknown_type_key)
+    assert _artifact_exists(unknown_type_id)
+    assert result.rows_deleted_per_table == {"artifacts": 0}
