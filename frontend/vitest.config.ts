@@ -6,7 +6,7 @@ import path from "node:path";
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: { "@": path.resolve(__dirname, ".") },
+    alias: [{ find: "@", replacement: "/Users/manti/publisher-intelligence/frontend/" }],
   },
   test: {
     environment: "jsdom",
