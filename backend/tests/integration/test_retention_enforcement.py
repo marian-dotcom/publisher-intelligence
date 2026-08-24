@@ -9,7 +9,7 @@ import asyncio
 import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from sqlalchemy import select
@@ -451,3 +451,259 @@ def test_supported_policy_types_are_explicit(_chain: dict[str, uuid.UUID]) -> No
     assert _object_exists(unknown_type_key)
     assert _artifact_exists(unknown_type_id)
     assert result.rows_deleted_per_table == {"artifacts": 0}
+
+
+def _remaining(ids: list[uuid.UUID]) -> list[uuid.UUID]:
+    return [artifact_id for artifact_id in ids if _artifact_exists(artifact_id)]
+
+
+def _seed_expired_backlog(
+    ids: dict[str, uuid.UUID],
+    *,
+    count: int,
+) -> tuple[list[uuid.UUID], list[str]]:
+    """Bulk-seed `count` eligible expired RAW_MEDIUM artifacts, each with a
+    real stored object and its own checkpoint run (satisfies the
+    artifacts(checkpoint_run_id, artifact_type) unique constraint)."""
+    from datetime import timedelta
+
+    from app.browser.models import CheckpointRun, CheckpointWindow
+
+    factory = get_session_factory()
+    storage = _storage()
+    created_at = datetime.now(UTC) - timedelta(days=EXPIRED_CUTOFF_DAYS)
+    canonical_types = [
+        "SCREENSHOT_VIEWPORT",
+        "SCREENSHOT_VIEWPORT_PRECONSENT",
+        "SCREENSHOT_VIEWPORT_POSTCONSENT",
+        "SCREENSHOT_FULL_PAGE",
+        "RAW_DOM",
+    ]
+    artifact_ids: list[uuid.UUID] = []
+    object_keys: list[str] = []
+
+    async def insert() -> None:
+        async with factory() as session, session.begin():
+            base = await session.get(CheckpointRun, ids["run_id"])
+            assert base is not None
+            windows: list[CheckpointWindow] = []
+            runs: list[CheckpointRun] = []
+            rows: list[dict[str, Any]] = []
+            for index in range(count):
+                window_id, run_id, artifact_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+                scheduled_for = base.scheduled_for + timedelta(seconds=index + 1)
+                windows.append(
+                    CheckpointWindow(
+                        id=window_id,
+                        tenant_id=base.tenant_id,
+                        site_id=base.site_id,
+                        scheduled_for=scheduled_for,
+                        window_start=scheduled_for,
+                        window_end=scheduled_for,
+                    )
+                )
+                runs.append(
+                    CheckpointRun(
+                        id=run_id,
+                        tenant_id=base.tenant_id,
+                        site_id=base.site_id,
+                        checkpoint_window_id=window_id,
+                        monitored_url_id=base.monitored_url_id,
+                        template_id=base.template_id,
+                        scenario_id=base.scenario_id,
+                        observation_kind="SCHEDULED",
+                        scheduled_for=scheduled_for,
+                        status="COMPLETE",
+                    )
+                )
+                key = f"retention-test/{artifact_id}/backlog.bin"
+                storage.put_bytes(
+                    key=key, content=b"retention-backlog", content_type="application/octet-stream"
+                )
+                rows.append(
+                    {
+                        "id": artifact_id,
+                        "tenant_id": ids["tenant_id"],
+                        "site_id": ids["site_id"],
+                        "checkpoint_run_id": run_id,
+                        "artifact_type": canonical_types[index % len(canonical_types)],
+                        "storage_provider": "S3_COMPATIBLE",
+                        "object_key": key,
+                        "content_type": "application/octet-stream",
+                        "byte_size": 16,
+                        "sha256": "a" * 64,
+                        "retention_class": "RAW_MEDIUM",
+                        "created_at": created_at,
+                        "metadata_json": {},
+                    }
+                )
+            # Flush per dependency level: keeps FK insert ordering explicit.
+            session.add_all(windows)
+            await session.flush()
+            session.add_all(runs)
+            await session.flush()
+            session.add_all([Artifact(**row) for row in rows])
+            artifact_ids.extend(cast(uuid.UUID, row["id"]) for row in rows)
+            object_keys.extend(str(row["object_key"]) for row in rows)
+
+    asyncio.run(insert())
+    return artifact_ids, object_keys
+
+
+def test_backlog_larger_than_batch_size_drains_in_one_execution(
+    _chain: dict[str, uuid.UUID],
+) -> None:
+    """Defect-C regression: one ENFORCE_RETENTION execution must drain the
+    eligible unheld backlog beyond BATCH_SIZE via repeated bounded batches —
+    BATCH_SIZE is a per-batch safety bound, never a per-run cap."""
+    from app.retention.health import retention_health
+    from app.retention.service import BATCH_SIZE
+
+    seeded_count = BATCH_SIZE + 5
+    seeded_ids, seeded_keys = _seed_expired_backlog(_chain, count=seeded_count)
+    assert len(seeded_ids) == seeded_count
+    assert len(_runs()) == 0
+
+    result = asyncio.run(_service().enforce())
+
+    # Every eligible artifact deleted in the SAME execution.
+    assert result.rows_deleted_per_table == {"artifacts": seeded_count}
+    assert _remaining(seeded_ids) == []
+    assert not any(_object_exists(key) for key in seeded_keys)
+
+    # No eligible unheld expired backlog remains.
+    async def eligible_unheld_backlog() -> int:
+        from sqlalchemy import func
+
+        from app.retention.service import _active_hold_clause, _eligible_conditions
+
+        factory = get_session_factory()
+        async with factory() as session:
+            count = await session.scalar(
+                select(func.count())
+                .select_from(Artifact)
+                .where(_eligible_conditions(datetime.now(UTC)), ~_active_hold_clause())
+            )
+            return int(count or 0)
+
+    assert asyncio.run(eligible_unheld_backlog()) == 0
+
+    # Exactly one run belongs to this enforce() call, successfully finished.
+    runs = _runs()
+    assert len(runs) == 1
+    run = runs[0]
+    assert run.finished_at is not None
+    assert run.started_at is not None
+    assert run.finished_at >= run.started_at
+    assert run.rows_deleted_per_table == {"artifacts": seeded_count}
+    assert run.hold_conflicts_skipped == 0
+
+    # Drained execution backed by HEALTHY retention health.
+    health = asyncio.run(retention_health(get_session_factory()))
+    assert health.state == "HEALTHY"
+
+
+def test_large_backlog_with_active_hold_deletes_only_unheld(
+    _chain: dict[str, uuid.UUID],
+) -> None:
+    """More than BATCH_SIZE eligible rows with pre-existing ACTIVE holds:
+    every unheld artifact drains, held rows/objects/holds survive, and the
+    hold count stays truthful (each held artifact counted exactly once)."""
+    from app.retention.service import BATCH_SIZE
+
+    seeded_count = BATCH_SIZE + 10
+    seeded_ids, seeded_keys = _seed_expired_backlog(_chain, count=seeded_count)
+    held_ids = seeded_ids[:2]
+    for held_id in held_ids:
+        _seed_hold(_chain, held_id)
+    unheld_ids = [aid for aid in seeded_ids if aid not in held_ids]
+
+    result = asyncio.run(_service().enforce())
+
+    assert result.rows_deleted_per_table == {"artifacts": len(unheld_ids)}
+    assert _remaining(unheld_ids) == []
+    # Held artifacts fully preserved.
+    assert sorted(_remaining(held_ids)) == sorted(held_ids)
+    for held_id in held_ids:
+        key = seeded_keys[seeded_ids.index(held_id)]
+        assert _object_exists(key)
+
+    async def active_holds() -> int:
+        factory = get_session_factory()
+        async with factory() as session:
+            holds = await session.scalars(
+                select(RetentionHold).where(RetentionHold.released_at.is_(None))
+            )
+            return len(holds.all())
+
+    assert asyncio.run(active_holds()) == 2
+    # Truthful, non-duplicated count: only the two pre-selection holds.
+    assert result.hold_conflicts_skipped == 2
+
+    run = _runs()[-1]
+    assert run.finished_at is not None
+    assert run.rows_deleted_per_table == {"artifacts": len(unheld_ids)}
+    assert run.hold_conflicts_skipped == 2
+
+
+def test_hold_conflicts_not_double_counted_across_batches(
+    _chain: dict[str, uuid.UUID],
+) -> None:
+    """Execution-level truthful hold count under repeated batches: pre-existing
+    holds counted once via the initial count; late holds counted once when
+    encountered; no per-iteration recalculation duplicates either."""
+    from app.retention.service import BATCH_SIZE, RetentionService
+
+    seeded_count = BATCH_SIZE + 5
+    seeded_ids, _ = _seed_expired_backlog(_chain, count=seeded_count)
+    pre_held = seeded_ids[0]
+    _seed_hold(_chain, pre_held)
+    late_held = set(seeded_ids[1:4])  # injected as late holds after batch 1
+    injected: set[uuid.UUID] = set()
+
+    async def inject_late_holds(candidate_ids: Sequence[uuid.UUID]) -> None:
+        factory = get_session_factory()
+        for candidate_id in candidate_ids:
+            if candidate_id not in late_held or candidate_id in injected:
+                continue
+            injected.add(candidate_id)
+            async with factory() as session, session.begin():
+                session.add(
+                    RetentionHold(
+                        id=uuid.uuid4(),
+                        tenant_id=_chain["tenant_id"],
+                        incident_id=None,
+                        artifact_id=candidate_id,
+                        source_extract_id=None,
+                        reason="late-hold",
+                        released_at=None,
+                    )
+                )
+
+    service = RetentionService(get_session_factory(), _storage())
+    result = asyncio.run(service.enforce(_after_selection=inject_late_holds))
+
+    expected_deleted = seeded_count - 1 - len(late_held)
+    assert result.rows_deleted_per_table == {"artifacts": expected_deleted}
+    # Exactly pre-holds + late-holds, each counted once.
+    assert result.hold_conflicts_skipped == 1 + len(late_held)
+    assert sorted(_remaining(sorted(late_held))) == sorted(late_held)
+    assert _artifact_exists(pre_held)
+
+
+def test_successful_run_records_truthful_finished_at(
+    _chain: dict[str, uuid.UUID],
+) -> None:
+    """Defect-D regression: finished_at must be a fresh completion timestamp,
+    strictly distinguishable from started_at — never the reused start value.
+    Real work (hold count + selection queries) separates the two reads."""
+    before = datetime.now(UTC)
+    result = asyncio.run(_service().enforce())
+    completed_after = datetime.now(UTC)
+
+    run = next(r for r in _runs() if r.id == result.run_id)
+    assert run.finished_at is not None
+    assert run.started_at is not None
+    assert before <= run.started_at
+    assert run.finished_at <= completed_after
+    assert run.finished_at > run.started_at

@@ -5,6 +5,8 @@ RAW_MEDIUM browser artifacts via one auditable execution per run:
 
 - eligibility = retention_class + artifact_type + UTC age cutoff
   (screenshots ~90 days; raw DOM ~30 days);
+- one execution drains the full eligible unheld backlog via repeated
+  bounded batches (BATCH_SIZE bounds each query, not the run);
 - active RetentionHold always prevents deletion (counted as skipped);
 - object-store deletion happens BEFORE DB row deletion and must succeed
   (absent objects are idempotently acceptable) before any row is removed;
@@ -92,32 +94,59 @@ class RetentionService:
     ) -> EnforcementResult:
         """Enforce retention.
 
+        Drains the full eligible unheld backlog through repeated bounded
+        batches: select at most BATCH_SIZE rows, safely finalize each one,
+        repeat until selection is empty. BATCH_SIZE is a per-query safety
+        bound, never a per-run or per-day deletion cap.
+
         ``_after_selection`` is a private, non-behavioral test seam invoked
-        once after batch selection and before any destructive finalization;
-        production callers never pass it.
+        after each batch selection and before that batch's destructive
+        finalization; production callers never pass it.
         """
         now = now or datetime.now(UTC)
         run_id = await self._open_run(now)
         deleted_total = 0
+        # Execution-level truthful hold count: holds present before any
+        # selection are counted ONCE here; holds that appear later are counted
+        # exactly once when finalization encounters them. A held artifact is
+        # excluded from all subsequent selections, so it can never be
+        # encountered (or counted) twice.
         holds_skipped = await self._count_hold_conflicts(now)
-        candidates = await self._select_batch(now)
-        if _after_selection is not None:
-            await _after_selection([artifact_id for artifact_id, _ in candidates])
-        for artifact_id, object_key in candidates:
-            finalized = await self._finalize_artifact(artifact_id)
-            if not finalized:
-                # State changed between selection and finalization (e.g. an
-                # active RetentionHold appeared): the artifact stays.
-                holds_skipped += 1
-                continue
-            deleted_total += 1
-            del object_key  # object already deleted inside the locked finalize
+        stalled_on: frozenset[uuid.UUID] | None = None
+        while True:
+            candidates = await self._select_batch(now)
+            if not candidates:
+                break
+            candidate_ids = frozenset(artifact_id for artifact_id, _ in candidates)
+            if stalled_on is not None and candidate_ids <= stalled_on:
+                # Deterministic non-progress guard: every skipped artifact is
+                # either held or already finalized, so _select_batch must
+                # exclude it from the next batch. Re-selecting an identical
+                # fully-skipped batch is therefore pathological — fail loudly
+                # instead of looping forever (run stays unfinished).
+                raise RuntimeError("retention enforcement made no progress")
+            if _after_selection is not None:
+                await _after_selection([artifact_id for artifact_id, _ in candidates])
+            progressed = False
+            for artifact_id, object_key in candidates:
+                finalized = await self._finalize_artifact(artifact_id)
+                if not finalized:
+                    # State changed between selection and finalization (e.g. an
+                    # active RetentionHold appeared): the artifact stays.
+                    holds_skipped += 1
+                    continue
+                deleted_total += 1
+                progressed = True
+                del object_key  # object already deleted inside the locked finalize
+            stalled_on = None if progressed else candidate_ids
         result = EnforcementResult(
             run_id=run_id,
             rows_deleted_per_table={"artifacts": deleted_total},
             hold_conflicts_skipped=holds_skipped,
         )
-        await self._finish_run(result, now or datetime.now(UTC))
+        # Fresh completion timestamp: never reuse the start-time value, so
+        # successful runs truthfully record when execution actually finished.
+        await self._finish_run(result, datetime.now(UTC))
         return result
 
     async def _finalize_artifact(self, artifact_id: uuid.UUID) -> bool:

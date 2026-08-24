@@ -159,6 +159,23 @@
       Full integration 135 passed / 0 failed; unit 331 passed; ruff/mypy(260)/
       secrets clean; scheduler+worker live smoke clean. Connector freshness
       (M3b) NOT started.
+- [x] M3a final correctness fix @ (this commit): one ENFORCE_RETENTION
+      execution now drains the full eligible unheld backlog via repeated
+      bounded batches — BATCH_SIZE=50 bounds each selection query, never the
+      run/day; a tiny deterministic non-progress guard fails loudly instead of
+      looping if a fully-skipped batch were re-selected. finished_at is now a
+      fresh completion timestamp read only after successful enforcement
+      (previously reused started_at); failed runs keep finished_at NULL.
+      hold_conflicts_skipped is execution-level truthful: pre-existing holds
+      counted once at start, late holds increment exactly once, held rows are
+      excluded from later selections so no double counting. Behavioral RED on
+      0fa419b: seeded BATCH_SIZE+5 eligible expired → deleted exactly 50,
+      5 left; GREEN: all 55 drained in one execution, backlog 0,
+      retention_health HEALTHY; >BATCH_SIZE backlog with 2 pre-holds and
+      3 late holds deletes only unheld rows with counts exact. Full
+      integration 142 passed / 0 failed; unit 331 passed; ruff/mypy(260)/
+      secrets clean; scheduler+worker smoke clean against isolated EP-026
+      test Postgres.
 - [ ] M3 — connector staleness/freshness operationalization (M3b)
 - [ ] M4 — Cost telemetry, hard caps & circuit breakers
 - [ ] M5 — DST/timezone cross-source hardening regression
