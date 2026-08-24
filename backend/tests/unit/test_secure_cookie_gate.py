@@ -5,7 +5,6 @@ Secure=False. Configuration must fail closed when pilot/production cookie
 security is missing or invalid.
 """
 
-
 import pytest
 
 from app.auth.routes import _set_session_cookies
