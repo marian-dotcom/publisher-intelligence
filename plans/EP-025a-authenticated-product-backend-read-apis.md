@@ -225,7 +225,26 @@
       capability (ABSOLUTE/RELATIVE_ONLY/UNKNOWN)
 - [ ] M4 — Minimal Investigate intake endpoint over EP-020 semantics (what/when/site+scope)
       with actor provenance
-- [x] M5 — Contract-validation-gate integration tests covering the 27 approved scenarios (see matrix below)
+- [x] M5 — Contract-validation gate COMPLETE (recorded @ 7bbd4ef→gate commit):
+      final matrix 27/27 resolved — 25 PASS + 2 N/A-BY-CONTRACT (scenario 14
+      investigation sub-resource; no standalone read endpoint exists, identity
+      covered via incidents reads + intake response). G1/G2/G3 closed
+      test-only, zero production defects found.
+      Gate evidence: product contract suite "uv run pytest tests/integration/
+      {test_product_http_auth,test_product_read_p2a,test_product_read_p2c,
+      test_incident_reads_p2b,test_memory_p2b,test_investigate_intake_p2d}.py -q"
+      → 38 passed; reversed-order rerun → 38 passed; auth/EP-020 domain
+      "uv run pytest tests/integration/{test_auth_boundary,
+      test_incident_intake_localization,test_investigation_foundations}.py -q"
+      → 16 passed; full integration → 95 passed + 12 browser-env failures
+      (identical set, md5-confirmed); unit → 289 passed; Ruff format clean,
+      only the two documented category-B findings; full mypy green (242 files).
+      Git ancestry: 6564019/2b4e896/4c4be40/28b52df/263b068/bdff0fa/7bbd4ef all
+      ancestors of HEAD (merge-base --is-ancestor, all YES). Security +
+      product-semantics reviews passed (observation failure ≠ publisher
+      failure; DEGRADED ≠ UNKNOWN; SUPPORTS/CONTRADICTS/missing distinct;
+      RELATIVE_ONLY never absolute; no client-authoritative identity). No
+      HUMAN GATE crossed during EP-025a. Remaining: M6 release readiness.
 - [ ] M6 — Full validation and release readiness
 
 ## 1. Purpose and User Outcome
