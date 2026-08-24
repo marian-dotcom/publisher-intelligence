@@ -1724,6 +1724,9 @@ Boundary rules:
   is missing or invalid, SameSite posture explicitly reviewed/documented, automated tests proving
   pilot/production cannot emit auth cookies with Secure=False, and HTTPS smoke validation of cookie
   attributes. Local development may remain appropriately configurable without weakening pilot.
+  Canonical statement: `SECURITY.md` §201 (ADR-131). The EP-026 ExecPlan MUST cite it under
+  Canonical References, Security / Privacy Impact, and Acceptance Criteria, and EP-026 MUST NOT
+  be marked COMPLETE while any secure-cookie acceptance criterion remains unmet.
   EP-026 also includes retention/deletion enforcement
   (with monitoring that retention jobs actually run), connector staleness detection, source health
   exposure, cost telemetry roll-up with hard caps and circuit breakers, cross-source
