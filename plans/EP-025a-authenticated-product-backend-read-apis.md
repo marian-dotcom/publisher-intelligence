@@ -1,6 +1,6 @@
 # EP-025a — Authenticated Product Backend & Read APIs
 
-**Status:** IN_PROGRESS
+**Status:** READY FOR FINAL REVIEW (implementation complete; human merge authorization pending)
 **Owner:** Codex / Engineering
 **Created:** 2026-08-23
 **Updated:** 2026-08-23
@@ -244,8 +244,32 @@
       product-semantics reviews passed (observation failure ≠ publisher
       failure; DEGRADED ≠ UNKNOWN; SUPPORTS/CONTRADICTS/missing distinct;
       RELATIVE_ONLY never absolute; no client-authoritative identity). No
-      HUMAN GATE crossed during EP-025a. Remaining: M6 release readiness.
-- [ ] M6 — Full validation and release readiness
+      HUMAN GATE crossed during EP-025a. M6 COMPLETE — RELEASE READINESS GATE (@ 47c486c):
+      branch agent/implement-ep-025a, HEAD 47c486c, tree clean, pushed
+      (origin == HEAD). Ancestry verified: 6564019/2b4e896/4c4be40/47c486c all
+      ancestors (merge-base --is-ancestor YES).
+      Validation: full integration "uv run pytest tests/integration -q" →
+      95 passed + 12 failed; browser baseline identity-verified (12 names in
+      test_browser_checkpoint.py exactly match M5 baseline list); unit →
+      289 passed; ruff format --check . → 265 files clean; ruff check → only
+      two documented category-B findings; mypy full scope → Success (242
+      files). Alembic chain valid, single head 0023_product_backend_auth,
+      upgrade idempotent, no destructive migration.
+      Adversarial review: no BLOCKER/HIGH findings. One MEDIUM-noted→LOW
+      observation: home/status monetization_capability query uses the raw
+      site_id query parameter instead of the selected site (tenant-scoped, no
+      cross-tenant leak; cosmetic inconsistency only) — deferred as non-
+      blocking cleanup for EP-025b polish.
+      Known deferred debt (non-blocking): 12 browser-environment failures
+      (environment limitation, owner: infra/browser workstream); two Ruff
+      category-B lint findings in legacy P2-A/auth test lines.
+      Deliverable inventory: ALL READY (auth boundary, product reads incl.
+      hypotheses/evidence/packs/LKG/monetization gating, Investigate intake;
+      localization intentionally separate per D3). No HUMAN GATE crossed
+      during M6.
+      EP-025a STATUS: READY FOR FINAL REVIEW — human merge authorization
+      required before merge. Next project step: EP-025b after merge.
+- [x] M6 — Full validation and release readiness COMPLETE
 
 ## 1. Purpose and User Outcome
 
