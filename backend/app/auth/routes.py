@@ -8,7 +8,9 @@ from pydantic import BaseModel
 from app.auth.dependencies import (
     SESSION_COOKIE,
     ActorContext,
+    _unauthorized,
     get_current_actor,
+    get_current_actor_with_csrf,
 )
 from app.auth.service import AuthError, AuthService
 from app.db.session import get_session_factory
@@ -70,9 +72,12 @@ async def login(payload: LoginRequest, response: Response) -> dict[str, object]:
 
 
 @router.post("/logout")
-async def logout(request: Request, response: Response) -> dict[str, bool]:
-    from app.auth.dependencies import _unauthorized
-
+async def logout(
+    request: Request,
+    response: Response,
+    actor: ActorContext = Depends(get_current_actor_with_csrf),  # noqa: B008
+) -> dict[str, bool]:
+    del actor  # CSRF proof and tenant-bound authentication happen in the dependency.
     raw_token = request.cookies.get(SESSION_COOKIE)
     if not raw_token:
         raise _unauthorized()
