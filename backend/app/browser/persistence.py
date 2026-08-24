@@ -474,6 +474,20 @@ class CheckpointRepository:
             attempt.failure_message = evidence.failure_message
             attempt.metadata_json = {"environment": evidence.environment}
             run.status = evidence.status
+            if run.observation_kind == "DIAGNOSTIC":
+                # EP-026 M2b-1a-2a: bounded access classification (SECURITY/
+                # reliability semantics only — never affects run state).
+                from app.browser.access_reliability import classify_access
+
+                classification_result = classify_access(
+                    navigation_failed=evidence.status in ("BROWSER_ERROR", "TIMEOUT"),
+                    http_status=evidence.http_status,
+                    response_body=None,
+                )
+                run.browser_access_classification = {
+                    "state": classification_result.state,
+                    "reason": classification_result.reason,
+                }
             run.completed_at = evidence.completed_at
             run.final_url = evidence.final_url
             run.http_status = evidence.http_status

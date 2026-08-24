@@ -270,6 +270,11 @@ class CheckpointRun(Base):
     environment: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     limitations: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     manifest: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    # EP-026 M2b-1a-2a: bounded deterministic browser access reliability
+    # classification for DIAGNOSTIC runs. NULL = not classified.
+    browser_access_classification: Mapped[dict[str, object] | None] = mapped_column(
+        JSONB, nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
