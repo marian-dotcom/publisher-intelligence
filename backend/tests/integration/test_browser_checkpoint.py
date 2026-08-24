@@ -1289,6 +1289,19 @@ async def test_real_browser_checkpoint_persists_evidence_and_site_error(
             "NORMALIZED_DOM",
             "MANIFEST",
         }
+        # EP-026 M3a-0: canonical retention classes (SECURITY.md §105-106) —
+        # routine screenshots and raw DOM are RAW_MEDIUM; normalized DOM is
+        # CORE_LONG; no CORE_MEDIUM artifact exists in the vocabulary.
+        assert {
+            item.artifact_type: item.retention_class
+            for item in artifacts
+            if item.artifact_type != "MANIFEST"
+        } == {
+            "SCREENSHOT_VIEWPORT": "RAW_MEDIUM",
+            "SCREENSHOT_FULL_PAGE": "RAW_MEDIUM",
+            "RAW_DOM": "RAW_MEDIUM",
+            "NORMALIZED_DOM": "CORE_LONG",
+        }
         for artifact in artifacts:
             content = storage.get_bytes(key=artifact.object_key)
             assert hashlib.sha256(content).hexdigest() == artifact.sha256

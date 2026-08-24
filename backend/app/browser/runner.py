@@ -150,7 +150,7 @@ class BrowserRunner:
                         artifact_type="SCREENSHOT_VIEWPORT",
                         filename="screenshots/viewport.png",
                         content_type="image/png",
-                        retention_class="CORE_MEDIUM",
+                        retention_class="RAW_MEDIUM",
                         content=await page.screenshot(type="png", full_page=False),
                     )
                 )
@@ -171,7 +171,7 @@ class BrowserRunner:
                                 artifact_type="SCREENSHOT_VIEWPORT_PRECONSENT",
                                 filename="screenshots/viewport-preconsent.png",
                                 content_type="image/png",
-                                retention_class="CORE_MEDIUM",
+                                retention_class="RAW_MEDIUM",
                                 content=await page.screenshot(type="png", full_page=False),
                             )
                         )
@@ -197,7 +197,7 @@ class BrowserRunner:
                                 artifact_type="SCREENSHOT_VIEWPORT_POSTCONSENT",
                                 filename="screenshots/viewport-postconsent.png",
                                 content_type="image/png",
-                                retention_class="CORE_MEDIUM",
+                                retention_class="RAW_MEDIUM",
                                 content=await page.screenshot(type="png", full_page=False),
                             )
                         )
@@ -405,7 +405,7 @@ class BrowserRunner:
                         artifact_type="SCREENSHOT_FULL_PAGE",
                         filename="screenshots/full-page.png",
                         content_type="image/png",
-                        retention_class="CORE_MEDIUM",
+                        retention_class="RAW_MEDIUM",
                         content=await page.screenshot(type="png", full_page=True),
                     )
                 )
