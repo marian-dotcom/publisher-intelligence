@@ -165,6 +165,14 @@ and create an ExecPlan under:
 plans/EP-NNN-short-name.md
 ```
 
+Gate evidence rules:
+
+- If a report contradicts previously confirmed repository state, STOP until Git
+  resolves it: cite current HEAD SHA and relevant checkpoint SHAs, and verify
+  ancestry (e.g. `git merge-base --is-ancestor <checkpoint> HEAD`).
+- Aggregate regression counts (e.g. "92 passed") must cite the exact command,
+  selected files/scope, and resulting count. A bare number is not evidence.
+
 ---
 
 # 4. Instruction precedence

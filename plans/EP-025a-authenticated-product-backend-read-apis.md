@@ -177,6 +177,10 @@
       all suites re-run green (product groups 35, auth 11+6, EP-020 domain 10,
       P2-B/C/D 23, unit 289, mypy green, Ruff category-B pair unchanged).
       Product/data: #1 PASS (test_product_read_p2a healthy+isolated);
+      #2 PASS (G1 closed: test_degraded_source_health_does_not_become_publisher_site_failure —
+      PARTIAL scheduled run → BROWSER_MONITORING=DEGRADED while
+      publisher_site_condition independent, both /product/home/status and
+      /product/source-health);
       #4–#12 PASS (P2-B T/I files, P2-C file — see gate reports); #13 PASS
       (P2-D D1/D2/D3). PARTIAL: #2 degraded-source-without-publisher-failure —
       health mapping implemented (DEGRADED/ACTION_REQUIRED/BLOCKED) but no
