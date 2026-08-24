@@ -13,6 +13,7 @@ import uuid
 import pytest
 
 from app.browser.access_reliability import classify_access
+from app.db.session import get_session_factory
 from app.events.registry import RULES_BY_CODE
 
 
@@ -110,3 +111,43 @@ def test_diagnostic_event_chain_factory_smoke() -> None:
         "correlation_id",
     }
     assert all(isinstance(v, uuid.UUID) for v in seeded.values())
+
+
+def test_m2b1a_status_only_diagnostic_persists_degraded_event() -> None:
+    """RED (M2b-1a): derive over a 403 DIAGNOSTIC run must persist
+    BROWSER_SOURCE_DEGRADED through the canonical pipeline."""
+    from app.events.persistence import EventRepository
+    from app.events.service import EventService
+    from app.events.registry import definition_id as def_id
+    from tests.integration.product.factories import seed_diagnostic_event_chain
+
+    seeded = asyncio.run(seed_diagnostic_event_chain())
+    factory = get_session_factory()
+    service = EventService(EventRepository(factory))
+
+    async def act():
+        return await service.derive(
+            tenant_id=seeded["tenant_id"], checkpoint_run_id=seeded["diagnostic_run_id"]
+        )
+
+    asyncio.run(act())
+
+    async def count_events() -> int:
+        from sqlalchemy import select
+
+        from app.events.models import Event
+
+        async with factory() as session:
+            rows = list(
+                (
+                    await session.scalars(
+                        select(Event).where(
+                            Event.tenant_id == seeded["tenant_id"],
+                            Event.event_definition_id == def_id("BROWSER_SOURCE_DEGRADED"),
+                        )
+                    )
+                ).all()
+            )
+            return len(rows)
+
+    assert asyncio.run(count_events()) >= 1
