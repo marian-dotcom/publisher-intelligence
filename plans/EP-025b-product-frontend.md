@@ -33,6 +33,15 @@
       backend contract gap exists. Tests: 12 passed across api/auth/shell/
       login suites. Validation: lint clean; typecheck clean; 12 tests passed;
       build compiled. Dependency footprint remains ZERO new runtime deps.
+      M1 CONTRACT-RECONCILIATION FIX: POST /auth/logout did not enforce CSRF
+      (session-cookie-only revocation) — SECURITY.md §22 requires CSRF on
+      cookie-authenticated state-changing requests with no logout exemption.
+      Classified BACKEND AUTH CONTRACT DEFECT; smallest fix applied: logout
+      now depends on get_current_actor_with_csrf (no new auth machinery).
+      Coverage: missing/mismatched CSRF -> 403 with session left valid;
+      valid CSRF -> revoked + replay 401 (test_logout_revokes_and_replay_fails
+      extended). Frontend unchanged - it already sends X-CSRF-Token when
+      available. Zero new runtime deps.
 - [ ] M2 — Home/status + source health + site selection
 - [ ] M3 — Timeline
 - [ ] M4 — Incident list/detail + hypotheses/evidence/LKG/monetization + evidence pack view
