@@ -49,6 +49,7 @@ def test_pilot_production_cookies_must_be_secure() -> None:
         s3_endpoint_url="https://s3.example.com",
         s3_access_key_id=SecretStr("k"),
         s3_secret_access_key=SecretStr("s"),
+        browser_allow_private_networks=False,
     )
     response = FakeResponse()
     _emit_with(response, production_settings)
