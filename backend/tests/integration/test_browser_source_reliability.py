@@ -5,8 +5,10 @@ classify_access (the same deterministic detection used by diagnostics) →
 canonical registry events derived. No external WAF vendor.
 """
 
+import asyncio
 import http.server
 import threading
+import uuid
 
 import pytest
 
@@ -93,3 +95,18 @@ def test_waf_challenge_degradation_and_recovery_through_http_path(
     _ChallengeHandler.challenge_mode = False
     assert _observe(challenge_server) == "ok"
     assert "BROWSER_SOURCE_RECOVERED" in RULES_BY_CODE
+
+
+def test_diagnostic_event_chain_factory_smoke() -> None:
+    """8B smoke: the M2b factory builds the complete canonical chain."""
+    from tests.integration.product.factories import seed_diagnostic_event_chain
+
+    seeded = asyncio.run(seed_diagnostic_event_chain())
+    assert set(seeded) == {
+        "tenant_id",
+        "site_id",
+        "baseline_run_id",
+        "diagnostic_run_id",
+        "correlation_id",
+    }
+    assert all(isinstance(v, uuid.UUID) for v in seeded.values())
