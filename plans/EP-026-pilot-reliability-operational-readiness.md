@@ -61,6 +61,22 @@
       the historical "242" figure was the same command without evals_runtime);
       unit + PostgreSQL integration suites green except the documented
       pre-existing browser-env failures in test_browser_checkpoint.py.
+- [x] M2b-1a-2b-ii — AUTOMATIC diagnostic reliability derivation COMPLETE:
+      DIAGNOSTIC finalize (classification present) now enqueues exactly one
+      DERIVE_BROWSER_EVENTS job (idempotency key
+      derive-browser-events:{run}:e26-v1, on_conflict_do_nothing, bounded
+      max_attempts=3); existing worker handler and EventService.derive reused
+      unchanged; no new job type, no schema change, no worker modification.
+      RED→GREEN proven by tests/integration/test_diagnostic_reliability_autoderive.py:
+      RED 4 collected / 0 passed (finalize enqueued nothing: assert 0 == 1)
+      → GREEN 4 passed — full production path begin_attempt→finalize(403
+      PARTIAL)→job→worker handle_job→exactly one BROWSER_SOURCE_DEGRADED
+      event + one TRIGGER_AFTER evidence ref; retry attempts cannot duplicate
+      jobs; worker rederivation stays single-event/single-ref; healthy
+      diagnostics enqueue but derive zero events (no false degradation).
+      ADR-130 comment narrowed in place; SCHEDULED enqueue/key byte-identical.
+      M2b-1a (diagnostic classification → canonical reliability events,
+      explicit + automatic) complete.
 - [ ] M2b-1a-2b-ii — BROWSER_SOURCE_RECOVERED post-remediation re-check flow
       (explicit bounded re-check → recovery event; completes the M2 mandatory
       degradation-and-recovery scenario end-to-end)
