@@ -119,6 +119,19 @@
       points→derivations requires points purged first; order now matches schema;
       test-infra only.
       Next: Investigate intake (P2-D per PLANS.md §76.1 split).
+- [ ] M4 — Minimal Investigate intake (IN_PROGRESS, P2-D). D1 reconciliation:
+      POST /investigations already existed (M4 slice) with CSRF via
+      get_current_actor_with_csrf, server-side tenant derivation + site-ownership
+      404s, delegation to canonical EP-020 IncidentIntakeService.open_investigation.
+      D1 closed the single gap: route now passes created_by=ActorContext.
+      actor_subject_id (Incident.created_by column + service param were already
+      canonical; OPEN-003 note resolved at the boundary). Request schema:
+      site_id/title/symptom_family/description/reported_start_at/reported_end_at;
+      response: {incident_id, investigation_key, status} only. D1 test
+      (test_investigate_intake_p2d.py) proves persisted created_by ==
+      authenticated actor_subject_id, tenant/site ownership, verbatim WHAT,
+      bounded/unknown WHEN preserved, investigation_key stability. Remaining:
+      D2 negative/security matrix; then M5/M6 gate.
       C4 classified ALREADY SATISFIED by P2-B: INCIDENT.md §88 requires selection
       to record method/reason/scope/checkpoint-ID — all four are product-visible
       on GET /incidents/{incident_id} (selection_method, reason, scope_key,

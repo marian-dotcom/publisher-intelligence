@@ -66,8 +66,8 @@ async def open_investigation(
         description=payload.description,
         reported_start_at=_parse(payload.reported_start_at),
         reported_end_at=_parse(payload.reported_end_at),
+        created_by=actor.actor_subject_id,
     )
-    del actor  # actor provenance flows through authenticated boundary; created_by pending OPEN-003
     return {
         "incident_id": str(incident.id),
         "investigation_key": investigation_key,
