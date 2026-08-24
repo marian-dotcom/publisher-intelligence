@@ -208,8 +208,15 @@ change · analytics/tracking · external SaaS/provider.
 
 ## 12. Deferred Debt (EP-026)
 
-Session cookie `secure=False` (`auth/routes.py::_set_session_cookies`) —
-deployment hardening for pre-Limited-Pilot; untouched in EP-025b.
+Session cookie `secure=False` (`auth/routes.py::_set_session_cookies`) is a
+MANDATORY PRE-PILOT SECURITY GATE, not optional cleanup: EP-026 is a mandatory
+prerequisite for Limited Pilot. Limited Pilot SHALL NOT start until secure-cookie
+acceptance criteria are green (HTTPS-only pilot/production; pi_session + pi_csrf
+Secure=True in pilot/production; pi_session remains HttpOnly; SameSite posture
+reviewed/documented; environment-aware cookie configuration; fail-closed startup
+when pilot/production secure-cookie config is missing/invalid; automated test
+proving pilot/production cannot emit auth cookies with Secure=False; HTTPS smoke
+validation of cookie attributes). Untouched in EP-025b.
 
 ## 13. Validation Commands
 

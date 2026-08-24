@@ -1716,7 +1716,15 @@ Boundary rules:
   incident intake behavior ("What happened? / When did it start? / Which site or scope?").
   No vanity dashboards, ticketing/chat/workflow management, billing, collaboration, enterprise
   RBAC, or broad admin tooling.
-- **EP-026 Pilot reliability & operational readiness** includes retention/deletion enforcement
+- **EP-026 Pilot reliability & operational readiness** is a mandatory prerequisite for
+  Limited Pilot. Limited Pilot SHALL NOT start until secure-cookie acceptance criteria are green:
+  HTTPS-only pilot/production posture, auth cookies (`pi_session`, `pi_csrf`) emitted with
+  Secure=True in pilot/production while remaining HttpOnly/session-token-safe, environment-aware
+  cookie configuration with fail-closed startup when pilot/production secure-cookie configuration
+  is missing or invalid, SameSite posture explicitly reviewed/documented, automated tests proving
+  pilot/production cannot emit auth cookies with Secure=False, and HTTPS smoke validation of cookie
+  attributes. Local development may remain appropriately configurable without weakening pilot.
+  EP-026 also includes retention/deletion enforcement
   (with monitoring that retention jobs actually run), connector staleness detection, source health
   exposure, cost telemetry roll-up with hard caps and circuit breakers, cross-source
   DST/timezone hardening, AND a minimal self-observability baseline (queue depth/backlog
