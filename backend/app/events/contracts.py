@@ -96,6 +96,17 @@ class EventCandidate:
 
 
 @dataclass(frozen=True, slots=True)
+class DiagnosticInput:
+    tenant_id: uuid.UUID
+    site_id: uuid.UUID
+    checkpoint_run_id: uuid.UUID
+    checkpoint_window_id: uuid.UUID
+    observed_at: datetime | None
+    trigger_correlation_id: uuid.UUID | None
+    status: str
+
+
+@dataclass(frozen=True, slots=True)
 class EvaluationInput:
     tenant_id: uuid.UUID
     site_id: uuid.UUID

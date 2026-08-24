@@ -45,6 +45,11 @@ def _window_input(monitored_url_id: uuid.UUID) -> EvaluationInput:
 
 
 class Repository:
+    async def load_diagnostic_input(
+        self, *, tenant_id: object, checkpoint_run_id: object
+    ) -> object:
+        return None
+
     def __init__(self, values: tuple[EvaluationInput, ...]) -> None:
         self.values = values
         self.persisted: tuple[Any, ...] = ()

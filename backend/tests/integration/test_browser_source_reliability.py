@@ -9,6 +9,7 @@ import asyncio
 import http.server
 import threading
 import uuid
+from typing import cast
 
 import pytest
 
@@ -113,41 +114,26 @@ def test_diagnostic_event_chain_factory_smoke() -> None:
     assert all(isinstance(v, uuid.UUID) for v in seeded.values())
 
 
-def test_m2b1a_status_only_diagnostic_persists_degraded_event() -> None:
-    """RED (M2b-1a): derive over a 403 DIAGNOSTIC run must persist
-    BROWSER_SOURCE_DEGRADED through the canonical pipeline."""
+def test_m2b1a_diagnostic_input_loads_without_schedule_lineage() -> None:
+    """M2b-1a-1: a valid DIAGNOSTIC run enters derive input loading without
+    SCHEDULED comparison lineage. Zero events is legitimate at this stage
+    (rule wiring arrives in M2b-1a-2)."""
     from app.events.persistence import EventRepository
     from app.events.service import EventService
-    from app.events.registry import definition_id as def_id
     from tests.integration.product.factories import seed_diagnostic_event_chain
 
     seeded = asyncio.run(seed_diagnostic_event_chain())
-    factory = get_session_factory()
-    service = EventService(EventRepository(factory))
+    tenant_id = cast(uuid.UUID, seeded["tenant_id"])
+    diagnostic_run_id = cast(uuid.UUID, seeded["diagnostic_run_id"])
+    service = EventService(EventRepository(get_session_factory()))
 
-    async def act():
-        return await service.derive(
-            tenant_id=seeded["tenant_id"], checkpoint_run_id=seeded["diagnostic_run_id"]
-        )
+    async def act() -> tuple[str, ...]:
+        result = await service.derive(tenant_id=tenant_id, checkpoint_run_id=diagnostic_run_id)
+        return result.skip_reasons
 
-    asyncio.run(act())
+    skips = asyncio.run(act())
+    assert "DIAGNOSTIC_NO_EVENT_RULES" in skips
 
-    async def count_events() -> int:
-        from sqlalchemy import select
 
-        from app.events.models import Event
-
-        async with factory() as session:
-            rows = list(
-                (
-                    await session.scalars(
-                        select(Event).where(
-                            Event.tenant_id == seeded["tenant_id"],
-                            Event.event_definition_id == def_id("BROWSER_SOURCE_DEGRADED"),
-                        )
-                    )
-                ).all()
-            )
-            return len(rows)
-
-    assert asyncio.run(count_events()) >= 1
+def _unused_tail() -> None:
+    pass

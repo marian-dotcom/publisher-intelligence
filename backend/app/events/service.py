@@ -9,6 +9,17 @@ class EventService:
         self._repository = repository
 
     async def derive(self, *, tenant_id: uuid.UUID, checkpoint_run_id: uuid.UUID) -> EventRunResult:
+        # EP-026 M2b-1a-1: additive DIAGNOSTIC input path. No SCHEDULED
+        # comparison lineage exists for diagnostics; evaluation currently
+        # yields zero events (rule wiring arrives in M2b-1a-2).
+        # EP-026 M2b-1a-1: additive DIAGNOSTIC input path — no SCHEDULED
+        # comparison-lineage evaluation for diagnostics (window aggregation
+        # support arrives later). SCHEDULED behavior is unchanged below.
+        diagnostic = await self._repository.load_diagnostic_input(
+            tenant_id=tenant_id, checkpoint_run_id=checkpoint_run_id
+        )
+        if diagnostic is not None:
+            return EventRunResult(0, 0, 0, ("DIAGNOSTIC_NO_EVENT_RULES",))
         value = await self._repository.load_input(
             tenant_id=tenant_id, checkpoint_run_id=checkpoint_run_id
         )

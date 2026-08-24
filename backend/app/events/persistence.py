@@ -16,7 +16,12 @@ from app.browser.models import (
     JavaScriptErrorObservation,
     SeoObservation,
 )
-from app.events.contracts import EvaluationInput, EventCandidate, EvidencePointer
+from app.events.contracts import (
+    DiagnosticInput,
+    EvaluationInput,
+    EventCandidate,
+    EvidencePointer,
+)
 from app.events.lifecycle import condition_key, higher_severity, normalized_scope
 from app.events.models import Event, EventEvidenceRef
 from app.events.registry import RULES_BY_CODE, definition_id
@@ -57,6 +62,43 @@ class PersistenceResult:
 class EventRepository:
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
+
+    async def load_diagnostic_input(
+        self, *, tenant_id: uuid.UUID, checkpoint_run_id: uuid.UUID
+    ) -> "DiagnosticInput | None":
+        """EP-026 M2b-1a-1: additive DIAGNOSTIC input loading.
+
+        DIAGNOSTIC runs have no SCHEDULED comparison lineage (ADR-130 cohort
+        purity is untouched). Only canonical tenant/site/window ownership is
+        validated; no comparison/predecessor data is fabricated.
+        """
+        async with self._session_factory() as session:
+            current = await session.scalar(
+                select(CheckpointRun).where(
+                    CheckpointRun.id == checkpoint_run_id,
+                    CheckpointRun.tenant_id == tenant_id,
+                )
+            )
+            if current is None or current.observation_kind != "DIAGNOSTIC":
+                return None
+            window = await session.scalar(
+                select(CheckpointWindow).where(
+                    CheckpointWindow.id == current.checkpoint_window_id,
+                    CheckpointWindow.tenant_id == tenant_id,
+                    CheckpointWindow.site_id == current.site_id,
+                )
+            )
+        if window is None or window.site_id != current.site_id:
+            raise EventStateError("checkpoint ownership mismatch")
+        return DiagnosticInput(
+            tenant_id=current.tenant_id,
+            site_id=current.site_id,
+            checkpoint_run_id=current.id,
+            checkpoint_window_id=window.id,
+            observed_at=current.completed_at,
+            trigger_correlation_id=getattr(current, "trigger_correlation_id", None),
+            status=current.status,
+        )
 
     async def load_input(
         self, *, tenant_id: uuid.UUID, checkpoint_run_id: uuid.UUID
