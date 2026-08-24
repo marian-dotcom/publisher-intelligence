@@ -254,6 +254,12 @@ class BrowserRunner:
                     consent_path=target.consent_path,
                 )
                 raw_dom = (await page.content()).encode("utf-8")
+                # EP-026 M2b-1b: reduce the in-memory DOM to a deterministic
+                # challenge marker signal immediately; the text is never
+                # retained for classification purposes.
+                from app.browser.access_reliability import detect_challenge_marker
+
+                challenge_marker = detect_challenge_marker(raw_dom.decode("utf-8", "replace"))
                 seo_started = datetime.now(UTC)
                 normalized_seo = normalize_seo(raw_dom.decode("utf-8"), final_url=final_url)
                 seo_observation = SEOObservation(
@@ -445,6 +451,7 @@ class BrowserRunner:
                     cmp_collection=cmp_collection,
                     consent_phase_dependencies=consent_phase_dependencies,
                     seo_observation=seo_observation,
+                    challenge_marker=challenge_marker,
                 )
         except BrowserBlockedError as error:
             status = "BLOCKED"
@@ -550,6 +557,7 @@ class BrowserRunner:
         seo_observation: SEOObservation | None = None,
         failure_class: str | None = None,
         failure_message: str | None = None,
+        challenge_marker: str | None = None,
     ) -> BrowserEvidence:
         return BrowserEvidence(
             status=status,
@@ -604,6 +612,7 @@ class BrowserRunner:
             seo_observation=seo_observation,
             failure_class=failure_class,
             failure_message=failure_message,
+            challenge_marker=challenge_marker,
         )
 
     @staticmethod

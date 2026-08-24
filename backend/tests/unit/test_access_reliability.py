@@ -5,7 +5,12 @@ classifier + canonical registry path with a controlled synthetic HTTP fixture
 (no external WAF vendor, no organic publisher case required).
 """
 
-from app.browser.access_reliability import classification_from_storage, classify_access
+from app.browser.access_reliability import (
+    CHALLENGE_MARKER_SCAN_CHARS,
+    classification_from_storage,
+    classify_access,
+    detect_challenge_marker,
+)
 from app.events.registry import RULES_BY_CODE, definition_id
 
 
@@ -102,3 +107,49 @@ def test_status_only_403_is_degraded_never_challenge() -> None:
         ).state
         == "challenge_suspected"
     )
+
+
+def test_marker_takes_precedence_over_status_anomaly() -> None:
+    """M2b-1b: 403 + canonical marker is a suspected challenge; 403 without a
+    marker stays degraded. Status alone is never proof of a challenge."""
+    marked = classify_access(
+        navigation_failed=False,
+        http_status=403,
+        response_body=None,
+        challenge_marker="captcha",
+    )
+    assert marked.state == "challenge_suspected"
+    assert marked.reason == "deterministic challenge markers observed: captcha"
+
+    unmarked = classify_access(
+        navigation_failed=False, http_status=403, response_body=None
+    )
+    assert unmarked.state == "degraded"
+    assert "403" in unmarked.reason
+
+
+def test_navigation_failure_still_wins_over_marker() -> None:
+    result = classify_access(
+        navigation_failed=True,
+        http_status=None,
+        response_body=None,
+        challenge_marker="captcha",
+    )
+    assert result.state == "degraded"
+
+
+def test_detect_challenge_marker_reduces_to_first_canonical_match() -> None:
+    body = "<html>" + ("filler text " * 500) + "Access Denied</html>"
+    assert detect_challenge_marker(body) == "access denied"
+    assert detect_challenge_marker(None) is None
+    assert detect_challenge_marker("") is None
+    assert detect_challenge_marker("<html>nothing here</html>") is None
+
+
+def test_detect_challenge_marker_scan_is_bounded() -> None:
+    beyond_cap = "<html>x" * (CHALLENGE_MARKER_SCAN_CHARS // 7 + 1)
+    assert len(beyond_cap) > CHALLENGE_MARKER_SCAN_CHARS
+    padded = beyond_cap[:CHALLENGE_MARKER_SCAN_CHARS] + "captcha"
+    assert detect_challenge_marker(padded) is None
+    inside = "captcha" + beyond_cap[:CHALLENGE_MARKER_SCAN_CHARS]
+    assert detect_challenge_marker(inside) == "captcha"

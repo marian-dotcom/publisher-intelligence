@@ -475,14 +475,17 @@ class CheckpointRepository:
             attempt.metadata_json = {"environment": evidence.environment}
             run.status = evidence.status
             if run.observation_kind == "DIAGNOSTIC":
-                # EP-026 M2b-1a-2a: bounded access classification (SECURITY/
-                # reliability semantics only — never affects run state).
+                # EP-026 M2a/M2b-1b: bounded access classification from the
+                # deterministic marker signal (challenge) and status-only
+                # anomalies (degraded). Never affects run state; no raw page
+                # content is consumed or persisted here.
                 from app.browser.access_reliability import classify_access
 
                 classification_result = classify_access(
                     navigation_failed=evidence.status in ("BROWSER_ERROR", "TIMEOUT"),
                     http_status=evidence.http_status,
                     response_body=None,
+                    challenge_marker=evidence.challenge_marker,
                 )
                 run.browser_access_classification = {
                     "state": classification_result.state,

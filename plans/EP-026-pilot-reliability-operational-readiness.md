@@ -77,6 +77,25 @@
       ADR-130 comment narrowed in place; SCHEDULED enqueue/key byte-identical.
       M2b-1a (diagnostic classification → canonical reliability events,
       explicit + automatic) complete.
+- [x] M2b-1b — bounded access-challenge detection COMPLETE: the runner reduces
+      the already-in-memory DOM to a deterministic marker signal immediately
+      after content read (`detect_challenge_marker`, scan capped at
+      CHALLENGE_MARKER_SCAN_CHARS=100_000, output = marker name only; text
+      never retained/persisted); BrowserEvidence carries only
+      `challenge_marker: str | None`; finalize passes it to the unchanged
+      classify_access (marker now takes precedence over bare status anomaly:
+      403+marker → challenge_suspected, 403 alone → degraded). RED→GREEN via
+      tests/integration/test_access_challenge_detection.py through the REAL
+      path (local controlled challenge fixture → Playwright collection →
+      finalize → DERIVE_BROWSER_EVENTS → worker handle_job): RED 4 collected /
+      2 passed / 2 failed ('degraded' != 'challenge_suspected') → GREEN 4
+      passed incl. exactly one BROWSER_ACCESS_CHALLENGE_SUSPECTED event + one
+      TRIGGER_AFTER ref, sentinel-based no-raw-persistence proof across
+      classification/manifest/limitations/environment/events/refs/jobs,
+      plain-403-stays-degraded control, healthy control, idempotency. Full
+      integration suite green locally with CI's BROWSER_ALLOW_PRIVATE_NETWORKS
+      opt-in (the historical "12 browser-env failures" were that missing env
+      var): 126 passed / 0 failed.
 - [ ] M2b-1a-2b-ii — BROWSER_SOURCE_RECOVERED post-remediation re-check flow
       (explicit bounded re-check → recovery event; completes the M2 mandatory
       degradation-and-recovery scenario end-to-end)

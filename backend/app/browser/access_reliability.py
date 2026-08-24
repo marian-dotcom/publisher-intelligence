@@ -21,6 +21,10 @@ CHALLENGE_MARKERS: tuple[str, ...] = (
 
 VALID_STATES: tuple[str, ...] = ("ok", "challenge_suspected", "degraded")
 
+# EP-026 M2b-1b: deterministic cap on how much transient page text is scanned
+# for challenge markers. The text itself is never retained anywhere.
+CHALLENGE_MARKER_SCAN_CHARS = 100_000
+
 
 @dataclass(frozen=True)
 class AccessClassification:
@@ -28,25 +32,48 @@ class AccessClassification:
     reason: str
 
 
+def detect_challenge_marker(text: str | None) -> str | None:
+    """Deterministically reduce bounded transient page text to the first
+    canonical challenge marker, if any (EP-026 M2b-1b).
+
+    The scan is capped at CHALLENGE_MARKER_SCAN_CHARS; only the marker name —
+    never the text — is returned, and the input is never retained.
+    """
+    if not text:
+        return None
+    lowered = text[:CHALLENGE_MARKER_SCAN_CHARS].lower()
+    for marker in CHALLENGE_MARKERS:
+        if marker in lowered:
+            return marker
+    return None
+
+
 def classify_access(
     *,
     navigation_failed: bool,
     http_status: int | None,
     response_body: str | None,
+    challenge_marker: str | None = None,
 ) -> AccessClassification:
-    """Classify one bounded observation of our browser access path."""
+    """Classify one bounded observation of our browser access path.
+
+    ``challenge_marker`` is the pre-reduced signal from
+    :func:`detect_challenge_marker` (EP-026 M2b-1b). A deterministic marker is
+    more specific than a bare status anomaly, so it takes precedence: 403 with
+    a canonical marker is challenge_suspected, 403 without one stays degraded.
+    Status codes alone are NEVER proof of a challenge.
+    """
     if navigation_failed:
         return AccessClassification("degraded", "navigation failed")
+    marker = challenge_marker or detect_challenge_marker(response_body)
+    if marker is not None:
+        return AccessClassification(
+            "challenge_suspected",
+            f"deterministic challenge markers observed: {marker}",
+        )
     if http_status is not None and (http_status >= 400 or 300 <= http_status < 400):
         # Redirect/status anomaly alone is degraded-context, not a challenge claim.
         return AccessClassification("degraded", f"unexpected HTTP status {http_status}")
-    lowered = (response_body or "").lower()
-    matched = [marker for marker in CHALLENGE_MARKERS if marker in lowered]
-    if matched:
-        return AccessClassification(
-            "challenge_suspected",
-            f"deterministic challenge markers observed: {matched[0]}",
-        )
     return AccessClassification("ok", "no access anomalies in bounded signal set")
 
 
