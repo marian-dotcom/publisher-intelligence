@@ -21,8 +21,8 @@ PURGE_ORDER = (
     "ads_txt_records",
     "public_config_snapshots",
     "metric_derivation_inputs",
-    "metric_derivations",
     "metric_points",
+    "metric_derivations",
     "metric_series",
     "source_extracts",
     "data_connections",
@@ -50,15 +50,25 @@ PURGE_ORDER = (
     "sites",
     "publishers",
     "jobs",
+    "sessions",
+    "operator_tenants",
+    "operators",
     "tenants",
 )
 
 
 def make_purge(
-    session_factory: Callable[[], Any],
+    session_factory_getter: Callable[[], Any],
 ) -> Callable[[], Any]:
+    """Build a purge bound to the session factory getter.
+
+    Accepts the factory-getter (e.g. app.db.session.get_session_factory) so the
+    async sessionmaker is resolved at purge time, on the caller's event loop.
+    """
+
     async def purge() -> None:
-        async with session_factory()() as session, session.begin():
+        maker = session_factory_getter()
+        async with maker() as session, session.begin():
             for table in PURGE_ORDER:
                 await session.execute(text(f"DELETE FROM {table}"))
 

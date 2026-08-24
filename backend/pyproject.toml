@@ -5,6 +5,7 @@ description = "Repository foundation for Publisher Incident Intelligence"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "alembic>=1.16,<2",
+  "argon2-cffi>=25.1.0",
   "boto3>=1.38,<2",
   "fastapi>=0.116,<1",
   "httpx>=0.28,<1",

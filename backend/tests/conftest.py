@@ -17,6 +17,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 # tables and cross-module foreign keys (e.g. retention holds referencing
 # connector source extracts) resolve in every test process, mirroring
 # migrations/env.py.
+from app.auth import models as auth_models  # noqa: E402, F401
 from app.browser import models as browser_models  # noqa: E402, F401
 from app.connectors import models as connector_models  # noqa: E402, F401
 from app.events import models as event_models  # noqa: E402, F401
