@@ -382,3 +382,74 @@ def test_missing_connector_is_unknown_not_publisher_failure() -> None:
     assert sources["GA4"] == "UNKNOWN"
     assert sources["GSC"] == "UNKNOWN"
     assert sources["GAM"] == "UNKNOWN"
+
+
+def test_home_default_view_reports_selected_site_monetization_capability() -> None:
+    """Regression: without ?site_id=, monetization_capability must reflect the
+    default-selected site's persisted connection, not UNKNOWN."""
+    factory = get_session_factory()
+    slug = f"p2a-mono-{uuid.uuid4().hex[:8]}"
+    tenant_id, site_id = asyncio.run(_seed_tenant_site(slug=slug))
+
+    async def _connect() -> None:
+        await _add_connection(tenant_id, site_id, status="CONNECTED")
+
+    asyncio.run(_connect())
+
+    async def set_capability() -> None:
+        from sqlalchemy import update
+
+        async with factory() as session, session.begin():
+            await session.execute(
+                update(DataConnection)
+                .where(DataConnection.tenant_id == tenant_id)
+                .values(monetization_capability="RELATIVE_ONLY")
+            )
+
+    from app.auth.models import Operator, OperatorTenant
+    from app.auth.security import hash_password
+
+    email = f"mono-{uuid.uuid4().hex[:8]}@example.com"
+
+    async def seed_operator() -> None:
+        operator_id = uuid.uuid4()
+        async with factory() as session, session.begin():
+            session.add(
+                Operator(
+                    id=operator_id,
+                    actor_subject_id=uuid.uuid4(),
+                    email=email,
+                    password_hash=hash_password("correct-horse-battery"),
+                    role="OPERATOR",
+                    is_active=True,
+                )
+            )
+            await session.flush()
+            session.add(OperatorTenant(operator_id=operator_id, tenant_id=tenant_id))
+
+    asyncio.run(set_capability())
+    asyncio.run(seed_operator())
+
+    client = TestClient(app)
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "email": email,
+            "password": "correct-horse-battery",
+            "tenant_id": str(tenant_id),
+        },
+    )
+    assert login_response.status_code == 200
+    cookies = dict(login_response.cookies)
+
+    # Default view: NO site_id parameter.
+    home = client.get("/product/home/status", cookies=cookies)
+    assert home.status_code == 200
+    body = home.json()
+    assert body["selected_site_id"] == str(site_id)
+    assert body["monetization_capability"] == "RELATIVE_ONLY"
+
+    # Explicit owned site still behaves correctly.
+    explicit = client.get(f"/product/home/status?site_id={site_id}", cookies=cookies)
+    assert explicit.status_code == 200
+    assert explicit.json()["monetization_capability"] == "RELATIVE_ONLY"

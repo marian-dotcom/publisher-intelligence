@@ -141,7 +141,7 @@ async def home_status(
             connection = await session.scalar(
                 select(DataConnection).where(
                     DataConnection.tenant_id == actor.tenant_id,
-                    DataConnection.site_id == site_id,
+                    DataConnection.site_id == selected.id,
                     DataConnection.provider.in_(("ga4", "gam")),
                 )
             )
