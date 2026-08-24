@@ -1,6 +1,6 @@
 # EP-025b — Product Frontend
 
-**Status:** READY
+**Status:** COMPLETE
 **Owner:** Codex / Engineering
 **Created:** 2026-08-24
 **Target milestone:** EP-025b — authenticated product frontend consuming EP-025a contracts (PLANS.md §76.1)
@@ -69,6 +69,19 @@
       not yet linked from incident detail because the backend detail contract
       does not expose them — direct-link access only. Validation @ HEAD:
       lint clean, typecheck clean, 28/28 frontend tests passed, build compiled.
+      POST-MERGE CLOSEOUT: PR #29 merged into main as merge commit d912794
+      (2026-08-24T10:00:43Z). Post-merge main CI: run 32714563431 (event push,
+      branch main, headSha d912794) → SUCCESS — backend/frontend/
+      repository-safety jobs all green. Final validation retained: product
+      contract regression 39 passed; frontend 36/36; full mypy scope green;
+      Ruff exit 0. Retrospective: the two MEDIUM final-review findings
+      (currency fabrication; auth-failure misclassification) were fixed with
+      regression coverage before Ready; one MEDIUM backend defect (logout CSRF
+      drift) was caught and repaired during M1 reconciliation — evidence that
+      per-surface contract gates work. Deferred items (unchanged): cookie
+      secure=False hardening → EP-026 mandatory pre-pilot gate (SECURITY.md
+      §201 / ADR-131); evidence-pack ids not linked from incident detail
+      contract. EP-025b CLOSED.
       FINAL PR-REVIEW FIXES (PR #29 adversarial round): (1) MEDIUM currency
       semantics — CURRENCY metric values now render neutrally as
       "{value} (currency value)"; no USD/EUR/locale formatting is invented
