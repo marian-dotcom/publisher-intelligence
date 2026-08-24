@@ -5,7 +5,7 @@ classifier + canonical registry path with a controlled synthetic HTTP fixture
 (no external WAF vendor, no organic publisher case required).
 """
 
-from app.browser.access_reliability import classify_access
+from app.browser.access_reliability import classification_from_storage, classify_access
 from app.events.registry import RULES_BY_CODE, definition_id
 
 
@@ -62,3 +62,43 @@ def test_recovery_requires_explicit_recheck_not_time_passage() -> None:
 
     signature = inspect.signature(module.classify_access)
     assert "seconds_elapsed" not in signature.parameters
+
+
+def test_storage_parser_round_trips_bounded_classification() -> None:
+    parsed = classification_from_storage(
+        {
+            "state": "challenge_suspected",
+            "reason": "deterministic challenge markers observed: captcha",
+        }
+    )
+    assert parsed is not None
+    assert parsed.state == "challenge_suspected"
+    assert "captcha" in parsed.reason
+
+
+def test_storage_parser_fails_closed_on_malformed_rows() -> None:
+    assert classification_from_storage(None) is None
+    assert classification_from_storage("degraded") is None
+    assert classification_from_storage({}) is None
+    assert classification_from_storage({"state": "site_down", "reason": "x"}) is None
+    assert classification_from_storage({"state": "degraded"}) is None
+    assert classification_from_storage({"state": "degraded", "reason": ""}) is None
+    assert classification_from_storage({"state": "ok", "reason": 7}) is None
+
+
+def test_status_only_403_is_degraded_never_challenge() -> None:
+    """M2b-1a-2b-i: the finalize hook classifies with response_body=None, so a
+    plain HTTP 403 can only produce 'degraded'. challenge_suspected stays
+    unreachable until M2b-1b adds bounded marker/body evidence."""
+    assert (
+        classify_access(navigation_failed=False, http_status=403, response_body=None).state
+        == "degraded"
+    )
+    assert (
+        classify_access(
+            navigation_failed=False,
+            http_status=200,
+            response_body="<html>Attention Required! | Cloudflare captcha</html>",
+        ).state
+        == "challenge_suspected"
+    )

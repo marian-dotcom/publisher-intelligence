@@ -56,6 +56,14 @@ Status convention for this catalog:
   configuration rules (`ROBOTS_TXT_CHANGED`, `ROBOTS_BROAD_BLOCK_ADDED`,
   `ROBOTS_BROAD_BLOCK_REMOVED`, `ADS_TXT_CHANGED`, `ADS_TXT_MISSING`, `ADS_TXT_EMPTY_200`,
   `ADS_TXT_INVALID`) with `IMMEDIATE_SECOND_CHECK`.
+  Also normative now (EP-026 M2b): the browser-source reliability rules
+  `BROWSER_SOURCE_DEGRADED` and `BROWSER_ACCESS_CHALLENGE_SUSPECTED` derived deterministically
+  and exclusively from the bounded access classification stored on DIAGNOSTIC checkpoint runs
+  (site-level monitoring-source scope, never publisher/site failure, quiet on healthy
+  classification). The `BROWSER_SOURCE_RECOVERED` rule is registered canonically but its
+  post-remediation re-check emission flow is not yet implemented (EP-026 M2b-ii). For
+  single-observation operational reliability events, `TRIGGER_AFTER` identifies the observation
+  that triggered the record; it does not imply that a comparison "before" observation exists.
 - **PLANNED / FUTURE** — target semantics only; do not treat as buildable scope: every `EV-###`
   catalog entry not listed above (metric anomalies, consent/request events, search/discover,
   performance families), milestone sections beyond E3 (E4+), statistical/template-majority

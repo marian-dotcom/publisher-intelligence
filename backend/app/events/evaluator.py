@@ -2,7 +2,9 @@ import uuid
 from collections import defaultdict
 from dataclasses import replace
 
+from app.browser.access_reliability import classification_from_storage
 from app.events.contracts import (
+    DiagnosticInput,
     EvaluationInput,
     EvaluationResult,
     EventAction,
@@ -13,6 +15,53 @@ from app.events.lifecycle import severity_for
 from app.events.registry import RULES_BY_CODE
 
 VALID_STATUSES = {"COMPLETE", "PARTIAL"}
+
+# EP-026 M2b-1a-2b-i: deterministic classification → canonical event mapping.
+_DIAGNOSTIC_EVENT_CODES: dict[str, str] = {
+    "degraded": "BROWSER_SOURCE_DEGRADED",
+    "challenge_suspected": "BROWSER_ACCESS_CHALLENGE_SUSPECTED",
+}
+
+
+def evaluate_diagnostic(value: DiagnosticInput) -> EvaluationResult:
+    """Map a DIAGNOSTIC run's stored access classification onto the versioned
+    e26-v1 browser-source reliability rules.
+
+    Invariants:
+    - at most one event per diagnostic run (one bounded classification);
+    - monitoring-source vocabulary only — never publisher/site failure;
+    - quiet by default: a healthy ("ok") classification produces no event.
+    BROWSER_SOURCE_RECOVERED is intentionally NOT emitted here; recovery
+    requires an explicit post-remediation re-check flow (EP-026 2b-ii).
+    """
+    classification = classification_from_storage(value.browser_access_classification)
+    if classification is None:
+        return EvaluationResult((), ("DIAGNOSTIC_NO_ACCESS_CLASSIFICATION",))
+    if classification.state == "ok":
+        return EvaluationResult((), ())
+    if value.observed_at is None:
+        return EvaluationResult((), ("DIAGNOSTIC_OBSERVATION_TIME_MISSING",))
+    code = _DIAGNOSTIC_EVENT_CODES[classification.state]
+    if code == "BROWSER_SOURCE_DEGRADED":
+        summary = f"Browser monitoring source degraded: {classification.reason}"
+    else:
+        summary = f"Browser monitoring access challenge suspected: {classification.reason}"
+    candidate = EventCandidate(
+        code=code,
+        subject="browser-monitoring",
+        summary=summary,
+        before=None,
+        after={"state": classification.state, "reason": classification.reason},
+        confirmation=RULES_BY_CODE[code].confirmation,
+        action="RECORD",
+        scope={"site_id": str(value.site_id)},
+        occurred_before_at=value.observed_at,
+        detected_at=value.observed_at,
+        evidence=(
+            EvidencePointer(checkpoint_run_id=value.checkpoint_run_id, relation="TRIGGER_AFTER"),
+        ),
+    )
+    return EvaluationResult((candidate,), ())
 
 
 def evaluate(value: EvaluationInput) -> EvaluationResult:

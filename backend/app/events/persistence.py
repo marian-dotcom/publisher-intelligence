@@ -1,12 +1,14 @@
 import json
 import uuid
 from dataclasses import dataclass
-from typing import Any, cast
+from datetime import datetime
+from typing import Any, Literal, cast
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.browser.access_reliability import classification_from_storage
 from app.browser.models import (
     CheckpointRun,
     CheckpointWindow,
@@ -20,6 +22,7 @@ from app.events.contracts import (
     DiagnosticInput,
     EvaluationInput,
     EventCandidate,
+    EventRule,
     EvidencePointer,
 )
 from app.events.lifecycle import condition_key, higher_severity, normalized_scope
@@ -59,6 +62,14 @@ class PersistenceResult:
     resolved_count: int = 0
 
 
+@dataclass(frozen=True, slots=True)
+class _OwnershipValue:
+    """Minimal tenant/site ownership view for shared evidence insertion."""
+
+    tenant_id: uuid.UUID
+    site_id: uuid.UUID
+
+
 class EventRepository:
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
@@ -90,6 +101,9 @@ class EventRepository:
             )
         if window is None or window.site_id != current.site_id:
             raise EventStateError("checkpoint ownership mismatch")
+        # EP-026 M2b-1a-2b: surface the stored bounded access classification;
+        # malformed/legacy rows fail closed to None (nothing derivable).
+        classification = classification_from_storage(current.browser_access_classification)
         return DiagnosticInput(
             tenant_id=current.tenant_id,
             site_id=current.site_id,
@@ -98,6 +112,11 @@ class EventRepository:
             observed_at=current.completed_at,
             trigger_correlation_id=getattr(current, "trigger_correlation_id", None),
             status=current.status,
+            browser_access_classification=(
+                {"state": classification.state, "reason": classification.reason}
+                if classification is not None
+                else None
+            ),
         )
 
     async def load_input(
@@ -279,24 +298,94 @@ class EventRepository:
                 updated += int(result == "UPDATED")
         return PersistenceResult(created, updated, resolved)
 
+    async def persist_diagnostic(
+        self, value: DiagnosticInput, candidates: tuple[EventCandidate, ...]
+    ) -> PersistenceResult:
+        """EP-026 M2b-1a-2b-i: persist browser-source reliability point events.
+
+        DIAGNOSTIC derivation produces at most recordable POINT events scoped
+        to the monitoring source (site-level scope, no template/url lineage).
+        Reuses the scheduled point-insert core so dedupe, severity defaults,
+        evidence validation, and tenant ownership behave identically.
+        """
+        created = 0
+        async with self._session_factory() as session, session.begin():
+            for candidate in candidates:
+                rule = RULES_BY_CODE[candidate.code]
+                if rule.kind != "POINT" or candidate.action != "RECORD":
+                    raise EventStateError("diagnostic events are recordable point events")
+                observed_at = candidate.detected_at or value.observed_at
+                if observed_at is None:
+                    raise EventStateError("missing diagnostic observation time")
+                was_created = await self._persist_point_event(
+                    session,
+                    tenant_id=value.tenant_id,
+                    site_id=value.site_id,
+                    detected_at=observed_at,
+                    occurred_before_at=candidate.occurred_before_at or observed_at,
+                    occurred_after_at=None,
+                    previous_checkpoint_run_id=None,
+                    current_checkpoint_run_id=value.checkpoint_run_id,
+                    scope=normalized_scope(candidate.scope),
+                    template_id=None,
+                    candidate=candidate,
+                    scope_validation="SOURCE_LEVEL",
+                )
+                created += int(was_created)
+        return PersistenceResult(created_count=created)
+
     async def _persist_point(
         self, session: AsyncSession, value: EvaluationInput, candidate: EventCandidate
     ) -> bool:
+        return await self._persist_point_event(
+            session,
+            tenant_id=value.tenant_id,
+            site_id=value.site_id,
+            detected_at=candidate.detected_at or value.current_observed_at,
+            occurred_before_at=candidate.occurred_before_at or value.current_observed_at,
+            occurred_after_at=candidate.occurred_after_at or value.previous_observed_at,
+            previous_checkpoint_run_id=value.previous_checkpoint_run_id,
+            current_checkpoint_run_id=value.current_checkpoint_run_id,
+            scope=normalized_scope(candidate.scope or _exact_scope(value)),
+            template_id=_scope_uuid(candidate.scope, "template_id"),
+            candidate=candidate,
+        )
+
+    async def _persist_point_event(
+        self,
+        session: AsyncSession,
+        *,
+        tenant_id: uuid.UUID,
+        site_id: uuid.UUID,
+        detected_at: datetime,
+        occurred_before_at: datetime,
+        occurred_after_at: datetime | None,
+        previous_checkpoint_run_id: uuid.UUID | None,
+        current_checkpoint_run_id: uuid.UUID,
+        scope: dict[str, object],
+        template_id: uuid.UUID | None,
+        candidate: EventCandidate,
+        scope_validation: Literal["STRICT", "SOURCE_LEVEL"] = "STRICT",
+    ) -> bool:
         rule = RULES_BY_CODE[candidate.code]
-        scope = normalized_scope(candidate.scope or _exact_scope(value))
-        event_id = _point_event_id(value, candidate, scope)
-        detected_at = candidate.detected_at or value.current_observed_at
-        occurred_before_at = candidate.occurred_before_at or value.current_observed_at
+        event_id = _point_event_id(
+            tenant_id=tenant_id,
+            rule=rule,
+            candidate=candidate,
+            scope=scope,
+            previous_checkpoint_run_id=previous_checkpoint_run_id,
+            current_checkpoint_run_id=current_checkpoint_run_id,
+        )
         result = await session.execute(
             insert(Event)
             .values(
                 id=event_id,
-                tenant_id=value.tenant_id,
-                site_id=value.site_id,
+                tenant_id=tenant_id,
+                site_id=site_id,
                 event_definition_id=definition_id(candidate.code),
-                template_id=_scope_uuid(candidate.scope, "template_id"),
+                template_id=template_id,
                 started_at=occurred_before_at,
-                occurred_after_at=candidate.occurred_after_at or value.previous_observed_at,
+                occurred_after_at=occurred_after_at,
                 occurred_before_at=occurred_before_at,
                 time_precision="WINDOW",
                 detected_at=detected_at,
@@ -320,7 +409,13 @@ class EventRepository:
             .returning(Event.id)
         )
         created = result.scalar_one_or_none() is not None
-        await self._insert_candidate_evidence(session, value, event_id, candidate.evidence)
+        await self._insert_candidate_evidence(
+            session,
+            _OwnershipValue(tenant_id, site_id),
+            event_id,
+            candidate.evidence,
+            scope_validation=scope_validation,
+        )
         return created
 
     async def _persist_condition(
@@ -492,11 +587,12 @@ class EventRepository:
     async def _insert_candidate_evidence(
         self,
         session: AsyncSession,
-        value: EvaluationInput,
+        value: EvaluationInput | _OwnershipValue,
         event_id: uuid.UUID,
         pointers: tuple[EvidencePointer, ...],
         *,
         skip_linked_checkpoints: bool = False,
+        scope_validation: Literal["STRICT", "SOURCE_LEVEL"] = "STRICT",
     ) -> int:
         inserted_checkpoints = 0
         seen: set[tuple[uuid.UUID, str]] = set()
@@ -510,6 +606,11 @@ class EventRepository:
         if event is None:
             raise EventStateError("event ownership mismatch")
         candidate_event_scope = event.scope
+        validate_scope = (
+            _validate_diagnostic_scope_against_run
+            if scope_validation == "SOURCE_LEVEL"
+            else _validate_scope_against_run
+        )
         for pointer in pointers:
             if pointer.relation not in VALID_RELATIONS:
                 raise EventStateError("unsupported evidence relation")
@@ -528,7 +629,7 @@ class EventRepository:
             )
             if run is None:
                 raise EventStateError("evidence checkpoint ownership mismatch")
-            _validate_scope_against_run(candidate_scope=candidate_event_scope, run=run)
+            validate_scope(candidate_scope=candidate_event_scope, run=run)
             if skip_linked_checkpoints and await _has_checkpoint_source(
                 session, event_id, pointer.checkpoint_run_id
             ):
@@ -572,6 +673,8 @@ def _scope_uuid(scope: dict[str, object], key: str) -> uuid.UUID:
 
 
 def _validate_scope_against_run(*, candidate_scope: dict[str, object], run: CheckpointRun) -> None:
+    """Strict SCHEDULED browser-event contract: template/scenario identity is
+    mandatory in the event scope and must match the evidence run exactly."""
     if _scope_uuid(candidate_scope, "template_id") != run.template_id:
         raise EventStateError("event evidence template mismatch")
     if _scope_uuid(candidate_scope, "scenario_id") != run.scenario_id:
@@ -586,17 +689,60 @@ def _validate_scope_against_run(*, candidate_scope: dict[str, object], run: Chec
             raise EventStateError("event evidence monitored URL mismatch")
 
 
+def _validate_diagnostic_scope_against_run(
+    *, candidate_scope: dict[str, object], run: CheckpointRun
+) -> None:
+    """EP-026 M2b-1a-2b-i: dedicated SOURCE_LEVEL validation for DIAGNOSTIC
+    operational-reliability events.
+
+    Accepts a site-level scope (at minimum {"site_id": ...}); any narrower ID
+    that IS present must still match the evidence run. Tenant/site ownership
+    of both event and evidence is enforced by the callers; this validator only
+    refuses unsupported keys or cross-scope identifiers. The strict SCHEDULED
+    validator above is intentionally unchanged.
+    """
+    supported = {"site_id", "template_id", "scenario_id", "monitored_url_id"}
+    unknown = sorted(set(candidate_scope) - supported)
+    if unknown:
+        raise EventStateError(f"unsupported diagnostic event scope keys {unknown}")
+    if _scope_uuid(candidate_scope, "site_id") != run.site_id:
+        raise EventStateError("event evidence site mismatch")
+    if (
+        "template_id" in candidate_scope
+        and _scope_uuid(candidate_scope, "template_id") != run.template_id
+    ):
+        raise EventStateError("event evidence template mismatch")
+    if (
+        "scenario_id" in candidate_scope
+        and _scope_uuid(candidate_scope, "scenario_id") != run.scenario_id
+    ):
+        raise EventStateError("event evidence scenario mismatch")
+    monitored_url = candidate_scope.get("monitored_url_id")
+    if monitored_url is not None:
+        try:
+            monitored_url_id = uuid.UUID(str(monitored_url))
+        except ValueError as error:
+            raise EventStateError("invalid event scope monitored_url_id") from error
+        if monitored_url_id != run.monitored_url_id:
+            raise EventStateError("event evidence monitored URL mismatch")
+
+
 def _point_event_id(
-    value: EvaluationInput, candidate: EventCandidate, scope: dict[str, object]
+    *,
+    tenant_id: uuid.UUID,
+    rule: EventRule,
+    candidate: EventCandidate,
+    scope: dict[str, object],
+    previous_checkpoint_run_id: uuid.UUID | None,
+    current_checkpoint_run_id: uuid.UUID,
 ) -> uuid.UUID:
-    rule = RULES_BY_CODE[candidate.code]
     before = next(
         (
             pointer.checkpoint_run_id
             for pointer in candidate.evidence
             if pointer.relation == "BEFORE"
         ),
-        value.previous_checkpoint_run_id,
+        previous_checkpoint_run_id,
     )
     after = next(
         (
@@ -604,12 +750,12 @@ def _point_event_id(
             for pointer in candidate.evidence
             if pointer.relation == "AFTER"
         ),
-        value.current_checkpoint_run_id,
+        current_checkpoint_run_id,
     )
     if rule.rule_version == "e1-v1" and len(candidate.evidence) == 2:
         key = "|".join(
             (
-                str(value.tenant_id),
+                str(tenant_id),
                 rule.rule_version,
                 str(before),
                 str(after),
@@ -626,7 +772,7 @@ def _point_event_id(
         )
         key = "|".join(
             (
-                str(value.tenant_id),
+                str(tenant_id),
                 rule.rule_version,
                 candidate.code,
                 candidate.subject,
@@ -681,7 +827,7 @@ async def _has_checkpoint_source(
 
 async def _insert_specific_ref(
     session: AsyncSession,
-    value: EvaluationInput,
+    value: EvaluationInput | _OwnershipValue,
     event_id: uuid.UUID,
     pointer: EvidencePointer,
     run: CheckpointRun,

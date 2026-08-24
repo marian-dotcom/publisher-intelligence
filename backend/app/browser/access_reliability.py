@@ -19,6 +19,8 @@ CHALLENGE_MARKERS: tuple[str, ...] = (
     "denied access",
 )
 
+VALID_STATES: tuple[str, ...] = ("ok", "challenge_suspected", "degraded")
+
 
 @dataclass(frozen=True)
 class AccessClassification:
@@ -46,3 +48,19 @@ def classify_access(
             f"deterministic challenge markers observed: {matched[0]}",
         )
     return AccessClassification("ok", "no access anomalies in bounded signal set")
+
+
+def classification_from_storage(value: object) -> AccessClassification | None:
+    """Parse a stored bounded {state, reason} classification (EP-026 M2b-1a-2b).
+
+    Returns None for anything that is not a well-formed classification so
+    malformed or legacy rows fail closed to "nothing derivable" instead of
+    inventing an event.
+    """
+    if not isinstance(value, dict):
+        return None
+    state = value.get("state")
+    reason = value.get("reason")
+    if state not in VALID_STATES or not isinstance(reason, str) or not reason:
+        return None
+    return AccessClassification(str(state), reason[:200])

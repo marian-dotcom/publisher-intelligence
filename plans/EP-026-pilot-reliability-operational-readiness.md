@@ -38,7 +38,32 @@
       {state, reason} via classify_access(status-only); non-DIAGNOSTIC runs
       remain NULL; storage tests green; full unit 303 passed; integration
       baseline unchanged (12 browser-env failures); mypy green.
-- [ ] M2b-1a-2b — DiagnosticInput classification → canonical Event mapping
+- [x] M2b-1a-2b-i — DIAGNOSTIC classification → canonical Event persistence
+      COMPLETE (clean split; automatic trigger deferred to 2b-ii):
+      load_diagnostic_input surfaces the stored bounded classification
+      (fail-closed parser `classification_from_storage`); new
+      `evaluate_diagnostic` maps degraded → BROWSER_SOURCE_DEGRADED (HIGH) and
+      challenge_suspected (dormant until M2b-1b marker/body work) →
+      BROWSER_ACCESS_CHALLENGE_SUSPECTED (MEDIUM) as site-level POINT events
+      with the diagnostic run as TRIGGER_AFTER evidence (occurred_after_at
+      NULL, no fabricated predecessor); ok/missing/malformed classifications
+      stay quiet. Migration 0025_browser_source_events_e26 AUTHORIZED for this
+      slice: DATA-ONLY seed of the three e26-v1 definitions (0016 pattern,
+      guarded downgrade). Dedicated `_validate_diagnostic_scope_against_run`
+      accepts site-level scopes via an explicit SOURCE_LEVEL validation mode;
+      the strict SCHEDULED validator is byte-identical to HEAD. NO
+      DERIVE_BROWSER_EVENTS job is enqueued for DIAGNOSTIC finalize in this
+      slice — acceptance path is explicit EventService.derive; ADR-130 test
+      expectations unchanged from b757546. EVENTS.md §0.1 legend updated incl.
+      single-observation TRIGGER_AFTER clarification. Evidence: ruff
+      check+format clean; canonical mypy scope `mypy app tests scripts
+      evals_runtime migrations/env.py` clean (249 files worktree; 248 at HEAD;
+      the historical "242" figure was the same command without evals_runtime);
+      unit + PostgreSQL integration suites green except the documented
+      pre-existing browser-env failures in test_browser_checkpoint.py.
+- [ ] M2b-1a-2b-ii — BROWSER_SOURCE_RECOVERED post-remediation re-check flow
+      (explicit bounded re-check → recovery event; completes the M2 mandatory
+      degradation-and-recovery scenario end-to-end)
 - [ ] M2 — Monitoring network reliability (allowlistable egress identity,
       documented non-deceptive User-Agent, compatibility self-check diagnostic,
       browser-source health events + recovery re-check)

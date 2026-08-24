@@ -1,6 +1,6 @@
 import uuid
 
-from app.events.evaluator import evaluate, evaluate_window
+from app.events.evaluator import evaluate, evaluate_diagnostic, evaluate_window
 from app.events.persistence import EventRepository, EventRunResult
 
 
@@ -9,17 +9,24 @@ class EventService:
         self._repository = repository
 
     async def derive(self, *, tenant_id: uuid.UUID, checkpoint_run_id: uuid.UUID) -> EventRunResult:
-        # EP-026 M2b-1a-1: additive DIAGNOSTIC input path. No SCHEDULED
-        # comparison lineage exists for diagnostics; evaluation currently
-        # yields zero events (rule wiring arrives in M2b-1a-2).
-        # EP-026 M2b-1a-1: additive DIAGNOSTIC input path — no SCHEDULED
-        # comparison-lineage evaluation for diagnostics (window aggregation
-        # support arrives later). SCHEDULED behavior is unchanged below.
+        # EP-026 M2b-1a-2b-i: DIAGNOSTIC runs map their stored bounded access
+        # classification onto the versioned e26-v1 browser-source reliability
+        # rules. No SCHEDULED comparison lineage is consulted (ADR-130 cohort
+        # purity); scheduled behavior below is unchanged.
         diagnostic = await self._repository.load_diagnostic_input(
             tenant_id=tenant_id, checkpoint_run_id=checkpoint_run_id
         )
         if diagnostic is not None:
-            return EventRunResult(0, 0, 0, ("DIAGNOSTIC_NO_EVENT_RULES",))
+            result = evaluate_diagnostic(diagnostic)
+            if not result.candidates:
+                return EventRunResult(0, 0, 0, result.skip_reasons)
+            persistence = await self._repository.persist_diagnostic(diagnostic, result.candidates)
+            return EventRunResult(
+                candidate_count=len(result.candidates),
+                persisted_count=persistence.created_count,
+                unsupported_count=0,
+                skip_reasons=result.skip_reasons,
+            )
         value = await self._repository.load_input(
             tenant_id=tenant_id, checkpoint_run_id=checkpoint_run_id
         )

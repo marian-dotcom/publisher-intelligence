@@ -104,6 +104,9 @@ class DiagnosticInput:
     observed_at: datetime | None
     trigger_correlation_id: uuid.UUID | None
     status: str
+    # EP-026 M2b-1a-2b: bounded {state, reason} access classification stored
+    # on the DIAGNOSTIC run at finalize. None = not classified / malformed.
+    browser_access_classification: dict[str, object] | None = None
 
 
 @dataclass(frozen=True, slots=True)
