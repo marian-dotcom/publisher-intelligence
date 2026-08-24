@@ -142,6 +142,25 @@
       non-authoritative (persisted tenant + created_by still derive from
       ActorContext only); Pydantic extras policy documented as
       ignore-and-non-authoritative. No security defect found.
+      D3 classified ALREADY CORRECT — OPEN ONLY: POST /investigations is
+      intentionally report capture/open; localization is a separate canonical
+      step via IncidentIntakeService.localize(incident_id,
+      expected_fingerprints) — deterministic analysis over scheduled evidence
+      with LKG freezing (EP-020 M2, proven by
+      test_incident_intake_localization.py: healthy-anchor selection, first
+      anomaly, lkg_frozen=True, degraded/absent evidence never fabricated as
+      publisher failure). expected_fingerprints come from collector-bundle
+      evidence fingerprints of the site's scheduled runs, NOT from the user
+      request (PRODUCT.md §30: conversational what/when input only); wiring
+      them into the HTTP layer would require new sourcing/failure-semantics
+      decisions = contract work outside D3. Response
+      {incident_id, investigation_key, status} is intentionally complete for
+      intake. Prior wording implying open_investigation performs localization
+      corrected: localize() is invoked separately downstream.
+      Acceptance #13 mapping: tenant ownership (D1/D2), actor provenance
+      (D1/D2 created_by==actor_subject_id), WHAT/WHEN capture (D1), EP-020
+      localization semantics preserved unmodified and proven by EP-020's own
+      suite. PASS on that basis.
       C4 classified ALREADY SATISFIED by P2-B: INCIDENT.md §88 requires selection
       to record method/reason/scope/checkpoint-ID — all four are product-visible
       on GET /incidents/{incident_id} (selection_method, reason, scope_key,
