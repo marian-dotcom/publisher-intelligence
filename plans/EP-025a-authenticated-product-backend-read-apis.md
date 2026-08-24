@@ -102,6 +102,23 @@
       health untouched; purge.py ordering bug fixed (metric_points before
       metric_derivations). All three capability states + tenant-B isolation +
       absolute-suppression proven in test_product_read_p2c.py.
+      **P2-C COMPLETE** — completion gate @ 0128720: C1/C2/C3/C5 4/4 normal AND
+      reversed order (purge isolation holds incl. new metric tables); I8/I9
+      revalidated green (LKG tenant safety + immutability intact); product-read
+      regression 33/33; full integration 90 pass + unchanged 12 browser-env
+      failures; unit 289; full mypy scope green; Ruff clean except two documented
+      category-B findings outside P2-C. Acceptance scenarios: #4 LEADING
+      hypothesis PASS (C1); #5 SUPPORTS PASS (C2); #6 CONTRADICTS PASS (C2);
+      #7 missing/unavailable via canonical OBSERVATION_GAP PASS (C2); #11
+      RELATIVE_ONLY zero absolute disclosure PASS (C5, active suppression of
+      persisted CURRENCY value proven); #12 ABSOLUTE gated on capability AND
+      stored evidence PASS (C5, no fabrication). Security review: hypotheses/
+      evidence/packs/monetization all server-side tenant-scoped; no raw payload,
+      credentials, secret_reference, or internal debug exposure on any P2-C
+      surface; GETs observational only. purge.py fix audited: FK direction
+      points→derivations requires points purged first; order now matches schema;
+      test-infra only.
+      Next: Investigate intake (P2-D per PLANS.md §76.1 split).
       C4 classified ALREADY SATISFIED by P2-B: INCIDENT.md §88 requires selection
       to record method/reason/scope/checkpoint-ID — all four are product-visible
       on GET /incidents/{incident_id} (selection_method, reason, scope_key,
