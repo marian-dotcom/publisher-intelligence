@@ -121,9 +121,7 @@ def test_marker_takes_precedence_over_status_anomaly() -> None:
     assert marked.state == "challenge_suspected"
     assert marked.reason == "deterministic challenge markers observed: captcha"
 
-    unmarked = classify_access(
-        navigation_failed=False, http_status=403, response_body=None
-    )
+    unmarked = classify_access(navigation_failed=False, http_status=403, response_body=None)
     assert unmarked.state == "degraded"
     assert "403" in unmarked.reason
 
