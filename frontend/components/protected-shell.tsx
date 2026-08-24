@@ -2,11 +2,12 @@
 
 /** EP-025b M1 — protected application shell: guard + navigation + logout. */
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/lib/auth-client";
 import { Button, ErrorState, LoadingState } from "@/components/primitives";
+import { InvestigateDialog } from "@/components/investigate-dialog";
 
 const NAV_ITEMS = [
   { href: "/", label: "Home" },
@@ -17,6 +18,7 @@ const NAV_ITEMS = [
 export function ProtectedShell({ children }: { children: ReactNode }) {
   const auth = useAuth();
   const router = useRouter();
+  const [investigateOpen, setInvestigateOpen] = useState(false);
 
   const authenticated = auth.status === "authenticated";
 
@@ -53,7 +55,7 @@ export function ProtectedShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="shell-actions">
-          <Button variant="secondary" disabled title="Available in an upcoming milestone">
+          <Button variant="primary" onClick={() => setInvestigateOpen(true)}>
             Investigate
           </Button>
           <Button variant="secondary" onClick={() => void handleLogout()}>
@@ -62,6 +64,7 @@ export function ProtectedShell({ children }: { children: ReactNode }) {
         </div>
       </header>
       <main className="shell-main">{children}</main>
+      <InvestigateDialog open={investigateOpen} onClose={() => setInvestigateOpen(false)} />
     </div>
   );
 }
