@@ -29,12 +29,12 @@ class _ChallengeHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def log_message(self, *args) -> None:
+    def log_message(self, *args: object) -> None:
         pass
 
 
 @pytest.fixture()
-def challenge_server():
+def challenge_server() -> object:
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _ChallengeHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -43,7 +43,7 @@ def challenge_server():
     thread.join()
 
 
-def _observe(url: str) -> tuple[str, int]:
+def _observe(url: str) -> str:
     import urllib.error
     import urllib.request
 
