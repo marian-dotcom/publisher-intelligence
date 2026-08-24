@@ -39,7 +39,7 @@ export function SourceHealthBadge({ source, health }: { source: SourceKey; healt
       : `${SOURCE_LABELS[source]}: ${health.toLowerCase()}`;
   return (
     <span className={`badge badge-${tone}`} title={meaning}>
-      {SOURCE_LABELS[source]} · {health}
+      {`${SOURCE_LABELS[source]} · ${health}`}
     </span>
   );
 }
