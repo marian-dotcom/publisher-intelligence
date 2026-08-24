@@ -1,6 +1,6 @@
 # EP-026 — Pilot Reliability & Operational Readiness
 
-**Status:** DRAFT
+**Status:** READY
 **Owner:** Codex / Engineering
 **Created:** 2026-08-24
 **Target milestone:** Pilot reliability & operational readiness (PLANS.md §76.1; mandatory prerequisite for Limited Pilot)
@@ -129,6 +129,18 @@ Reconciled against repository truth:
   `BROWSER_SOURCE_DEGRADED` (monitoring source degraded/blocked/unreliable),
   `BROWSER_ACCESS_CHALLENGE_SUSPECTED` (deterministic markers only),
   `BROWSER_SOURCE_RECOVERED` (post-remediation re-check passed).
+- **M2 completion criterion (mandatory):** at least one deterministic
+  challenge/WAF degradation-and-recovery scenario proven through the
+  production-equivalent browser diagnostic/source-health path — a real
+  consenting pilot-site case when organically available, otherwise a
+  controlled synthetic/fixture-based validation (controlled local/test
+  endpoint, HTTP-response fixture, or deterministic browser test page). The
+  scenario MUST exercise the SAME deterministic detection and source-health
+  logic used in production: challenge evidence → access-challenge /
+  browser-source-degradation state → NO publisher/site failure → GA4/GSC/GAM/
+  public-config monitoring unaffected → remediation input drives the bounded
+  re-check → BROWSER_SOURCE_RECOVERED. No external anti-bot/WAF vendor may be
+  adopted for this.
   Meaning: OUR observation source is degraded — NOT that the publisher site is
   broken. Rendered exclusively as monitoring-source health (EP-025a contract).
 - **Partial operation:** browser-source degradation never blocks GA4/GSC/GAM/
@@ -192,8 +204,12 @@ secure-cookie M1 green · retention execution proven · cost caps verified ·
 DST regression green · network reliability green · browser degradation
 separated from publisher health · connector staleness green ·
 self-observability green · 3–5 end-to-end investigations executed and manually
-reviewed (≥1 monetization case, ≥1 missing/degraded-source case, browser
-compatibility/WAF case where feasible) · measured representative cost · zero
+reviewed (≥1 monetization case, ≥1 missing/degraded-source case, and ≥1
+browser-access degradation/challenge scenario — prefer a real consenting
+pilot-site case when organically available; otherwise the controlled
+synthetic/fixture production-path validation from M2 is MANDATORY and is never
+skipped solely because no organic WAF occurrence appeared) · measured
+representative cost · zero
 unresolved BLOCKER/HIGH findings. **LLM synthesis NOT required. Limited Pilot
 start remains an explicit separate HUMAN GATE even when technically ready.**
 
@@ -209,6 +225,18 @@ deployment topology · stable egress/network provider/IP architecture · any new
 external service · any new runtime dependency · auth/security boundary redesign
 · destructive migration · tenant/provenance weakening · stealth/evasion
 behavior (permanently forbidden) · Limited Pilot start.
+
+## 15. Adversarial Planning Review (post-clarification, 2026-08-24)
+
+Re-run after the WAF/challenge clarification: no BLOCKER/HIGH/MEDIUM remains.
+Secure-cookie gate is fail-closed and first; retention has execution-proof +
+stall detection; cost caps are enforceable with bounded retries; DST cases hit
+real normalization paths; browser-source degradation is isolated from
+publisher health and from other connectors; the challenge scenario is
+production-path validated (organic case preferred, synthetic fixture mandatory
+otherwise) — never skippable for lack of organic occurrence; no dependency,
+provider, or security decision is required to execute this plan; scope fits
+one coherent EP. Status advanced DRAFT → READY.
 
 ## Validation Discipline
 
