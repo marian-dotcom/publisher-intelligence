@@ -203,7 +203,7 @@
       GAPS (test-only, no production change, no HUMAN GATE): G1 seed degraded
       browser/connection state asserting source-health degradation AND
       publisher-site independence (#2/#3); G2 explicit unknown-connector
-      assertion (#3); G3 failed-login body non-leak assertion (#25).
+      assertion (#3); G3 closed: test_failed_login_response_is_generic_and_non_leaking — exact body {"detail": "authentication failed"} for both wrong-password and nonexistent-user (no account-existence oracle); proven absent: supplied password, password_hash, actor_subject_id, operator_id, tenant_id, csrf_token, session cookie, traceback, exception names. #25 → PASS. All scenarios 1–27 now have final dispositions.
       C4 classified ALREADY SATISFIED by P2-B: INCIDENT.md §88 requires selection
       to record method/reason/scope/checkpoint-ID — all four are product-visible
       on GET /incidents/{incident_id} (selection_method, reason, scope_key,

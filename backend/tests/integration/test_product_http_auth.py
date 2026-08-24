@@ -467,3 +467,45 @@ async def test_investigate_intake_csrf_and_tenant_scenarios(
         cookies=dict(other_login.cookies),
     )
     assert cross_authenticated.status_code == 404
+
+
+def test_failed_login_response_is_generic_and_non_leaking(
+    http_operator: tuple[uuid.UUID, list[uuid.UUID], str],
+) -> None:
+    """Scenario #25: auth failure is externally generic — identical safe body
+    for wrong-password vs nonexistent-user; no secrets or internals exposed."""
+    _operator_id, tenants, email = http_operator
+    tenant_id = tenants[0]
+
+    def _failed_login(password: str, target_email: str) -> dict[str, object]:
+        response = TestClient(app).post(
+            "/auth/login",
+            json={"email": target_email, "password": password, "tenant_id": str(tenant_id)},
+        )
+        assert response.status_code == 401
+        body: dict[str, object] = response.json()
+        return body
+
+    supplied_password = "wrong-password-␀-with-specials"
+    wrong_password_body = _failed_login(supplied_password, email)
+    nonexistent_body = _failed_login("whatever", f"ghost-{uuid.uuid4().hex[:8]}@example.com")
+
+    # Exact approved error contract — nothing else.
+    assert wrong_password_body == {"detail": "authentication failed"}
+    # No account-existence oracle: both failures share the same external shape.
+    assert nonexistent_body == {"detail": "authentication failed"}
+
+    leaked_markers = [
+        supplied_password,
+        "password_hash",
+        "actor_subject_id",
+        str(_operator_id),
+        "csrf_token",
+        "pi_session",
+        "traceback",
+        "AuthError",
+        str(tenant_id),
+    ]
+    serialized = repr(wrong_password_body)
+    for marker in leaked_markers:
+        assert marker not in serialized
