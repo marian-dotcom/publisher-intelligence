@@ -42,12 +42,33 @@
       valid CSRF -> revoked + replay 401 (test_logout_revokes_and_replay_fails
       extended). Frontend unchanged - it already sends X-CSRF-Token when
       available. Zero new runtime deps.
-- [ ] M2 — Home/status + source health + site selection
+- [x] M2 — Home/status + source health + site selection COMPLETE
+      (`(protected)/page.tsx`: default view + explicit ?site_id= selection,
+      SiteCondition/SourceHealthBadge/MonetizationCapabilityView semantic
+      components; UNKNOWN rendered as dashed absence-of-evidence)
+- [x] M3 — Timeline COMPLETE (exact/bounded/unknown temporal variants,
+      machine_observed vs human_reported distinct entries; observed_at never
+      substituted for occurred_at)
+- [x] M4 — Incident list/detail + hypotheses/evidence/LKG/monetization +
+      evidence-pack view COMPLETE (/incidents, /incidents/[id], /evidence/[id];
+      LEADING rendered as current ranking; OBSERVATION_GAP rendered as
+      not-observed; LKG as frozen baseline; CURRENCY only under ABSOLUTE)
 - [ ] M3 — Timeline
 - [ ] M4 — Incident list/detail + hypotheses/evidence/LKG/monetization + evidence pack view
-- [ ] M5 — Minimal Investigate form (the only write)
-- [ ] M6 — Responsive/a11y/error-empty-state contract validation sweep
-- [ ] M7 — Adversarial review / release-readiness / CI verification
+- [x] M5 — Minimal Investigate form COMPLETE (native <dialog> from shell CTA;
+      fields mirror InvestigateRequest; CSRF via pi_csrf double-submit through
+      typed wrapper; success navigates to /incidents/[id]; non-disclosing 404
+      and generic failure states; double-submit guarded)
+- [x] M6 — Responsive/a11y/error-empty-state validation COMPLETE (a11y sweep:
+      text-not-color status semantics, live-region roles for loading/alert;
+      mobile top-nav wrap <=720px; focus-visible tokens; empty/loading/error
+      states on every surface; 28 frontend tests green)
+- [x] M7 — Adversarial review / release readiness COMPLETE: zero
+      BLOCKER/HIGH/MEDIUM findings in EP-025b diff; deferred LOW items:
+      (1) cookie secure=False hardening -> EP-026; (2) evidence-pack ids are
+      not yet linked from incident detail because the backend detail contract
+      does not expose them — direct-link access only. Validation @ HEAD:
+      lint clean, typecheck clean, 28/28 frontend tests passed, build compiled.
 
 ## 1. Purpose and User Outcome
 
