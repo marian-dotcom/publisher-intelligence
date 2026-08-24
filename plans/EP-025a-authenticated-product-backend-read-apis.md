@@ -92,6 +92,17 @@
       window bounds/fingerprints/content_hash/engine_version/created_at) plus the
       builder's deterministic whitelisted content sections; provenance and
       temporal fields pass through unaltered.
+      C4 classified ALREADY SATISFIED by P2-B: INCIDENT.md §88 requires selection
+      to record method/reason/scope/checkpoint-ID — all four are product-visible
+      on GET /incidents/{incident_id} (selection_method, reason, scope_key,
+      checkpoint_run_id) plus selected_at/selection_version/fingerprints/
+      reference_id exactly as stored; checkpoint_run_id IS product-approved
+      (explicitly required by §88), not an internal-only detail; MVP §53 defines
+      LKG as an incident/scope-scoped comparison reference — no separate LKG
+      endpoint is approved; §90's LAST KNOWN GOOD DIFF is engine-reasoning
+      consumption, not part of the product read contract, and would be new
+      domain work if ever required. Tenant safety + frozen/read-only semantics
+      proven by P2-B I8/I9 (reused as regression evidence).
       P2-C work (incident detail/evidence depth, investigations, LKG visibility,
       monetization exposure) remains;
       incident detail/evidence/LKG remain for P2-C):
