@@ -69,6 +69,17 @@
       not yet linked from incident detail because the backend detail contract
       does not expose them — direct-link access only. Validation @ HEAD:
       lint clean, typecheck clean, 28/28 frontend tests passed, build compiled.
+      FINAL PR-REVIEW FIXES (PR #29 adversarial round): (1) MEDIUM currency
+      semantics — CURRENCY metric values now render neutrally as
+      "{value} (currency value)"; no USD/EUR/locale formatting is invented
+      (regression: no "$"/"USD"/"EUR" in body). (2) MEDIUM auth truthfulness —
+      state machine extended with explicit "error": session restore 401 →
+      unauthenticated→/login; network/5xx → retryable error UI (SessionError
+      card + Retry re-running restore), no login redirect, protected content
+      never rendered while unresolved. Logout truthfulness: success and
+      already-invalid (401) clear state; CSRF 403 / server / network failures
+      keep the session and surface error instead of false logout. 36/36
+      frontend tests green after fixes.
 
 ## 1. Purpose and User Outcome
 

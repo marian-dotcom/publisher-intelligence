@@ -15,7 +15,11 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { apiFetch, ApiError } from "./api";
 import type { LoginSuccess, LogoutResult, SessionState } from "./api-types";
 
-export type AuthStatus = "checking" | "authenticated" | "unauthenticated";
+export type AuthStatus =
+  | "checking"
+  | "authenticated"
+  | "unauthenticated"
+  | "error"; // session-check failed for a non-auth reason (network/5xx)
 
 interface AuthState {
   status: AuthStatus;
@@ -23,10 +27,12 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
+  /** Re-run the session check after a transient session-check failure. */
+  retry: () => Promise<void>;
+  logout: () => Promise<{ ok: boolean }>;
   login: (
     input: { email: string; password: string; tenant_id: string },
   ) => Promise<{ ok: true } | { ok: false; reason: "invalid_credentials" | "server" }>;
-  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -34,30 +40,32 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: "checking", session: null });
 
-  // Session restoration runs once on mount; results are applied asynchronously
-  // so no state update happens synchronously within the effect.
-  useEffect(() => {
-    let cancelled = false;
-    async function restore() {
-      try {
-        const session = await apiFetch<SessionState>("/auth/session");
-        if (!cancelled) setState({ status: "authenticated", session });
-      } catch (error) {
-        if (cancelled) return;
-        if (error instanceof ApiError && error.kind === "unauthorized") {
-          setState({ status: "unauthenticated", session: null });
-        } else {
-          // Network/server failure surfaces as an explicit unauthenticated
-          // state here; screens render their own error UI on retry.
-          setState({ status: "unauthenticated", session: null });
-        }
+  // Session restoration: 401 → unauthenticated; network/5xx → explicit
+  // retryable error (backend unavailability never proves the session invalid).
+  const restore = useCallback(async (): Promise<void> => {
+    try {
+      const session = await apiFetch<SessionState>("/auth/session");
+      setState({ status: "authenticated", session });
+    } catch (error) {
+      if (error instanceof ApiError && error.kind === "unauthorized") {
+        setState({ status: "unauthenticated", session: null });
+      } else {
+        setState({ status: "error", session: null });
       }
     }
-    void restore();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      // Apply results only after an await boundary (no sync setState-in-effect).
+      await Promise.resolve();
+      if (!cancelled) await restore();
+    })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [restore]);
 
   const login = useCallback(
     async (input: { email: string; password: string; tenant_id: string }) => {
@@ -76,16 +84,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const logout = useCallback(async () => {
-    try {
-      await apiFetch<LogoutResult>("/auth/logout", { method: "POST" });
-    } catch {
-      // Already-invalid sessions are safe to treat as logged out.
-    }
-    setState({ status: "unauthenticated", session: null });
-  }, []);
+  const logout = useCallback(
+    async (): Promise<{ ok: boolean }> => {
+      try {
+        const result = await apiFetch<LogoutResult>("/auth/logout", { method: "POST" });
+        setState({ status: "unauthenticated", session: null });
+        return { ok: Boolean(result.revoked) };
+      } catch (error) {
+        if (error instanceof ApiError && error.kind === "unauthorized") {
+          // Session was already invalid server-side; treat as logged out.
+          setState({ status: "unauthenticated", session: null });
+          return { ok: true };
+        }
+        // CSRF/server/network failure: the session may still exist — stay
+        // authenticated and surface the failure truthfully.
+        setState({ status: "error", session: null });
+        return { ok: false };
+      }
+    },
+    [],
+  );
 
-  const value = useMemo(() => ({ ...state, login, logout }), [state, login, logout]);
+  const value = useMemo(
+    () => ({ ...state, retry: restore, login, logout }),
+    [state, restore, login, logout],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -173,8 +173,10 @@ export function IncidentDetailView({ incidentId }: { incidentId: string }) {
                 {metric.points.map((point) => (
                   <li key={point.period_start}>
                     {new Date(point.period_start).toLocaleDateString()}:{" "}
+                    {/* CURRENCY values render neutrally: the backend contract
+                        supplies no currency code, so none is invented. */}
                     {metric.unit === "CURRENCY"
-                      ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(point.value)
+                      ? `${point.value} (currency value)`
                       : point.value}
                   </li>
                 ))}

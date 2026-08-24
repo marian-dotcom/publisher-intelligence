@@ -32,6 +32,18 @@ export function ProtectedShell({ children }: { children: ReactNode }) {
     return <LoadingState label="Checking session…" />;
   }
 
+  if (auth.status === "error") {
+    // Backend unavailable: do NOT claim the session is invalid or redirect.
+    return (
+      <div className="card session-error">
+        <ErrorState message="Could not verify your session. The service may be temporarily unavailable." />
+        <Button variant="secondary" onClick={() => void auth.retry()}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
   if (!authenticated) {
     // Render nothing while the redirect to /login is in flight; avoids
     // flashing protected content.
@@ -39,8 +51,10 @@ export function ProtectedShell({ children }: { children: ReactNode }) {
   }
 
   async function handleLogout() {
-    await auth.logout();
-    router.replace("/login");
+    const result = await auth.logout();
+    if (result.ok) {
+      router.replace("/login");
+    }
   }
 
   return (
