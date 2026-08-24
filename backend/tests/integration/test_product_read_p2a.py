@@ -316,3 +316,69 @@ def test_degraded_source_health_does_not_become_publisher_site_failure() -> None
     assert health.status_code == 200
     sources = health.json()["sources"]
     assert sources["BROWSER_MONITORING"] == "DEGRADED"
+
+
+def test_missing_connector_is_unknown_not_publisher_failure() -> None:
+    """Scenario #3: absent connector/scheduled evidence serializes as UNKNOWN
+    (lack of evidence); publisher_site_condition stays independent and is
+    never degraded into a failure state by missing source data."""
+    factory = get_session_factory()
+    slug = f"p2a-unknown-{uuid.uuid4().hex[:8]}"
+    tenant_id, site_id = asyncio.run(_seed_tenant_site(slug=slug))
+
+    from app.auth.models import Operator, OperatorTenant
+    from app.auth.security import hash_password
+
+    email = f"unk-{uuid.uuid4().hex[:8]}@example.com"
+
+    async def seed_operator() -> None:
+        operator_id = uuid.uuid4()
+        async with factory() as session, session.begin():
+            session.add(
+                Operator(
+                    id=operator_id,
+                    actor_subject_id=uuid.uuid4(),
+                    email=email,
+                    password_hash=hash_password("correct-horse-battery"),
+                    role="OPERATOR",
+                    is_active=True,
+                )
+            )
+            await session.flush()
+            session.add(OperatorTenant(operator_id=operator_id, tenant_id=tenant_id))
+
+    asyncio.run(seed_operator())
+
+    client = TestClient(app)
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "email": email,
+            "password": "correct-horse-battery",
+            "tenant_id": str(tenant_id),
+        },
+    )
+    assert login_response.status_code == 200
+    cookies = dict(login_response.cookies)
+
+    home = client.get("/product/home/status", cookies=cookies)
+    assert home.status_code == 200
+    body = home.json()
+
+    # The P2-A seed includes healthy scheduled browser evidence, so browser
+    # monitoring has real observations. The three data connectors have NO
+    # DataConnection rows: each serializes as UNKNOWN — lack of evidence.
+    assert body["source_health"]["GA4"] == "UNKNOWN"
+    assert body["source_health"]["GSC"] == "UNKNOWN"
+    assert body["source_health"]["GAM"] == "UNKNOWN"
+    # UNKNOWN is lack of evidence — distinct from DEGRADED and never promoted
+    # to a publisher/site failure condition.
+    assert body["publisher_site_condition"] != "DEGRADED"
+    assert body["publisher_site_condition"] == "ACTIVE"
+
+    health = client.get(f"/product/source-health?site_id={site_id}", cookies=cookies)
+    assert health.status_code == 200
+    sources = health.json()["sources"]
+    assert sources["GA4"] == "UNKNOWN"
+    assert sources["GSC"] == "UNKNOWN"
+    assert sources["GAM"] == "UNKNOWN"

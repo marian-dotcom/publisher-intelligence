@@ -180,7 +180,10 @@
       #2 PASS (G1 closed: test_degraded_source_health_does_not_become_publisher_site_failure —
       PARTIAL scheduled run → BROWSER_MONITORING=DEGRADED while
       publisher_site_condition independent, both /product/home/status and
-      /product/source-health);
+      /product/source-health); #3 PASS (G2 closed: test_missing_connector_is_unknown_not_publisher_failure —
+      no DataConnection rows → GA4/GSC/GAM serialize UNKNOWN on both surfaces
+      while publisher_site_condition stays ACTIVE/independent; UNKNOWN kept
+      distinct from DEGRADED);
       #4–#12 PASS (P2-B T/I files, P2-C file — see gate reports); #13 PASS
       (P2-D D1/D2/D3). PARTIAL: #2 degraded-source-without-publisher-failure —
       health mapping implemented (DEGRADED/ACTION_REQUIRED/BLOCKED) but no
