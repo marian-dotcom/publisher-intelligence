@@ -3075,3 +3075,42 @@ a new coding session preferred another stack
 The standard is:
 
 # **Decide once. Record why. Reopen only when reality gives us a reason.**
+
+---
+
+# ADR-131 — Secure-cookie pre-pilot hard gate
+
+## Status
+
+Accepted (2026-08-24). Canonical security statement lives in
+`SECURITY.md` §201 "Secure-cookie pre-pilot hard gate"; this ADR records the
+decision reference. EP-026 must cite SECURITY.md §201 directly.
+
+## Decision
+
+Auth cookies (`pi_session`, `pi_csrf`) MUST be emitted with Secure=True in
+pilot/production; `pi_session` MUST remain HttpOnly; SameSite posture is
+explicitly reviewed/documented; pilot/production cookie configuration is
+environment-aware and fails closed at startup/deployment when secure-cookie
+configuration is missing or invalid; automated validation proves Secure=False
+cannot be emitted in pilot/production; HTTPS smoke validation confirms
+browser-visible cookie attributes.
+
+**EP-026 is a mandatory prerequisite for Limited Pilot. Limited Pilot SHALL NOT
+start until secure-cookie acceptance criteria are green** (SECURITY.md §201).
+
+EP-026 MUST cite SECURITY.md §201 under Canonical References, Security /
+Privacy Impact, and Acceptance Criteria, and MUST NOT be marked COMPLETE while
+any secure-cookie acceptance criterion remains unmet.
+
+## Consequences
+
+Local development keeps an appropriately configurable non-secure posture.
+Deployment configuration gains fail-closed validation. No change to session
+format, cookie names, CSRF token format, login, or restoration semantics.
+
+## Alternatives considered
+
+Treating Secure=False as deferred LOW cleanup — rejected: it would allow
+Limited Pilot to run on transport-insecure auth cookies, contradicting
+SECURITY.md §22 and the pilot threat model.

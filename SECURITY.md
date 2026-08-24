@@ -3733,3 +3733,33 @@ Least privilege
 ```
 
 # **Treat the page as hostile. Treat the evidence as confidential. Treat the model as untrusted. Treat tenant isolation as non-negotiable.**
+
+---
+
+# 201. Secure-cookie pre-pilot hard gate
+
+Authentication cookies are first-party and session-bearing (`pi_session`,
+HttpOnly; `pi_csrf`, readable by the first-party frontend for double-submit
+CSRF). Pilot/production deployment posture:
+
+- pilot/production auth cookies MUST use Secure=True;
+- `pi_session` MUST remain HttpOnly;
+- the SameSite posture MUST be explicitly reviewed and documented;
+- pilot/production cookie configuration MUST be environment-aware;
+- pilot/production MUST fail closed at startup/deployment if secure-cookie
+  configuration is missing or invalid;
+- automated validation MUST prove auth cookies cannot be emitted with
+  Secure=False in pilot/production;
+- HTTPS smoke validation MUST confirm browser-visible cookie attributes.
+
+Local development may remain appropriately configurable without weakening the
+pilot/production posture.
+
+> **EP-026 is a mandatory prerequisite for Limited Pilot. Limited Pilot SHALL NOT
+> start until secure-cookie acceptance criteria are green.**
+
+EP-026 consumption requirements: when the EP-026 ExecPlan is created it MUST cite
+this section under Canonical References, under Security / Privacy Impact, and in
+its Acceptance Criteria. EP-026 MUST NOT be marked COMPLETE while any of these
+secure-cookie acceptance criteria remain unmet, and Limited Pilot MUST remain
+blocked until EP-026 is COMPLETE and this gate is verified.
