@@ -23,6 +23,20 @@ class Settings(BaseSettings):
     )
 
     environment: Literal["local", "test", "staging", "production"] = "local"
+
+    # EP-026 M1 (SECURITY.md §201): auth cookies MUST be Secure=True outside
+    # local development. Fail-closed via model_validator below.
+    cookie_secure: bool = False
+
+    @model_validator(mode="after")
+    def _enforce_secure_cookie_posture(self) -> "Settings":
+        if self.environment in ("staging", "production") and not self.cookie_secure:
+            raise ValueError(
+                f"environment={self.environment} requires cookie_secure=True "
+                "(SECURITY.md §201 secure-cookie hard gate)"
+            )
+        return self
+
     log_level: str = "INFO"
     database_url: SecretStr = SecretStr(LOCAL_DATABASE_URL)
 

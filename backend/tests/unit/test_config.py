@@ -22,7 +22,7 @@ def test_settings_summary_redacts_secrets() -> None:
 
 def test_production_rejects_local_defaults_without_exposing_them() -> None:
     with pytest.raises(ValidationError) as caught:
-        Settings(environment="production")
+        Settings(environment="production", cookie_secure=True)
 
     message = str(caught.value)
     assert "production configuration requires explicit values" in message
@@ -36,6 +36,7 @@ def test_production_rejects_private_network_browser_opt_in() -> None:
     with pytest.raises(ValidationError) as caught:
         Settings(
             environment="production",
+            cookie_secure=True,
             database_url="postgresql+psycopg://service:secret@database.internal/app",
             s3_endpoint_url="https://objects.example.com",
             s3_access_key_id="explicit-key",

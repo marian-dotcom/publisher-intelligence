@@ -1,6 +1,7 @@
 """First-party auth HTTP endpoints (login/logout/session restoration)."""
 
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
@@ -13,6 +14,7 @@ from app.auth.dependencies import (
     get_current_actor_with_csrf,
 )
 from app.auth.service import AuthError, AuthService
+from app.config.settings import Settings, get_settings
 from app.db.session import get_session_factory
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -30,13 +32,34 @@ class LoginRequest(BaseModel):
     tenant_id: uuid.UUID
 
 
-def _set_session_cookies(response: Response, *, token: str, csrf: str, max_age: int) -> None:
+def _set_session_cookies(
+    response: Any,
+    *,
+    token: str,
+    csrf: str,
+    max_age: int,
+    settings: Settings | None = None,
+) -> None:
+    """Emit session + double-submit CSRF cookies.
+
+    Fail-closed (SECURITY.md §201): outside local/test environments the
+    cookies MUST be Secure; a configuration that would emit Secure=False is a
+    programming error and raises instead of degrading silently.
+    """
+
+    app_settings = settings or get_settings()
+    secure = app_settings.cookie_secure
+    if app_settings.environment in ("staging", "production") and not secure:
+        raise RuntimeError(
+            "refusing to emit auth cookies with Secure=False in "
+            f"{app_settings.environment} (SECURITY.md §201)"
+        )
     response.set_cookie(
         SESSION_COOKIE,
         token,
         max_age=max_age,
         httponly=True,
-        secure=False,
+        secure=secure,
         samesite="lax",
         path="/",
     )
@@ -45,7 +68,7 @@ def _set_session_cookies(response: Response, *, token: str, csrf: str, max_age: 
         csrf,
         max_age=max_age,
         httponly=False,
-        secure=False,
+        secure=secure,
         samesite="lax",
         path="/",
     )
