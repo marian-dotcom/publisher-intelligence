@@ -437,7 +437,12 @@ def test_load_diagnostic_input_returns_connection_to_pool(recheck_site: str) -> 
     returning. Reusing the session after its context manager had closed left
     an open transaction-bound connection orphaned on a dead event loop until
     GC, blocking later DDL (e.g. alembic downgrade) on its locks."""
+    from typing import cast
+
+    from sqlalchemy.pool import QueuePool
+
     from app.db.session import get_engine
+    from app.events.contracts import DiagnosticInput
     from app.events.persistence import EventRepository
 
     ids = asyncio.run(
@@ -449,11 +454,12 @@ def test_load_diagnostic_input_returns_connection_to_pool(recheck_site: str) -> 
     repository = EventRepository(factory)
     engine = get_engine()
 
-    async def act():
+    async def act() -> DiagnosticInput | None:
         return await repository.load_diagnostic_input(
             tenant_id=ids["tenant_id"], checkpoint_run_id=ids["checkpoint_run_id"]
         )
 
     diagnostic = asyncio.run(act())
     assert diagnostic is not None
-    assert engine.pool.checkedout() == 0
+    pool = cast(QueuePool, engine.sync_engine.pool)
+    assert pool.checkedout() == 0
