@@ -16,9 +16,49 @@ from app.connectors.models import DataConnection
 from app.db.session import get_session_factory
 from app.events.source_health import browser_source_health
 from app.incidents.models import Incident
+from app.operations import operations_snapshot
 from app.public_config.models import PublicConfigSnapshot
 
 router = APIRouter(prefix="/product", tags=["product"])
+
+
+@router.get("/operations")
+async def operations(
+    actor: ActorContext = Depends(get_current_actor),  # noqa: B008
+) -> dict[str, Any]:
+    """EP-026 M6 minimal self-observability for the caller's tenant.
+
+    PI-infrastructure signals are global by nature (one shared queue/scheduler
+    fleet); per-site source-health rows remain strictly tenant-scoped and keep
+    their EP-025a semantics. This endpoint never asserts publisher/site
+    failure."""
+    factory = get_session_factory()
+
+    async def per_site_source_health() -> list[tuple[str, str, dict[str, str]]]:
+        async with factory() as session:
+            sites = list(
+                (
+                    await session.scalars(
+                        select(Site).where(Site.tenant_id == actor.tenant_id).order_by(Site.name)
+                    )
+                ).all()
+            )
+            return [
+                (
+                    str(site.id),
+                    site.name,
+                    await _source_health_rows(session, tenant_id=actor.tenant_id, site_id=site.id),
+                )
+                for site in sites
+            ]
+
+    snapshot = await operations_snapshot(
+        factory,
+        tenant_id=actor.tenant_id,
+        source_health_for_site=per_site_source_health,
+    )
+    return {"tenant_id": str(actor.tenant_id), **snapshot}
+
 
 # Canonical source/product health vocabulary (EP-025a contract; STALE added
 # by EP-026 M3b for derived connector freshness).

@@ -238,7 +238,27 @@
       (normalizers/scheduler) + 1 integration (round trip). Full integration
       163 passed; unit 340 passed; ruff/mypy clean; scheduler+worker smoke
       green.
-- [ ] M6 — Minimal self-observability (scheduler/worker/queue/retention/
+- [x] M6 — Minimal self-observability COMPLETE: authenticated tenant-scoped
+      GET /product/operations projects PI-infrastructure signals from
+      EXISTING persisted truth (no new persistence, no vendor): scheduler
+      last-run age from max(jobs.created_at) with CURRENT/STALE at 26h
+      (> daily retention cadence + margin); worker liveness from
+      max(jobs.started_at) with a 48h envelope — old rows alone never read
+      healthy; queue depth splits runnable(PENDING/RETRY), leased(RUNNING
+      with future lock_expires_at) and stale leases (expired lease, same
+      predicate as the existing reclaim path); run duration + failure rate
+      derived from real started/finished timestamps over a bounded 24h
+      window; retention health projected from M3 retention_health (STALLED/
+      FAILED/MISSED/HEALTHY reused verbatim); per-site source-health rows
+      reuse M2/M3b/M4 states unchanged (DEGRADED episode > breaker BLOCKED >
+      heuristic; connector STALE untouched). Strict separation maintained:
+      infrastructure staleness never implies publisher/site failure. Every
+      sub-signal degrades independently to UNKNOWN instead of fabricating
+      HEALTHY. Behavioral RED: without the route /product/operations returns
+      404 (no operational visibility); GREEN 10/10 integration tests incl.
+      bounded-denominator and tenant-scoping proofs. Full integration 173
+      passed; unit 340 passed; ruff/mypy(261) clean; scheduler+worker smoke
+      green.
       failure-rate visibility)
 - [ ] M7 — Pilot runbook + technical-readiness exit gate validation
 - [ ] M8 — Adversarial review & release readiness
