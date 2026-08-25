@@ -8,8 +8,8 @@ every signal is a deterministic read-time projection of persisted state.
 
 import asyncio
 import uuid
-from typing import Any
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
