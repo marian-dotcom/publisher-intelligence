@@ -158,7 +158,7 @@
       storage-outage failure leaving row + open run, all four health states.
       Full integration 135 passed / 0 failed; unit 331 passed; ruff/mypy(260)/
       secrets clean; scheduler+worker live smoke clean. Connector freshness
-      (M3b) NOT started.
+      (M3b) followed as the next milestone below.
 - [x] M3a final correctness fix @ (this commit): one ENFORCE_RETENTION
       execution now drains the full eligible unheld backlog via repeated
       bounded batches — BATCH_SIZE=50 bounds each selection query, never the
@@ -176,7 +176,27 @@
       integration 142 passed / 0 failed; unit 331 passed; ruff/mypy(260)/
       secrets clean; scheduler+worker smoke clean against isolated EP-026
       test Postgres.
-- [ ] M3 — connector staleness/freshness operationalization (M3b)
+- [x] M3b — connector staleness/freshness surfaced through the EXISTING
+      source-health model COMPLETE: additive STALE state (backend
+      SOURCE_HEALTH_STATES + frontend SourceHealth union); freshness is
+      DERIVED at read time from trustworthy success timestamps only —
+      GA4/GSC/GAM DataConnection.last_success_at, PUBLIC_CONFIG latest
+      SCHEDULED snapshot with parse_status VALID/VALID_WITH_WARNINGS using
+      observed_at, BROWSER latest SCHEDULED CheckpointRun.completed_at with
+      its canonical ~7h heuristic (stale outcome now STALE instead of
+      UNAVAILABLE). Thresholds = 3x scheduler cadence, no magic numbers in
+      handlers: GA4 6h (2h slots), GSC 12h (4h slots), GAM 6h (2h slots),
+      PUBLIC_CONFIG 18h (6h slots). Precedence preserved: DEGRADED/
+      ACTION_REQUIRED/BLOCKED connection states dominate staleness;
+      never-synced CONNECTED reads UNKNOWN not HEALTHY; one stale source
+      never implies publisher/site failure nor touches other sources.
+      No schema, no persisted health rows, no extract freshness_status
+      writes. Behavioral RED on e01fe5a: CONNECTED + 14-day-old success
+      reported HEALTHY; GREEN reports STALE with boundary tests just
+      inside/outside each threshold. Focused suite 15 passed; full unit 331
+      passed; full integration 157 passed; ruff/mypy(262) clean; frontend
+      lint/typecheck/test(38)/build clean; secrets clean. M4 NOT started.
+- [x] M3 — connector staleness/freshness operationalization (M3b)
 - [ ] M4 — Cost telemetry, hard caps & circuit breakers
 - [ ] M5 — DST/timezone cross-source hardening regression
 - [ ] M6 — Minimal self-observability (scheduler/worker/queue/retention/

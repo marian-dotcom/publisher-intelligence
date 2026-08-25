@@ -153,6 +153,7 @@ h2 { font-size: var(--font-size-lg); margin: 0 0 var(--space-3); }
 .badge-degraded { border-color: var(--status-degraded); color: var(--status-degraded); }
 .badge-failure { border-color: var(--status-action-required); color: var(--status-action-required); }
 .badge-unknown { border-color: var(--status-unknown); color: var(--status-unknown); border-style: dashed; }
+.badge-stale { border-color: var(--text-muted); color: var(--text-muted); }
 .badge-mono-absolute { border-color: var(--status-healthy); color: var(--status-healthy); }
 .badge-mono-relative_only { border-color: var(--provenance-machine); color: var(--provenance-machine); }
 .badge-mono-unknown { border-color: var(--status-unknown); color: var(--status-unknown); border-style: dashed; }

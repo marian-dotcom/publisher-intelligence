@@ -26,6 +26,22 @@ describe("SourceHealthBadge", () => {
     render(<SourceHealthBadge source="GAM" health="HEALTHY" />);
     expect(screen.getByText(/Ad Manager · HEALTHY/)).toBeInTheDocument();
   });
+
+  it("renders STALE as freshness metadata, never as failure", () => {
+    render(<SourceHealthBadge source="GA4" health="STALE" />);
+    const badge = screen.getByText(/GA4 · STALE/);
+    expect(badge).toHaveClass("badge-stale");
+    expect(badge).not.toHaveClass("badge-failure");
+    expect(badge).not.toHaveClass("badge-degraded");
+    expect(
+      screen.getByTitle("GA4: no trustworthy new evidence within its freshness window"),
+    ).toBeInTheDocument();
+  });
+
+  it("renders PUBLIC_CONFIG badges like any other source", () => {
+    render(<SourceHealthBadge source="PUBLIC_CONFIG" health="STALE" />);
+    expect(screen.getByText(/Public Config · STALE/)).toHaveClass("badge-stale");
+  });
 });
 
 describe("SiteCondition", () => {

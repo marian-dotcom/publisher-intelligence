@@ -10,16 +10,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import ActorContext, get_current_actor
 from app.browser.models import CheckpointRun, Publisher, Site
+from app.connectors.freshness import SOURCE_FRESHNESS_THRESHOLDS, freshness_state
 from app.connectors.models import DataConnection
 from app.db.session import get_session_factory
 from app.events.source_health import browser_source_health
 from app.incidents.models import Incident
+from app.public_config.models import PublicConfigSnapshot
 
 router = APIRouter(prefix="/product", tags=["product"])
 
-# Canonical source/product health vocabulary (EP-025a contract).
+# Canonical source/product health vocabulary (EP-025a contract; STALE added
+# by EP-026 M3b for derived connector freshness).
 SOURCE_HEALTH_STATES = (
     "HEALTHY",
+    "STALE",
     "DEGRADED",
     "BLOCKED",
     "ACTION_REQUIRED",
@@ -35,12 +39,14 @@ def _browser_source_health(latest_status: str | None, completed_at: datetime | N
     """Deterministic mapping from observation state to source health.
 
     Observation failure is not evidence of publisher failure: a failed run is
-    reported at source level (UNAVAILABLE), never as site failure.
+    reported at source level (UNAVAILABLE), never as site failure. Evidence
+    older than the freshness window is STALE (EP-026 M3b): the observation
+    source itself stopped delivering trustworthy evidence.
     """
     if latest_status is None or completed_at is None:
         return "UNKNOWN"
     if datetime.now(UTC) - completed_at > _STALENESS:
-        return "UNAVAILABLE"
+        return "STALE"
     if latest_status == "COMPLETE":
         return "HEALTHY"
     if latest_status == "PARTIAL":
@@ -59,6 +65,19 @@ def _connector_health(status: str | None) -> str:
     }.get(status, "UNKNOWN")
 
 
+def _connector_health_with_freshness(
+    status: str | None, last_success_at: datetime | None, *, now: datetime, key: str
+) -> str:
+    """EP-026 M3b precedence: explicit connection-path states (DEGRADED,
+    ACTION_REQUIRED, BLOCKED) are stronger than derived staleness and are
+    preserved as-is. Only an otherwise-HEALTHY CONNECTED connection is
+    subject to the freshness projection."""
+    mapped = _connector_health(status)
+    if mapped != "HEALTHY":
+        return mapped
+    return freshness_state(last_success_at, now=now, threshold=SOURCE_FRESHNESS_THRESHOLDS[key])
+
+
 async def _source_health_rows(
     session: AsyncSession, *, tenant_id: uuid.UUID, site_id: uuid.UUID
 ) -> dict[str, str]:
@@ -67,6 +86,7 @@ async def _source_health_rows(
         "GA4": "UNKNOWN",
         "GSC": "UNKNOWN",
         "GAM": "UNKNOWN",
+        "PUBLIC_CONFIG": "UNKNOWN",
     }
     run = await session.scalar(
         select(CheckpointRun)
@@ -103,7 +123,34 @@ async def _source_health_rows(
         provider = provider_by_connection.get(connection.id, "")
         key = {"ga4": "GA4", "gsc": "GSC", "gam": "GAM"}.get(provider.lower())
         if key:
-            health[key] = _connector_health(connection.status)
+            # EP-026 M3b: freshness is derived from the last trustworthy
+            # success (last_success_at), never from attempts/updated_at.
+            health[key] = _connector_health_with_freshness(
+                connection.status,
+                connection.last_success_at,
+                now=datetime.now(UTC),
+                key=key,
+            )
+    # EP-026 M3b: PUBLIC_CONFIG freshness derives from the latest successful
+    # SCHEDULED snapshot (parse_status VALID / VALID_WITH_WARNINGS) using its
+    # observed_at. Validation follow-ups and failed fetches are never a
+    # success heartbeat.
+    latest_good_snapshot = await session.scalar(
+        select(PublicConfigSnapshot.observed_at)
+        .where(
+            PublicConfigSnapshot.tenant_id == tenant_id,
+            PublicConfigSnapshot.site_id == site_id,
+            PublicConfigSnapshot.fetch_kind == "SCHEDULED",
+            PublicConfigSnapshot.parse_status.in_(("VALID", "VALID_WITH_WARNINGS")),
+        )
+        .order_by(PublicConfigSnapshot.observed_at.desc())
+        .limit(1)
+    )
+    health["PUBLIC_CONFIG"] = freshness_state(
+        latest_good_snapshot,
+        now=datetime.now(UTC),
+        threshold=SOURCE_FRESHNESS_THRESHOLDS["PUBLIC_CONFIG"],
+    )
     return health
 
 

@@ -1816,6 +1816,26 @@ should not become:
 
 > Search traffic dropped.
 
+Source-health states (EP-025a contract; STALE added by EP-026 M3b):
+
+- HEALTHY — recent trustworthy successful evidence for this source.
+- STALE — the latest trustworthy successful observation exists but is older
+  than that source's freshness window (derived at read time from immutable
+  success timestamps; never persisted). STALE means "Publisher Intelligence
+  has not received trustworthy new evidence from this source within its
+  expected freshness window." It does NOT mean the vendor is down,
+  credentials definitely expired, publisher data changed, or the site is
+  unhealthy.
+- DEGRADED — recent observation/connection path reports degraded behavior;
+  stronger than staleness and preserved over it.
+- ACTION_REQUIRED / BLOCKED / UNAVAILABLE — explicit connector or
+  observation-path failure semantics (unchanged).
+- UNKNOWN — no truthful basis to claim healthy or stale (including a
+  connected source that has never successfully synced).
+
+Stale is per-source data-quality metadata: it never marks the publisher/site
+failed and never suppresses other sources.
+
 ---
 
 # 81. Historical exploration
