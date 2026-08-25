@@ -100,16 +100,19 @@ class EventRepository:
                     CheckpointWindow.site_id == current.site_id,
                 )
             )
-        if window is None or window.site_id != current.site_id:
-            raise EventStateError("checkpoint ownership mismatch")
-        # EP-026 M2b-1a-2b: surface the stored bounded access classification;
-        # malformed/legacy rows fail closed to None (nothing derivable).
-        classification = classification_from_storage(current.browser_access_classification)
-        # EP-026 M2b-2: bounded open-degradation context for recovery
-        # evaluation (same tenant/site only; facts, never fabricated links).
-        episode = await open_degradation_episode(
-            session, tenant_id=current.tenant_id, site_id=current.site_id
-        )
+            if window is None or window.site_id != current.site_id:
+                raise EventStateError("checkpoint ownership mismatch")
+            # EP-026 M2b-1a-2b: surface the stored bounded access
+            # classification; malformed/legacy rows fail closed to None
+            # (nothing derivable).
+            classification = classification_from_storage(current.browser_access_classification)
+            # EP-026 M2b-2: bounded open-degradation context for recovery
+            # evaluation (same tenant/site only; facts, never fabricated
+            # links). Must run while the session context is open so its
+            # connection is returned to the pool at block exit.
+            episode = await open_degradation_episode(
+                session, tenant_id=current.tenant_id, site_id=current.site_id
+            )
         return DiagnosticInput(
             tenant_id=current.tenant_id,
             site_id=current.site_id,

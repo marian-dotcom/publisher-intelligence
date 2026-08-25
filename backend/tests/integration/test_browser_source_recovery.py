@@ -429,3 +429,31 @@ async def _seed_completed_scheduled_run(
                 manifest={},
             )
         )
+
+
+def test_load_diagnostic_input_returns_connection_to_pool(recheck_site: str) -> None:
+    """Lifecycle regression (EP-026 M3b CI investigation): the DIAGNOSTIC
+    derivation input loader must return its pooled DB connection before
+    returning. Reusing the session after its context manager had closed left
+    an open transaction-bound connection orphaned on a dead event loop until
+    GC, blocking later DDL (e.g. alembic downgrade) on its locks."""
+    from app.db.session import get_engine
+    from app.events.persistence import EventRepository
+
+    ids = asyncio.run(
+        _register_diagnostic(recheck_site, "/challenge", f"pool-{uuid.uuid4().hex[:8]}")
+    )
+    _run_browser_once()
+
+    factory = get_session_factory()
+    repository = EventRepository(factory)
+    engine = get_engine()
+
+    async def act():
+        return await repository.load_diagnostic_input(
+            tenant_id=ids["tenant_id"], checkpoint_run_id=ids["checkpoint_run_id"]
+        )
+
+    diagnostic = asyncio.run(act())
+    assert diagnostic is not None
+    assert engine.pool.checkedout() == 0
