@@ -202,7 +202,7 @@ Read surface: authenticated `GET /product/operations` (M6).
 | M6 retention health surfaced without duplication | PASS | STALLED projection test reusing retention_health |
 | M6 infra health separate from publisher health | PASS | stale scheduler/worker tests assert home publisher_site_condition untouched |
 | Exit-gate E2E investigations executed | PASS (execution) | three production-path investigations freshly executed — see Part C |
-| Exit-gate investigations **manually reviewed** | **HUMAN GATE** | evidence packages in Part C; no human review exists yet — none may be fabricated |
+| Exit-gate investigations **manually reviewed** | PASS | human reviews recorded 2026-08-25: INV-01 ACCEPT, INV-02 ACCEPT, INV-03 ACCEPT WITH NOTE — see Part C verdict lines |
 | Zero unresolved BLOCKER/HIGH/MEDIUM | PASS | findings review (Part D): 0/0/0 unresolved release findings |
 | Provider selection / deployment egress identity / pilot go-ahead | HUMAN GATE | EP-024 deferred decision; A4 deployment-dependent egress identity; Limited Pilot human gate |
 
@@ -231,7 +231,7 @@ named tests plus the persisted rows they assert.
 - Execution proof: test_browser_source_recovery.py::
   test_degradation_recheck_recovery_full_automatic_path (+episode/idempotence
   siblings) — green.
-- REVIEW: HUMAN GATE — MANUAL REVIEW REQUIRED.
+- REVIEW: **ACCEPT** (human review recorded 2026-08-25).
 
 ### INV-02 — Missing/degraded source with independent partial operation
 - Category: degraded/missing source (mandatory).
@@ -246,7 +246,7 @@ named tests plus the persisted rows they assert.
 - Execution proof: test_degraded_source_health_does_not_become_publisher_site_failure;
   test_source_freshness_m3b.py boundary/independence cases;
   test_operations_m6.py stale scheduler/worker cases — green.
-- REVIEW: HUMAN GATE — MANUAL REVIEW REQUIRED.
+- REVIEW: **ACCEPT** (human review recorded 2026-08-25).
 
 ### INV-03 — Monetization context reconstruction
 - Category: monetization (mandatory).
@@ -258,7 +258,7 @@ named tests plus the persisted rows they assert.
   points; NO causal claims (revenue drop ≠ cause anywhere in output).
 - Execution proof: test_product_read_p2c.py::
   test_c5_monetization_exposure_is_gated_by_capability — green.
-- REVIEW: HUMAN GATE — MANUAL REVIEW REQUIRED.
+- REVIEW: **ACCEPT WITH NOTE** (human review recorded 2026-08-25). Reviewer note, preserved verbatim: "Validates monetization context reconstruction and gating/provenance, not a full monetization root-cause investigation." This scope limitation is accepted as-is; no broader causal claim is made anywhere in PI output.
 
 (3 of the permitted 3–5 executed; additional cases declined because they would
 duplicate existing coverage without adding review value.)
@@ -275,13 +275,19 @@ duplicate existing coverage without adding review value.)
   - 3 diagnostic-only M3b CI commits remain in branch history
     (`3e6dc89`, `367f3a1`, `f2561fc`); effect removed from workflow, history
     cleanup deliberately deferred.
-- HUMAN GATES: investigation manual reviews (Part C); HTTPS cookie smoke on
-  the real deployment (A1); stable egress identity publication (A4); EP-024
-  provider selection; Limited Pilot authorization itself.
+- HUMAN GATES: live HTTPS cookie smoke on the real deployment (A1) — the one
+  remaining technical-readiness blocker; stable egress identity publication
+  (A4); EP-024 provider selection; Limited Pilot authorization itself.
+  (Investigation manual reviews are no longer a gate: recorded ACCEPT /
+  ACCEPT / ACCEPT WITH NOTE in Part C.)
 
 ## Part E — Gates
 
-- EP-026 TECHNICAL READINESS: HUMAN GATE (sole blocker: human review of the
-  three investigation evidence packages; all technical criteria PASS).
-- LIMITED PILOT AUTHORIZATION: NOT GRANTED (separate human decision even after
-  reviews land).
+- Investigation manual-review gate: PASS (INV-01 ACCEPT, INV-02 ACCEPT,
+  INV-03 ACCEPT WITH NOTE with the reviewer's preserved scope note).
+- Remaining readiness blocker: M1 live HTTPS secure-cookie smoke on the real
+  authorized deployment has not yet been performed successfully (procedure A1).
+- EP-026 TECHNICAL READINESS: HUMAN GATE until that smoke is actually
+  completed on the real deployment. All other technical criteria PASS.
+- LIMITED PILOT AUTHORIZATION: NOT GRANTED (independent human decision;
+  completing the HTTPS smoke does not by itself authorize Limited Pilot).

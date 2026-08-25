@@ -282,9 +282,14 @@
       3 E2E investigations (browser-access degradation/challenge, degraded-
       source partial operation, monetization capability gating) were EXECUTED
       green through production paths on 2026-08-25 (named tests recorded in
-      the runbook); their MANUAL REVIEW remains an explicit HUMAN GATE — no
-      human approval exists yet and none may be fabricated. Therefore:
-      EP-026 TECHNICAL READINESS = HUMAN GATE pending manual review;
+      the runbook); their MANUAL REVIEW was subsequently performed by the human
+      reviewer on 2026-08-25: INV-01 ACCEPT, INV-02 ACCEPT, INV-03 ACCEPT
+      WITH NOTE (preserved verbatim: "Validates monetization context
+      reconstruction and gating/provenance, not a full monetization root-cause
+      investigation") — investigation-review gate = PASS. The single
+      remaining technical-readiness blocker is the M1 live HTTPS
+      secure-cookie smoke on the real authorized deployment, so:
+      EP-026 TECHNICAL READINESS = HUMAN GATE pending that smoke;
       Limited Pilot authorization NOT GRANTED (independent human gate).
       Findings: 0 BLOCKER / 0 HIGH / 0 MEDIUM unresolved release findings;
       LOW/debt explicitly retained (~10 SQLAlchemy lifecycle warnings,
