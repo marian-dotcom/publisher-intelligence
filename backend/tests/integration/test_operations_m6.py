@@ -125,13 +125,13 @@ def test_operations_requires_authentication() -> None:
     assert client.get("/product/operations").status_code in (401, 403)
 
 
-def test_scheduler_signal_reflects_recent_enqueue() -> None:
+def test_scheduler_signal_reflects_recent_scheduler_exclusive_enqueue() -> None:
     client, _tenant_id = _client_with_tenant()
-    _add_job(None)  # scheduler enqueues global jobs (tenant NULL)
+    _add_retention_job()  # scheduler enqueues global jobs (tenant NULL)
     body = _operations(client)
     scheduler = body["scheduler"]
     assert scheduler["state"] == "CURRENT"
-    assert scheduler["age_seconds"] == 0
+    assert scheduler["age_seconds"] is not None and scheduler["age_seconds"] < 5
     # Worker liveness stays truthful independently: nothing executed yet.
     assert body["workers"]["state"] == "UNKNOWN"
 
@@ -139,7 +139,9 @@ def test_scheduler_signal_reflects_recent_enqueue() -> None:
 def test_stale_scheduler_is_surfaced_without_publisher_failure_claim() -> None:
     client, _tenant_id = _client_with_tenant()
     stale = datetime.now(UTC) - SCHEDULER_MAX_AGE - timedelta(hours=2)
-    _add_job(None, created_at=stale)
+    from app.retention.scheduling import JOB_TYPE
+
+    _add_job(None, job_type=JOB_TYPE, created_at=stale)
     body = _operations(client)
     assert body["scheduler"]["state"] == "STALE"
     home = client.get("/product/home/status").json()
@@ -242,3 +244,75 @@ def test_per_site_source_health_is_tenant_scoped_and_independent() -> None:
         health = site["source_health"]
         for key in ("BROWSER_MONITORING", "GA4", "GSC", "GAM", "PUBLIC_CONFIG"):
             assert key in health
+
+
+def _add_retention_job(*, age: timedelta | None = None) -> datetime:
+    """Scheduler-exclusive evidence: ENFORCE_RETENTION is created ONLY by
+    RetentionSchedulingService.schedule_due, whose sole production caller is
+    scheduler.run_once."""
+    from app.retention.scheduling import JOB_TYPE
+
+    created = datetime.now(UTC) - (age or timedelta(0))
+    _add_job(None, job_type=JOB_TYPE, created_at=created)
+    return created
+
+
+def test_fresh_unrelated_jobs_do_not_fake_scheduler_health() -> None:
+    """Case 1 — original false-CURRENT defect: recent non-scheduler work
+    (worker follow-up + diagnostic checkpoint) without any scheduler-exclusive
+    evidence must NOT report the scheduler as CURRENT."""
+    client, _tenant_id = _client_with_tenant()
+    now = datetime.now(UTC)
+    _add_job(None, job_type="VALIDATE_PUBLIC_CONFIG", created_at=now - timedelta(minutes=1))
+    _add_job(
+        None,
+        job_type="BROWSER_CHECKPOINT",
+        created_at=now - timedelta(minutes=2),
+        started_at=now - timedelta(minutes=1),
+        finished_at=now - timedelta(seconds=30),
+    )
+    scheduler = _operations(client)["scheduler"]
+    assert scheduler["state"] == "UNKNOWN"
+    assert scheduler["last_run_at"] is None
+
+
+def test_stale_scheduler_evidence_survives_fresh_unrelated_jobs() -> None:
+    """Case 2 — critical regression: an old scheduler-exclusive job plus fresh
+    unrelated jobs must read STALE; unrelated work cannot refresh health."""
+    client, _tenant_id = _client_with_tenant()
+    now = datetime.now(UTC)
+    _add_retention_job(age=SCHEDULER_MAX_AGE + timedelta(hours=2))
+    _add_job(None, job_type="VALIDATE_PUBLIC_CONFIG", created_at=now - timedelta(seconds=5))
+    _add_job(
+        None,
+        job_type="GA4_EXTRACT",
+        status="COMPLETE",
+        created_at=now,
+        started_at=now,
+        finished_at=now,
+    )
+    scheduler = _operations(client)["scheduler"]
+    assert scheduler["state"] == "STALE"
+
+
+def test_recent_scheduler_exclusive_evidence_reads_current() -> None:
+    """Case 3 — real scheduler evidence reads CURRENT with truthful age."""
+    client, _tenant_id = _client_with_tenant()
+    created = _add_retention_job(age=timedelta(minutes=10))
+    scheduler = _operations(client)["scheduler"]
+    assert scheduler["state"] == "CURRENT"
+    returned = datetime.fromisoformat(str(scheduler["last_run_at"]).replace("Z", "+00:00"))
+    assert returned == created
+    assert scheduler["age_seconds"] is not None and 500 <= scheduler["age_seconds"] <= 700
+
+
+def test_newer_unrelated_job_does_not_replace_scheduler_last_run() -> None:
+    """Case 4 — a newer unrelated job must not become scheduler last_run_at."""
+    client, _tenant_id = _client_with_tenant()
+    scheduler_created = _add_retention_job(age=timedelta(hours=20))
+    newer_unrelated = datetime.now(UTC) - timedelta(seconds=10)
+    _add_job(None, job_type="VALIDATE_PUBLIC_CONFIG", created_at=newer_unrelated)
+    scheduler = _operations(client)["scheduler"]
+    assert scheduler["state"] == "CURRENT"  # 20h < 26h envelope
+    returned = datetime.fromisoformat(str(scheduler["last_run_at"]).replace("Z", "+00:00"))
+    assert returned == scheduler_created

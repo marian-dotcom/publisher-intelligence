@@ -38,6 +38,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.models import Job
 from app.retention.health import RetentionHealth, retention_health
+from app.retention.scheduling import JOB_TYPE as RETENTION_JOB_TYPE
 
 # Scheduler enqueues at least the daily retention job; allow one cadence plus
 # margin before calling the scheduler stale.
@@ -69,7 +70,15 @@ def freshness_state(*, moment: datetime | None, now: datetime, max_age: timedelt
 
 
 async def scheduler_signal(session: AsyncSession, *, now: datetime) -> dict[str, object]:
-    last_run_at = await session.scalar(select(func.max(Job.created_at)))
+    # EP-026 M6 soundness repair: scheduler liveness must derive ONLY from
+    # scheduler-exclusive evidence. ENFORCE_RETENTION jobs are created solely
+    # by RetentionSchedulingService.schedule_due, whose single production
+    # caller is scheduler.run_once; generic Job creation (diagnostic
+    # checkpoints, incident diagnostics, VALIDATE_PUBLIC_CONFIG follow-ups,
+    # drilldown planning) must never refresh this signal.
+    last_run_at = await session.scalar(
+        select(func.max(Job.created_at)).where(Job.job_type == RETENTION_JOB_TYPE)
+    )
     return {
         "last_run_at": last_run_at,
         "age_seconds": _age_seconds(now, last_run_at),

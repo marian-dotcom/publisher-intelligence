@@ -241,8 +241,16 @@
 - [x] M6 — Minimal self-observability COMPLETE: authenticated tenant-scoped
       GET /product/operations projects PI-infrastructure signals from
       EXISTING persisted truth (no new persistence, no vendor): scheduler
-      last-run age from max(jobs.created_at) with CURRENT/STALE at 26h
-      (> daily retention cadence + margin); worker liveness from
+      last-run age from max(jobs.created_at) filtered to the scheduler-
+      EXCLUSIVE ENFORCE_RETENTION job type (created only by
+      RetentionSchedulingService.schedule_due whose sole production caller is
+      scheduler.run_once) with CURRENT/STALE at 26h (> daily retention
+      cadence + margin); a post-implementation soundness review CONFIRMED the
+      original unfiltered max(jobs.created_at) was defective — non-scheduler
+      production paths (diagnostic checkpoints, incident diagnostics,
+      VALIDATE_PUBLIC_CONFIG worker follow-ups, drilldown planning) could
+      refresh it while the scheduler was dead — and regression tests now pin
+      that unrelated work can neither fake CURRENT nor replace last_run_at; worker liveness from
       max(jobs.started_at) with a 48h envelope — old rows alone never read
       healthy; queue depth splits runnable(PENDING/RETRY), leased(RUNNING
       with future lock_expires_at) and stale leases (expired lease, same
