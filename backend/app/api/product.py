@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import ActorContext, get_current_actor
+from app.browser.cost import breaker_open_for_usage, latest_site_window_usage
 from app.browser.models import CheckpointRun, Publisher, Site
 from app.connectors.freshness import SOURCE_FRESHNESS_THRESHOLDS, freshness_state
 from app.connectors.models import DataConnection
@@ -106,6 +107,14 @@ async def _source_health_rows(
     reliability = await browser_source_health(session, tenant_id=tenant_id, site_id=site_id)
     if reliability.state == "DEGRADED":
         health["BROWSER_MONITORING"] = "DEGRADED"
+    else:
+        # EP-026 M4: an open checkpoint budget circuit breaker (cost ledger
+        # usage at/over the per-site/per-window cap) surfaces as BLOCKED —
+        # monitoring is deliberately stopped, never silently missing.
+        # Precedence: active DEGRADED episode > breaker BLOCKED > heuristic.
+        used = await latest_site_window_usage(session, tenant_id=tenant_id, site_id=site_id)
+        if breaker_open_for_usage(used=used):
+            health["BROWSER_MONITORING"] = "BLOCKED"
     connections = list(
         (
             await session.scalars(

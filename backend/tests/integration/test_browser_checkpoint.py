@@ -42,6 +42,7 @@ from app.config.settings import get_settings
 from app.db.models import Job, Tenant
 from app.db.session import get_session_factory
 from app.events.models import Event, EventEvidenceRef
+from app.incidents.models import InvestigationUsageEntry
 from app.jobs.queue import JobQueue
 from app.storage.s3 import S3Storage
 
@@ -415,6 +416,7 @@ async def _cleanup_tenant(tenant_id: uuid.UUID, storage: S3Storage) -> None:
         storage.delete(key=key)
     async with factory() as session, session.begin():
         for model in (
+            InvestigationUsageEntry,
             EventEvidenceRef,
             Event,
             SeoObservation,

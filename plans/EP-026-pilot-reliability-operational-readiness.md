@@ -197,7 +197,26 @@
       passed; full integration 157 passed; ruff/mypy(262) clean; frontend
       lint/typecheck/test(38)/build clean; secrets clean. M4 NOT started.
 - [x] M3 — connector staleness/freshness operationalization (M3b)
-- [ ] M4 — Cost telemetry, hard caps & circuit breakers
+- [x] M4 — Cost telemetry, hard caps & circuit breakers COMPLETE: ledger
+      pattern extended with CHECKPOINT_RUN resource kind (migration
+      0027_checkpoint_run_budget_kind widens the check constraint only);
+      measured cost is recorded at execution time by the real browser worker
+      via an injected CheckpointCostRecorder — one idempotent run-scoped entry
+      (amount=1 over the bounded one-page set; detail carries measured
+      status/attempt), recorded on success AND runtime failure, retries folded
+      into the single entry so bounded attempts can never become a spend loop.
+      Circuit breaker is a deterministic read-time projection of the same
+      append-only ledger: DEFAULT_CHECKPOINTS_PER_SITE_WINDOW=4 per
+      site/window; schedule_due stops materializing runs/jobs for a scope at/
+      above cap (SchedulingResult.breaker_skipped_sites, warning logged,
+      fail-closed) and source-health surfaces BLOCKED for browser monitoring
+      with precedence active-DEGRADED-episode > breaker-BLOCKED > heuristic;
+      never publisher/site failure. No mutable breaker state, no global engine
+      coupling in unit-tested paths. RED→GREEN: without wiring, cost recording,
+      scope resolution and cap-stop all failed behaviorally; GREEN 4/4 M4
+      tests + full integration 162 passed; unit 331 passed; ruff/mypy(257)
+      clean; scheduler+worker smoke green on the isolated EP-026 test
+      Postgres; canonical monolithic integration 162 passed locally.
 - [ ] M5 — DST/timezone cross-source hardening regression
 - [ ] M6 — Minimal self-observability (scheduler/worker/queue/retention/
       failure-rate visibility)
