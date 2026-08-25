@@ -56,7 +56,7 @@ jobs:
           --env MINIO_ROOT_PASSWORD=replace-with-local-only-secret
           quay.io/minio/minio:RELEASE.2024-12-18T13-15-44Z server /data
       - run: uv --directory backend run python scripts/create_test_bucket.py
-      - run: RUN_INTEGRATION=1 uv --directory backend run pytest tests/integration -v -x
+      - run: RUN_INTEGRATION=1 timeout 900 uv --directory backend run pytest tests/integration -v -x
         env:
           PYTHONUNBUFFERED: "1"
       - run: uv --directory backend run python -m app.scheduler --once
