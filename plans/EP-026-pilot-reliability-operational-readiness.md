@@ -268,7 +268,28 @@
       passed; unit 340 passed; ruff/mypy(261) clean; scheduler+worker smoke
       green.
       failure-rate visibility)
-- [ ] M7 — Pilot runbook + technical-readiness exit gate validation
+- [x] M7 — Pilot runbook + technical-readiness exit gate COMPLETE
+      (documentation/evidence milestone; zero production changes):
+      docs/runbooks/pilot-readiness.md adds the operator runbook (HTTPS/
+      secure-cookie verification incl. live-smoke procedure, OAuth permission
+      checklist, degraded/revoked connector handling incl. STALE semantics,
+      publisher allowlisting + compatibility self-check + challenge
+      troubleshooting + recovery re-check, retention failure handling with
+      hold/forbidden-action rules, cost-cap/circuit-breaker activation and
+      window-rollover recovery, scheduler/worker/queue recovery using final
+      M6 scheduler-exclusive semantics) plus the full EP-026 readiness matrix
+      and findings classification. All technical criteria PASS; the exit-gate
+      3 E2E investigations (browser-access degradation/challenge, degraded-
+      source partial operation, monetization capability gating) were EXECUTED
+      green through production paths on 2026-08-25 (named tests recorded in
+      the runbook); their MANUAL REVIEW remains an explicit HUMAN GATE — no
+      human approval exists yet and none may be fabricated. Therefore:
+      EP-026 TECHNICAL READINESS = HUMAN GATE pending manual review;
+      Limited Pilot authorization NOT GRANTED (independent human gate).
+      Findings: 0 BLOCKER / 0 HIGH / 0 MEDIUM unresolved release findings;
+      LOW/debt explicitly retained (~10 SQLAlchemy lifecycle warnings,
+      3 diagnostic-only M3b commits in branch history, provider-selection
+      gate deferred to deployment). validation
 - [ ] M8 — Adversarial review & release readiness
 
 ## Canonical References
