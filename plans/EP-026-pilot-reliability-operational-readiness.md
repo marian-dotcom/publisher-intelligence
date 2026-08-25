@@ -217,7 +217,27 @@
       tests + full integration 162 passed; unit 331 passed; ruff/mypy(257)
       clean; scheduler+worker smoke green on the isolated EP-026 test
       Postgres; canonical monolithic integration 162 passed locally.
-- [ ] M5 — DST/timezone cross-source hardening regression
+- [x] M5 — DST/timezone cross-source hardening regression COMPLETE
+      (regression-hardening only; zero production changes required —
+      investigation CONFIRMED all four temporal paths already correct):
+      GA4 normalizer attaches property tz with explicit fold=0 and converts
+      to UTC — fall-back label 03:00 Bucharest anchors at its first absolute
+      instant with a truthful two-real-hour period spanning both occurrences;
+      spring-forward gap hour collapses deterministically to the transition
+      instant (zero-length period, never fabricated, never naive). GSC pins
+      America/Los_Angeles, validates offset hours against the source zone and
+      rejects contradicting offsets; LA fall-back day proven to span 25 real
+      hours. GAM explicitly enumerates both folds — ambiguous hours produce
+      intervals spanning both absolute instants flagged DST_AMBIGUOUS_HOUR;
+      nonexistent local hours are refused. Browser six-hour windows stay
+      deterministic and UTC-aware: fall-back night spans 7 real hours,
+      spring-forward 5; naive instants are rejected. Cross-source alignment
+      test proves GA4/GSC/GAM/browser points order by absolute instant across
+      one boundary. PostgreSQL round-trip via SourceExtract + CheckpointWindow
+      preserves tz-awareness and exact instants. New tests: 9 unit
+      (normalizers/scheduler) + 1 integration (round trip). Full integration
+      163 passed; unit 340 passed; ruff/mypy clean; scheduler+worker smoke
+      green.
 - [ ] M6 — Minimal self-observability (scheduler/worker/queue/retention/
       failure-rate visibility)
 - [ ] M7 — Pilot runbook + technical-readiness exit gate validation
