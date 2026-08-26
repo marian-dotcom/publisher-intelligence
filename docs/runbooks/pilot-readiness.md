@@ -183,7 +183,7 @@ Read surface: authenticated `GET /product/operations` (M6).
 | Criterion | Status | Evidence |
 |---|---|---|
 | M1 secure-cookie fail-closed posture | PASS | settings validator + emission guard tests (plan M1 entry); HTTPS attribute smoke on real deployment remains operator step A1 |
-| M1 HTTPS smoke on live deployment | HUMAN GATE | requires the actual pilot environment; procedure = A1 |
+| M1 HTTPS smoke on live deployment | FAIL | 2026-08-26 Oracle Cloud ARM64 smoke: `pi_csrf` survived the frontend edge but `pi_session` was lost; middleware fix requires redeployment and repeat of A1 |
 | M2 stable monitoring UA / non-deceptive identity | PASS | docs/runbooks/publisher-allowlisting.md; browser UA contract tests |
 | M2 deterministic challenge detection → source-health impact | PASS | test_access_challenge_detection.py (real HTTP fixture → real Playwright → canonical event) |
 | M2 degradation ≠ publisher failure; other connectors unaffected | PASS | test_product_read_p2a.py::test_degraded_source_health…; cross-source independence assertions in M3b suite |
@@ -203,7 +203,7 @@ Read surface: authenticated `GET /product/operations` (M6).
 | M6 infra health separate from publisher health | PASS | stale scheduler/worker tests assert home publisher_site_condition untouched |
 | Exit-gate E2E investigations executed | PASS (execution) | three production-path investigations freshly executed — see Part C |
 | Exit-gate investigations **manually reviewed** | PASS | human reviews recorded 2026-08-25: INV-01 ACCEPT, INV-02 ACCEPT, INV-03 ACCEPT WITH NOTE — see Part C verdict lines |
-| Zero unresolved BLOCKER/HIGH/MEDIUM | PASS | findings review (Part D): 0/0/0 unresolved release findings |
+| Zero unresolved BLOCKER/HIGH/MEDIUM | FAIL | findings review (Part D): 1/0/0 unresolved release findings pending successful repeat HTTPS smoke |
 | Provider selection / deployment egress identity / pilot go-ahead | HUMAN GATE | EP-024 deferred decision; A4 deployment-dependent egress identity; Limited Pilot human gate |
 
 ## Part C — End-to-end investigation records
@@ -265,7 +265,10 @@ duplicate existing coverage without adding review value.)
 
 ## Part D — Findings classification (release-relevant)
 
-- BLOCKER: 0
+- BLOCKER: 1 — the 2026-08-26 live HTTPS smoke lost `pi_session` at the
+  frontend proxy boundary while `pi_csrf` survived. The middleware fix and
+  two-cookie regression test are implemented; closure requires redeployment
+  and a successful repeat of A1.
 - HIGH: 0
 - MEDIUM: 0
 - LOW / TECHNICAL DEBT (explicitly out of EP-026 release scope):
@@ -275,9 +278,10 @@ duplicate existing coverage without adding review value.)
   - 3 diagnostic-only M3b CI commits remain in branch history
     (`3e6dc89`, `367f3a1`, `f2561fc`); effect removed from workflow, history
     cleanup deliberately deferred.
-- HUMAN GATES: live HTTPS cookie smoke on the real deployment (A1) — the one
-  remaining technical-readiness blocker; stable egress identity publication
-  (A4); EP-024 provider selection; Limited Pilot authorization itself.
+- HUMAN GATES: repeat the HTTPS cookie smoke on the real deployment (A1) after
+  redeployment — the one remaining technical-readiness blocker; stable egress
+  identity publication (A4); EP-024 provider selection; Limited Pilot
+  authorization itself.
   (Investigation manual reviews are no longer a gate: recorded ACCEPT /
   ACCEPT / ACCEPT WITH NOTE in Part C.)
 

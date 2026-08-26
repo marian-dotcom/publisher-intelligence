@@ -268,8 +268,7 @@
       passed; unit 340 passed; ruff/mypy(261) clean; scheduler+worker smoke
       green.
       failure-rate visibility)
-- [x] M7 — Pilot runbook + technical-readiness exit gate COMPLETE
-      (documentation/evidence milestone; zero production changes):
+- [ ] M7 — Pilot runbook + technical-readiness exit gate NOT COMPLETE:
       docs/runbooks/pilot-readiness.md adds the operator runbook (HTTPS/
       secure-cookie verification incl. live-smoke procedure, OAuth permission
       checklist, degraded/revoked connector handling incl. STALE semantics,
@@ -287,11 +286,22 @@
       WITH NOTE (preserved verbatim: "Validates monetization context
       reconstruction and gating/provenance, not a full monetization root-cause
       investigation") — investigation-review gate = PASS. The single
-      remaining technical-readiness blocker is the M1 live HTTPS
-      secure-cookie smoke on the real authorized deployment, so:
-      EP-026 TECHNICAL READINESS = HUMAN GATE pending that smoke;
+      live HTTPS secure-cookie smoke on the real authorized Oracle Cloud ARM64
+      deployment ran on 2026-08-26 and exposed a production-path blocker: the
+      Next.js middleware proxy collapsed the two upstream Set-Cookie headers,
+      dropping pi_session while pi_csrf survived. The focused middleware fix
+      forwards each getSetCookie() value with append semantics and has dedicated
+      two-cookie regression coverage. M7 remains incomplete pending redeployment
+      and a repeated live HTTPS smoke proving both cookies survive with their
+      required attributes, so EP-026 TECHNICAL READINESS = HUMAN GATE;
       Limited Pilot authorization NOT GRANTED (independent human gate).
-      Findings: 0 BLOCKER / 0 HIGH / 0 MEDIUM unresolved release findings;
+      RED→GREEN: the focused middleware regression failed with 1 surviving
+      cookie instead of 2, then passed 1/1; full frontend passed 45/45 tests,
+      lint (0 errors), typecheck, and production build; secret scan and
+      git diff --check passed. Local docker compose config was unavailable
+      because this runtime has no Docker CLI and remains required from CI.
+      Findings: 1 BLOCKER / 0 HIGH / 0 MEDIUM unresolved release findings; the
+      blocker closes only after the repeated live HTTPS smoke succeeds.
       LOW/debt explicitly retained (~10 SQLAlchemy lifecycle warnings,
       3 diagnostic-only M3b commits in branch history, provider-selection
       gate deferred to deployment). validation

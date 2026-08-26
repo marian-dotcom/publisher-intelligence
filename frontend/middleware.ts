@@ -35,9 +35,13 @@ export async function middleware(request: NextRequest) {
     statusText: response.statusText,
   });
   response.headers.forEach((value, key) => {
-    if (key.toLowerCase() !== "content-encoding") {
+    const normalizedKey = key.toLowerCase();
+    if (normalizedKey !== "content-encoding" && normalizedKey !== "set-cookie") {
       proxied.headers.set(key, value);
     }
+  });
+  response.headers.getSetCookie().forEach((cookie) => {
+    proxied.headers.append("set-cookie", cookie);
   });
   return proxied;
 }
