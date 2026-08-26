@@ -12,7 +12,8 @@ wrong peaks.
 
 import sys
 
-UNITS_TO_MIB = {"B": 1 / 1024, "KiB": 1.0, "MiB": 1.0, "GiB": 1024.0}
+# Binary-unit conversion to MiB: B -> 1/(1024*1024), KiB -> 1/1024.
+UNITS_TO_MIB = {"B": 1 / (1024 * 1024), "KiB": 1 / 1024, "MiB": 1.0, "GiB": 1024.0}
 
 
 def mem_to_mib(raw: str) -> float:
@@ -69,9 +70,10 @@ def summarize(samples_path: str) -> None:
 
 
 def self_test() -> None:
-    assert mem_to_mib("512B") == 0.5
-    assert abs(mem_to_mib("64KiB") - 64.0) < 1e-9
-    assert mem_to_mib("249.7MiB") == 249.7
+    assert mem_to_mib("512B") == 512 / (1024 * 1024)
+    assert abs(mem_to_mib("512B") - 0.00048828125) < 1e-12
+    assert mem_to_mib("64KiB") == 0.0625
+    assert abs(mem_to_mib("249.7MiB") - 249.7) < 1e-9
     assert mem_to_mib("1.25GiB") == 1280.0
     try:
         mem_to_mib("3MB")

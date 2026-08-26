@@ -144,58 +144,16 @@ drain_start_epoch=$(date +%s)
 dc --profile browser up -d --no-deps --scale browser-worker="${N}" browser-worker
 
 # --- verify the created containers actually received the profile limits ------
-python3 - "${N}" <<'LIMITVERIFY'
-import json
-import os
-import subprocess
-import sys
+# Resolve live containers via Compose service identity (never ordinals),
+# then verify every resolved container against the profile limits using the
+# shared helper (scripts/benchmark_verify.py).
+python3 "$(dirname "$0")/benchmark_verify.py" "${PROFILE}" "${N}" "${COMPOSE_FILES[@]}"
+verify_status=$?
+if [ "${verify_status}" -ne 0 ]; then
+  echo "FATAL: resource-limit verification failed" >&2
+  exit 1
+fi
 
-services = {
-    "api": "API",
-    "frontend": "FRONTEND",
-    "scheduler": "SCHEDULER",
-    "worker": "WORKER",
-    "postgres": "POSTGRES",
-    "minio": "MINIO",
-}
-replicas = int(sys.argv[1])
-services["browser-worker"] = "BROWSER"
-
-def mem_bytes(value: str) -> int:
-    return int(float(value[:-1]) * (1024 ** 3 if value.endswith("G") else 1024 ** 2))
-
-fail = False
-total_cpu = 0.0
-total_mem = 0.0
-for service, prefix in services.items():
-    count = replicas if service == "browser-worker" else 1
-    expected_cpu = float(os.environ[f"{prefix}_CPU_LIMIT"])
-    expected_mem = mem_bytes(os.environ[f"{prefix}_MEMORY_LIMIT"])
-    total_cpu += expected_cpu * count
-    total_mem += expected_mem * count
-    for index in range(1, count + 1):
-        name = f"publisher-intelligence-{service}-{index}"
-        probe = subprocess.run(["docker", "inspect", name], capture_output=True, text=True)
-        if probe.returncode != 0:
-            print(f"LIMIT-VERIFY MISSING {name}")
-            fail = True
-            continue
-        host_config = json.loads(probe.stdout)[0]["HostConfig"]
-        actual_cpu = host_config["NanoCpus"] / 1e9
-        actual_mem = host_config["Memory"]
-        if abs(actual_cpu - expected_cpu) > 0.001 or actual_mem != expected_mem:
-            print(
-                f"LIMIT-MISMATCH {name}: cpu={actual_cpu} mem={actual_mem} "
-                f"expected cpu={expected_cpu} mem={expected_mem}"
-            )
-            fail = True
-if fail:
-    sys.exit(1)
-profile_name = os.environ.get("BENCHMARK_PROFILE", "MEDIUM")
-print(f"limits verified against BENCHMARK_PROFILE={profile_name}")
-print(f"nominal_envelope_cpus={total_cpu:.2f}")
-print(f"nominal_envelope_mem_mib={round(total_mem / 1024 ** 2)}")
-LIMITVERIFY
 
 # --- phase 6: observe this exact batch until terminal -----------------------
 state_sql="SELECT count(*) FILTER (WHERE status IN ('PENDING','RETRY')),
