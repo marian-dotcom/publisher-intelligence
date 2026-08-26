@@ -68,6 +68,9 @@ PROFILE="${BENCHMARK_PROFILE:-MEDIUM}"
 
 COMPOSE_FILES=(-f "$(dirname "$0")/../compose.yaml")
 if [ -n "${COMPOSE_OVERRIDE:-}" ]; then COMPOSE_FILES+=(-f "${COMPOSE_OVERRIDE}"); fi
+# Bare compose file PATHS for helper scripts (they render their own -f flags).
+COMPOSE_PATHS=("$(dirname "$0")/../compose.yaml")
+if [ -n "${COMPOSE_OVERRIDE:-}" ]; then COMPOSE_PATHS+=("${COMPOSE_OVERRIDE}"); fi
 dc() { docker compose "${COMPOSE_FILES[@]}" "$@"; }
 
 # Benchmark-only opt-in: URL validation for the controlled target happens in
@@ -147,7 +150,7 @@ dc --profile browser up -d --no-deps --scale browser-worker="${N}" browser-worke
 # Resolve live containers via Compose service identity (never ordinals),
 # then verify every resolved container against the profile limits using the
 # shared helper (scripts/benchmark_verify.py).
-python3 "$(dirname "$0")/benchmark_verify.py" "${PROFILE}" "${N}" "${COMPOSE_FILES[@]}"
+python3 "$(dirname "$0")/benchmark_verify.py" "${PROFILE}" "${N}" "${COMPOSE_PATHS[@]}"
 verify_status=$?
 if [ "${verify_status}" -ne 0 ]; then
   echo "FATAL: resource-limit verification failed" >&2
