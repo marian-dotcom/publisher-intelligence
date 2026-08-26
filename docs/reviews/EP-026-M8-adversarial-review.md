@@ -3,7 +3,7 @@
 **Reviewer:** Codex (automated adversarial pass)
 **Date:** 2026-08-26
 **Branch:** `agent/implement-ep-026`
-**HEAD:** `2facfeb6318bf9f9d31daccb58cc2f020040f81d`
+**HEAD:** `b6eeadba3f4629a75fe3b98a6cde036a59f193f4`
 **Scope:** Full adversarial challenge of EP-026 M1-M7 against actual code, tests,
 documented evidence, and the live Oracle Cloud ARM64 staging deployment.
 
@@ -73,21 +73,21 @@ tokens.
 Pre-existing, not introduced by EP-026.
 **Blocks M8 completion:** No.
 
-### F-004: Mypy full-scope claim slightly overstated (LOW)
+### F-004: Mypy full-scope claim slightly overstated (CLOSED)
 
 **Affected milestone:** M1
-**Evidence:** The EP-026 plan states "mypy full scope green" (plan line 27). A
-targeted mypy run reports 11 errors, all in test files, all intentional (passing
-raw `str` where `SecretStr` is typed, or deliberately testing invalid environment
-literals). No production code has type errors.
+**Evidence:** The EP-026 plan stated "mypy full scope green" (plan line 27). A
+prior targeted mypy run reported 11 errors, all in test files, all intentional
+(passing raw `str` where `SecretStr` is typed, or deliberately testing invalid
+environment literals). No production code had type errors.
 **Why it matters:** Aggregate regression counts must be exact per AGENTS.md gate
-evidence rules. The claim is directionally correct but not literally true.
-**Reproducibility:** `cd backend && .venv/bin/python -m mypy app tests scripts
-evals_runtime migrations/env.py` reports 11 errors in test files.
-**Remediation scope:** Add `# type: ignore[arg-type]` to 7-8 test lines, or adjust
-the plan wording to "mypy full production scope green; 11 intentional test-only
-annotations."
-**Blocks M8 completion:** No. All 11 errors are in tests, all intentional.
+evidence rules.
+**Remediation:** CI run `33011814483` on branch `agent/implement-ep-026` at
+`b6eeadba3f4629a75fe3b98a6cde036a59f193f4` ran the full canonical mypy scope
+`mypy app tests scripts migrations/env.py` and reported **"Success: no issues
+found in 262 source files"**. The 11 prior test-file annotations were resolved
+between the initial finding and CI green. F-004 is CLOSED.
+**Status:** CLOSED.
 
 ### F-005: No automated SameSite cookie attribute test (LOW)
 
@@ -111,14 +111,13 @@ endpoints. No rate-limiting middleware or decorator exists anywhere in the backe
 The `POST /auth/login` endpoint is vulnerable to credential brute-forcing.
 **Why it matters for Limited Pilot:** This is an MVP security requirement, not an
 EP-026 requirement. EP-026 scope is pilot reliability/operational readiness, not
-new security features. The login endpoint is protected by password authentication
-and the pilot deployment is not public-facing.
+new security features. The login endpoint is protected by password authentication.
 **Reproducibility:** Unlimited POST attempts to `/auth/login` succeed without
 throttling.
 **Remediation scope:** Implement rate-limiting middleware. Significant new code —
 out of EP-026 scope. Should be tracked as a separate pre-pilot work item.
-**Blocks M8 completion:** No (out of scope). Should be tracked for Limited Pilot
-authorization as a separate human-gate item.
+**Blocks M8 completion:** No (out of scope). Explicit pre-Limited-Pilot security
+gap — must be resolved before Limited Pilot authorization.
 
 ### F-007: RetentionSchedulingService duplicated in health.py (LOW)
 
@@ -285,8 +284,8 @@ wrong location.
 | BLOCKER | 0 | — |
 | HIGH | 0 | — |
 | MEDIUM | 0 | — |
-| LOW | 6 | F-002, F-003, F-004, F-005, F-006, F-007 |
-| CLOSED | 1 | F-001 |
+| LOW | 5 | F-002, F-003, F-005, F-006, F-007 |
+| CLOSED | 2 | F-001, F-004 |
 
 ---
 
@@ -295,7 +294,10 @@ wrong location.
 - **Unresolved BLOCKER findings:** 0
 - **Unresolved HIGH findings:** 0
 - **Unresolved MEDIUM findings:** 0
+- **Unresolved LOW findings:** 5 (F-002, F-003, F-005, F-006, F-007 — documented technical debt)
+- **CLOSED findings:** 2 (F-001, F-004)
 - **M8 status:** COMPLETE (zero unresolved BLOCKER/HIGH/MEDIUM findings)
 - **EP-026 status:** M1-M8 TECHNICAL READINESS PASS
 - **LIMITED PILOT:** NOT AUTHORIZED (independent human gate; completing M8 does
-  not by itself authorize Limited Pilot)
+  not by itself authorize Limited Pilot; F-006 rate limiting remains an explicit
+  pre-Limited-Pilot security gap)

@@ -1,6 +1,6 @@
 # EP-026 — Pilot Reliability & Operational Readiness
 
-**Status:** READY
+**Status:** COMPLETE
 **Owner:** Codex / Engineering
 **Created:** 2026-08-24
 **Target milestone:** Pilot reliability & operational readiness (PLANS.md §76.1; mandatory prerequisite for Limited Pilot)
@@ -9,10 +9,12 @@
 
 ## Progress
 
-- [ ] M0 — Contract reconciliation & secure-cookie configuration surface design
-- [x] (planning) Repository reconciliation @ main 3c96157: SECURITY.md §201 present;
-      ADR-131 present and pointing at §201; PLANS.md §76.1 states EP-026 is a
-      mandatory prerequisite for Limited Pilot; EP-025b COMPLETE. No contradictions.
+- [x] M0 — Contract reconciliation & secure-cookie configuration surface design
+      COMPLETE: planning reconciliation @ main 3c96157 verified (SECURITY.md §201,
+      ADR-131, PLANS.md §76.1 EP-026 mandatory prerequisite, EP-025b COMPLETE — no
+      contradictions). Secure-cookie configuration surface design implemented as part
+      of M1 (environment-aware `cookie_secure` field with fail-closed
+      `model_validator`); M0 gate satisfied by M1 completion.
 - [x] M1 — SECURE-COOKIE PRE-PILOT HARD GATE COMPLETE: Settings gained environment-aware
       cookie_secure (default False) with fail-closed model_validator —
       staging/production MUST set cookie_secure=True or construction raises
@@ -317,7 +319,7 @@
 - [x] M8 — Adversarial review & release readiness COMPLETE: full adversarial
       pass over EP-026 M1-M7 against actual code, tests, documented evidence,
       and the live Oracle Cloud ARM64 staging deployment. HEAD
-      `e9e41aedcef998bf1073a8e0fdb8b87a6a4e7bd5` verified; working tree clean.
+      `b6eeadba3f4629a75fe3b98a6cde036a59f193f4` verified; working tree clean.
       10 challenge areas reviewed (auth/tenant-isolation, monitoring-network
       reliability, retention, connector staleness, cost controls, DST/timezone,
       self-observability, incident/evidence correctness, deployment/runtime,
@@ -325,8 +327,8 @@
       1 MEDIUM / 6 LOW. F-001 (ORM CheckConstraint drift) remediated: one-line
       string update at `models.py:165` + regression test
       `test_orm_check_constraint_includes_checkpoint_run` (RED→GREEN);
-      migration 0027 untouched. Final state: 0 BLOCKER / 0 HIGH / 0 MEDIUM /
-      6 LOW / 1 CLOSED. Full review at
+      migration 0027 untouched.       Final state: 0 BLOCKER / 0 HIGH / 0 MEDIUM /
+      5 LOW / 2 CLOSED. Full review at
       docs/reviews/EP-026-M8-adversarial-review.md. M8 COMPLETE.
       EP-026 M1-M8 technical readiness: PASS. Limited Pilot remains NOT AUTHORIZED.
 

@@ -282,6 +282,10 @@ duplicate existing coverage without adding review value.)
   `CHECKPOINT_RUN` while migration 0027 adds it; remediated by one-line string
   update + regression test at `test_orm_check_constraint_includes_checkpoint_run`;
   migration 0027 untouched; codebase and DB now consistent).
+- CLOSED: F-004 (mypy full-scope claim slightly overstated — CI run 33011814483 on
+  `b6eeadb` reported "Success: no issues found in 262 source files" for full
+  canonical scope `mypy app tests scripts migrations/env.py`; 11 prior test-only
+  annotations resolved before CI green).
 - CLOSED: the Set-Cookie proxy blocker discovered on 2026-08-26 is resolved.
   Repeated live A1 verification at deployed commit `59b0f42` proved both
   cookies survive independently with the required attributes and the
@@ -295,11 +299,10 @@ duplicate existing coverage without adding review value.)
     cleanup deliberately deferred.
   - F-002: pi_csrf cookie not cleared on logout (pre-existing).
   - F-003: CSRF hash comparison not timing-safe (pre-existing).
-  - F-004: mypy full-scope claim slightly overstated (11 intentional test-only
-    errors).
   - F-005: no automated SameSite cookie attribute test.
   - F-006: rate limiting not implemented on auth endpoints (pre-existing,
-    SECURITY.md §95 requirement, out of EP-026 scope).
+    SECURITY.md §95 requirement, out of EP-026 scope; explicit pre-Limited-Pilot
+    security gap — must be resolved before Limited Pilot authorization).
   - F-007: RetentionSchedulingService duplicate in health.py (dead code).
 - HUMAN GATES: stable egress identity publication (A4); EP-024 provider
   selection; Limited Pilot authorization itself.
