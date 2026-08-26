@@ -23,7 +23,48 @@ K="${JOBS:-60}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-900}"
 POLL_INTERVAL="${POLL_INTERVAL:-5}"
 SAMPLE_INTERVAL="${SAMPLE_INTERVAL:-1}"
-PROFILE_NOTE="${PROFILE_NOTE:-MEDIUM}"
+
+# EP-026 M7 support: benchmark resource profiles are EXPLICIT AND ENFORCED.
+# The chosen BENCHMARK_PROFILE maps to exact Compose limit variables BEFORE any
+# service is created, and the created containers are verified against them.
+# Concurrency comparison contract: N=1/N=2/N=3 all use MEDIUM.
+# SMALL BROWSER_WORKERS=1 is the cheap 2CPU/4GB candidate experiment.
+case "${BENCHMARK_PROFILE:-MEDIUM}" in
+  SMALL)
+    export API_CPU_LIMIT="0.30" API_MEMORY_LIMIT="512M"
+    export FRONTEND_CPU_LIMIT="0.25" FRONTEND_MEMORY_LIMIT="384M"
+    export SCHEDULER_CPU_LIMIT="0.10" SCHEDULER_MEMORY_LIMIT="192M"
+    export WORKER_CPU_LIMIT="0.30" WORKER_MEMORY_LIMIT="320M"
+    export BROWSER_CPU_LIMIT="0.70" BROWSER_MEMORY_LIMIT="1536M"
+    export POSTGRES_CPU_LIMIT="0.20" POSTGRES_MEMORY_LIMIT="512M"
+    export MINIO_CPU_LIMIT="0.10" MINIO_MEMORY_LIMIT="256M"
+    ;;
+  MEDIUM)
+    export API_CPU_LIMIT="0.50" API_MEMORY_LIMIT="512M"
+    export FRONTEND_CPU_LIMIT="0.40" FRONTEND_MEMORY_LIMIT="400M"
+    export SCHEDULER_CPU_LIMIT="0.20" SCHEDULER_MEMORY_LIMIT="256M"
+    export WORKER_CPU_LIMIT="0.50" WORKER_MEMORY_LIMIT="512M"
+    export BROWSER_CPU_LIMIT="0.50" BROWSER_MEMORY_LIMIT="1280M"
+    export POSTGRES_CPU_LIMIT="0.50" POSTGRES_MEMORY_LIMIT="512M"
+    export MINIO_CPU_LIMIT="0.25" MINIO_MEMORY_LIMIT="320M"
+    ;;
+  ORACLE_FREE)
+    # Honest note: at N>=2 the browser replicas exceed this 2-CPU nominal
+    # envelope; expect throttling. RAM headroom is generous.
+    export API_CPU_LIMIT="0.30" API_MEMORY_LIMIT="512M"
+    export FRONTEND_CPU_LIMIT="0.25" FRONTEND_MEMORY_LIMIT="384M"
+    export SCHEDULER_CPU_LIMIT="0.10" SCHEDULER_MEMORY_LIMIT="192M"
+    export WORKER_CPU_LIMIT="0.30" WORKER_MEMORY_LIMIT="320M"
+    export BROWSER_CPU_LIMIT="0.70" BROWSER_MEMORY_LIMIT="2048M"
+    export POSTGRES_CPU_LIMIT="0.20" POSTGRES_MEMORY_LIMIT="1024M"
+    export MINIO_CPU_LIMIT="0.10" MINIO_MEMORY_LIMIT="256M"
+    ;;
+  *)
+    echo "FATAL: unknown BENCHMARK_PROFILE '${BENCHMARK_PROFILE}' (expected SMALL|MEDIUM|ORACLE_FREE)" >&2
+    exit 2
+    ;;
+esac
+PROFILE="${BENCHMARK_PROFILE:-MEDIUM}"
 
 COMPOSE_FILES=(-f "$(dirname "$0")/../compose.yaml")
 if [ -n "${COMPOSE_OVERRIDE:-}" ]; then COMPOSE_FILES+=(-f "${COMPOSE_OVERRIDE}"); fi
@@ -34,10 +75,10 @@ dc() { docker compose "${COMPOSE_FILES[@]}" "$@"; }
 # NEVER enable this flag for real publisher monitoring.
 export BROWSER_ALLOW_PRIVATE_NETWORKS=true
 
-echo "== benchmark: N=${N} browser-worker(s), K=${K} checkpoints, profile=${PROFILE_NOTE} =="
+echo "== benchmark: N=${N} workers, K=${K} jobs, BENCHMARK_PROFILE=${PROFILE} =="
 
 # --- phase 1: runtime without browser workers -------------------------------
-dc up -d migrate api scheduler frontend benchmark-target postgres minio minio-init
+dc up -d migrate api scheduler worker frontend benchmark-target postgres minio minio-init
 # Force browser-worker replicas to ZERO (also stops leftovers from previous
 # runs) so enqueue happens without any consumer racing the producer.
 dc --profile browser up -d --scale browser-worker=0 --no-deps browser-worker
@@ -97,10 +138,64 @@ SAMPLES_FILE="$(mktemp)"
 ) &
 SAMPLE_PID=$!
 
-drain_start=$(date +%s)
+drain_start_epoch=$(date +%s)
 
 # --- phase 5: start exactly N browser-worker replicas -----------------------
 dc --profile browser up -d --no-deps --scale browser-worker="${N}" browser-worker
+
+# --- verify the created containers actually received the profile limits ------
+python3 - "${N}" <<'LIMITVERIFY'
+import json
+import os
+import subprocess
+import sys
+
+services = {
+    "api": "API",
+    "frontend": "FRONTEND",
+    "scheduler": "SCHEDULER",
+    "worker": "WORKER",
+    "postgres": "POSTGRES",
+    "minio": "MINIO",
+}
+replicas = int(sys.argv[1])
+services["browser-worker"] = "BROWSER"
+
+def mem_bytes(value: str) -> int:
+    return int(float(value[:-1]) * (1024 ** 3 if value.endswith("G") else 1024 ** 2))
+
+fail = False
+total_cpu = 0.0
+total_mem = 0.0
+for service, prefix in services.items():
+    count = replicas if service == "browser-worker" else 1
+    expected_cpu = float(os.environ[f"{prefix}_CPU_LIMIT"])
+    expected_mem = mem_bytes(os.environ[f"{prefix}_MEMORY_LIMIT"])
+    total_cpu += expected_cpu * count
+    total_mem += expected_mem * count
+    for index in range(1, count + 1):
+        name = f"publisher-intelligence-{service}-{index}"
+        probe = subprocess.run(["docker", "inspect", name], capture_output=True, text=True)
+        if probe.returncode != 0:
+            print(f"LIMIT-VERIFY MISSING {name}")
+            fail = True
+            continue
+        host_config = json.loads(probe.stdout)[0]["HostConfig"]
+        actual_cpu = host_config["NanoCpus"] / 1e9
+        actual_mem = host_config["Memory"]
+        if abs(actual_cpu - expected_cpu) > 0.001 or actual_mem != expected_mem:
+            print(
+                f"LIMIT-MISMATCH {name}: cpu={actual_cpu} mem={actual_mem} "
+                f"expected cpu={expected_cpu} mem={expected_mem}"
+            )
+            fail = True
+if fail:
+    sys.exit(1)
+profile_name = os.environ.get("BENCHMARK_PROFILE", "MEDIUM")
+print(f"limits verified against BENCHMARK_PROFILE={profile_name}")
+print(f"nominal_envelope_cpus={total_cpu:.2f}")
+print(f"nominal_envelope_mem_mib={round(total_mem / 1024 ** 2)}")
+LIMITVERIFY
 
 # --- phase 6: observe this exact batch until terminal -----------------------
 state_sql="SELECT count(*) FILTER (WHERE status IN ('PENDING','RETRY')),
@@ -109,7 +204,7 @@ state_sql="SELECT count(*) FILTER (WHERE status IN ('PENDING','RETRY')),
        bool_and(status IN ('COMPLETE','FAILED'))
 FROM jobs WHERE id IN (${ids_sql})"
 
-deadline=$((drain_start + TIMEOUT_SECONDS))
+deadline=$((drain_start_epoch + TIMEOUT_SECONDS))
 while true; do
   stats=$(dc exec -T postgres psql -U publisher -d publisher_intelligence -tAc "${state_sql}")
   if [ -z "${stats}" ]; then
@@ -121,7 +216,8 @@ while true; do
   if [ "${all_terminal}" = "t" ]; then
     break
   fi
-  if [ "$SECONDS" -ge "$deadline" ]; then
+  now_epoch=$(date +%s)
+  if [ "${now_epoch}" -ge "${deadline}" ]; then
     dc exec -T postgres psql -U publisher -d publisher_intelligence -c \
       "SELECT id, status, attempt, locked_by FROM jobs WHERE id IN (${ids_sql});"
     echo "FATAL: timeout after ${TIMEOUT_SECONDS}s — batch not drained" >&2
@@ -130,11 +226,11 @@ while true; do
   sleep "${POLL_INTERVAL}"
 done
 
-drain_end=$(date +%s)
+drain_end_epoch=$(date +%s)
 kill "${SAMPLE_PID}" 2>/dev/null || true
 wait "${SAMPLE_PID}" 2>/dev/null || true
 
-drain_wall=$((drain_end - drain_start))
+drain_wall=$((drain_end_epoch - drain_start_epoch))
 throughput=$(python3 -c "print(round(${terminal} / max(1, ${drain_wall}), 3))")
 
 # --- phase 7: batch-scoped results ------------------------------------------
@@ -154,41 +250,7 @@ WHERE j.id IN (${ids_sql})
 GROUP BY j.status ORDER BY j.status;"
 echo "drain_wall_seconds=${drain_wall}"
 echo "jobs_per_second=${throughput}"
-echo "profile_note=${PROFILE_NOTE}"
 
-python3 - "${SAMPLES_FILE}" <<'PYEOF'
-import sys
-
-def parse(line: str):
-    parts = line.rstrip("\n").split("|")
-    if len(parts) != 4:
-        return None
-    ts, name, cpu_raw, mem_raw = parts
-    used = float(mem_raw.split("/")[0].strip().rstrip("MiB").strip())
-    return ts, name, float(cpu_raw.rstrip("%")), used
-
-rows = [r for r in (parse(l) for l in open(sys.argv[1])) if r]
-print(f"samples={len(rows)}")
-
-per_worker_peak_mem: dict[str, float] = {}
-browser_cpu: dict[str, float] = {}
-browser_mem: dict[str, float] = {}
-all_mem: dict[str, float] = {}
-for ts, name, cpu, mem in rows:
-    per_worker_peak_mem[name] = max(per_worker_peak_mem.get(name, 0.0), mem)
-    all_mem[ts] = all_mem.get(ts, 0.0) + mem
-    if "browser-worker" in name:
-        browser_cpu[ts] = browser_cpu.get(ts, 0.0) + cpu
-        browser_mem[ts] = browser_mem.get(ts, 0.0) + mem
-
-for name, peak in sorted(per_worker_peak_mem.items()):
-    print(f"peak_mem {name}: {peak:.1f} MiB")
-if browser_cpu:
-    print(f"peak_aggregate_browser_cpu_pct: {max(browser_cpu.values()):.2f}%")
-if browser_mem:
-    print(f"peak_aggregate_browser_mem_mib: {max(browser_mem.values()):.1f} MiB")
-if all_mem:
-    print(f"peak_aggregate_app_mem_mib: {max(all_mem.values()):.1f} MiB")
-PYEOF
+python3 "$(dirname "$0")/benchmark_stats.py" "${SAMPLES_FILE}"
 echo "raw_samples_file=${SAMPLES_FILE}"
 echo "== done =="

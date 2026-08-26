@@ -88,12 +88,28 @@ Target must be a controlled page (never arbitrary external sites).
 The harness script below performs everything through real paths and observes
 drain via DIRECT PostgreSQL queries scoped to this batch's job ids (never
 anonymous API calls; explicit timeout; hard failure if queue state cannot be
-read):
+read).
+
+Resource profiles are ENFORCED, not decorative: `BENCHMARK_PROFILE`
+(SMALL | MEDIUM | ORACLE_FREE) maps to exact Compose limit variables before
+any container is created, the created containers are verified against those
+limits (mismatch aborts the run), and the nominal envelope is printed.
+Unknown profiles fail immediately.
+
+Timing definition (identical for every run):
+`drain wall = all-jobs-terminal timestamp − benchmark start timestamp`,
+where benchmark start is immediately before the browser-worker replicas are
+started. Worker startup after benchmark start is therefore INCLUDED; image
+build, pre-start and enqueue time are EXCLUDED.
 
 ```bash
-JOBS=12 BROWSER_WORKERS=1 ./scripts/browser_benchmark.sh   # Run A
-JOBS=12 BROWSER_WORKERS=2 ./scripts/browser_benchmark.sh   # Run B
-JOBS=12 BROWSER_WORKERS=3 ./scripts/browser_benchmark.sh   # Run C
+# Concurrency comparison contract — MEDIUM for all three runs:
+BENCHMARK_PROFILE=MEDIUM JOBS=60 BROWSER_WORKERS=1 ./scripts/browser_benchmark.sh
+BENCHMARK_PROFILE=MEDIUM JOBS=60 BROWSER_WORKERS=2 ./scripts/browser_benchmark.sh
+BENCHMARK_PROFILE=MEDIUM JOBS=60 BROWSER_WORKERS=3 ./scripts/browser_benchmark.sh
+
+# Separate cheap-candidate experiment (NOT called MEDIUM at N>1):
+BENCHMARK_PROFILE=SMALL JOBS=60 BROWSER_WORKERS=1 ./scripts/browser_benchmark.sh
 
 # resource sampling in another terminal while a run is active
 docker stats --no-stream
