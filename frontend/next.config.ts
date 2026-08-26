@@ -1,5 +1,8 @@
-import { createNextConfig } from "./lib/backend-rewrites";
+import type { NextConfig } from "next";
 
-const nextConfig = createNextConfig();
+const nextConfig: NextConfig = {
+  reactStrictMode: true,
+  poweredByHeader: false,
+};
 
 export default nextConfig;

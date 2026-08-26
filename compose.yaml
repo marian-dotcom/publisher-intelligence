@@ -47,6 +47,11 @@ services:
       interval: 2s
       timeout: 3s
       retries: 20
+    deploy:
+      resources:
+        limits:
+          cpus: "${POSTGRES_CPU_LIMIT:-0.20}"
+          memory: ${POSTGRES_MEMORY_LIMIT:-512M}
     restart: unless-stopped
 
   minio:
@@ -65,6 +70,11 @@ services:
       interval: 2s
       timeout: 3s
       retries: 20
+    deploy:
+      resources:
+        limits:
+          cpus: "${MINIO_CPU_LIMIT:-0.10}"
+          memory: ${MINIO_MEMORY_LIMIT:-256M}
     restart: unless-stopped
 
   minio-init:
@@ -100,6 +110,11 @@ services:
         condition: service_completed_successfully
     ports:
       - "127.0.0.1:8000:8000"
+    deploy:
+      resources:
+        limits:
+          cpus: "${API_CPU_LIMIT:-0.30}"
+          memory: ${API_MEMORY_LIMIT:-512M}
     healthcheck:
       test:
         [
@@ -121,6 +136,11 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: "${SCHEDULER_CPU_LIMIT:-0.10}"
+          memory: ${SCHEDULER_MEMORY_LIMIT:-192M}
     restart: unless-stopped
 
   worker:
@@ -131,6 +151,11 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: "${WORKER_CPU_LIMIT:-0.30}"
+          memory: ${WORKER_MEMORY_LIMIT:-320M}
     restart: unless-stopped
 
   browser-worker:
@@ -148,7 +173,7 @@ services:
       replicas: ${BROWSER_WORKER_REPLICAS:-1}
       resources:
         limits:
-          cpus: "${BROWSER_CPU_LIMIT:-1.0}"
+          cpus: "${BROWSER_CPU_LIMIT:-0.70}"
           memory: ${BROWSER_MEMORY_LIMIT:-1536M}
     restart: unless-stopped
 
@@ -161,6 +186,11 @@ services:
         condition: service_started
     ports:
       - "127.0.0.1:3000:3000"
+    deploy:
+      resources:
+        limits:
+          cpus: "${FRONTEND_CPU_LIMIT:-0.25}"
+          memory: ${FRONTEND_MEMORY_LIMIT:-384M}
     restart: unless-stopped
 
   benchmark-target:
