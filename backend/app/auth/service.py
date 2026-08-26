@@ -5,6 +5,7 @@ account-active state, and tenant membership. Errors are deliberately generic
 ("authentication failed") so internal state is never disclosed.
 """
 
+import hmac
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -187,7 +188,7 @@ class AuthService:
             )
 
     def verify_csrf(self, *, stored_hash: str, presented: str) -> bool:
-        return hash_session_token(presented) == stored_hash
+        return hmac.compare_digest(hash_session_token(presented), stored_hash)
 
     async def logout(self, *, raw_token: str) -> bool:
         token_hash = hash_session_token(raw_token)

@@ -7,12 +7,14 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from app.auth.dependencies import (
+    CSRF_COOKIE,
     SESSION_COOKIE,
     ActorContext,
     _unauthorized,
     get_current_actor,
     get_current_actor_with_csrf,
 )
+from app.auth.rate_limit import check_rate_limit, clear_rate_limit_for_ip
 from app.auth.service import AuthError, AuthService
 from app.config.settings import Settings, get_settings
 from app.db.session import get_session_factory
@@ -64,7 +66,7 @@ def _set_session_cookies(
         path="/",
     )
     response.set_cookie(
-        "pi_csrf",
+        CSRF_COOKIE,
         csrf,
         max_age=max_age,
         httponly=False,
@@ -75,7 +77,8 @@ def _set_session_cookies(
 
 
 @router.post("/login")
-async def login(payload: LoginRequest, response: Response) -> dict[str, object]:
+async def login(payload: LoginRequest, request: Request, response: Response) -> dict[str, object]:
+    check_rate_limit(request)
     try:
         context = await _service().login(
             email=payload.email,
@@ -84,6 +87,7 @@ async def login(payload: LoginRequest, response: Response) -> dict[str, object]:
         )
     except AuthError:
         raise HTTPException(status_code=401, detail="authentication failed") from None
+    clear_rate_limit_for_ip(request)
     _set_session_cookies(
         response, token=context.raw_token, csrf=context.csrf_token, max_age=SESSION_TTL_SECONDS
     )
@@ -105,7 +109,9 @@ async def logout(
     if not raw_token:
         raise _unauthorized()
     revoked = await _service().logout(raw_token=raw_token)
-    response.delete_cookie(SESSION_COOKIE, path="/")
+    secure = get_settings().cookie_secure
+    response.delete_cookie(SESSION_COOKIE, path="/", samesite="lax", secure=secure)
+    response.delete_cookie(CSRF_COOKIE, path="/", samesite="lax", secure=secure)
     return {"revoked": revoked}
 
 

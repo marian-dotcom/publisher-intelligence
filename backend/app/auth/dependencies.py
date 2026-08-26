@@ -10,6 +10,7 @@ from app.auth.service import AuthService
 from app.db.session import get_session_factory
 
 SESSION_COOKIE = "pi_session"
+CSRF_COOKIE = "pi_csrf"
 CSRF_HEADER = "X-CSRF-Token"
 
 

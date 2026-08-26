@@ -39,7 +39,7 @@ def _emit_with(response: FakeResponse, settings: Settings) -> None:
 
 
 def test_pilot_production_cookies_must_be_secure() -> None:
-    """SECURITY.md §201: pilot/production auth cookies cannot be Secure=False."""
+    """SECURITY.md s201: pilot/production auth cookies cannot be Secure=False."""
     from pydantic import SecretStr
 
     production_settings = Settings(
@@ -59,6 +59,8 @@ def test_pilot_production_cookies_must_be_secure() -> None:
     assert "secure" in csrf_cookie.lower()
     assert "httponly" in session_cookie.lower()
     assert "httponly" not in csrf_cookie.lower()
+    assert "samesite=lax" in session_cookie.lower()
+    assert "samesite=lax" in csrf_cookie.lower()
 
 
 def test_insecure_production_settings_rejected_at_construction() -> None:

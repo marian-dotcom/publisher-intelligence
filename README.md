@@ -366,7 +366,7 @@ handling, and ranked explanations over stored evidence (no LLM, no causal overcl
 authorization, revenue, or causal claims.
 
 The repository still excludes production OAuth onboarding, a managed secret provider, provider
-write access, alert delivery, Home/Timeline UI, automated incident conclusions, LLM-selected
+write access, alert delivery, automated incident conclusions, LLM-selected
 queries, and production rollout. Refresh this summary after no more than three completed EPs, and
 earlier whenever an EP materially changes the implemented product or security boundary. Always
 state the latest fully covered EP and distinguish partial work from completed capability.
