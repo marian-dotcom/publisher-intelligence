@@ -162,6 +162,9 @@ services:
     build:
       context: ./backend
       target: browser
+    # Started explicitly by the benchmark harness / operator so replica count
+    # is always deliberate (profiles exclude it from generic `up`).
+    profiles: ["browser"]
     environment:
       <<: *backend-env
     depends_on:

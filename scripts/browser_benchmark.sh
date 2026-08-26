@@ -1,32 +1,65 @@
 #!/usr/bin/env bash
 # EP-026 local browser-worker benchmark harness (run on your own machine).
-# Usage: BROWSER_WORKERS=N JOBS=K ./scripts/browser_benchmark.sh
 #
-# Requires: Docker, the compose stack, and a CONTROLLED target only.
-# Queue drain is observed via direct PostgreSQL queries against the exact
-# benchmark job ids (the authenticated /product/operations endpoint is NOT
-# used anonymously, and no auth is bypassed).
+# Measurement definition (identical for N=1/N=2/N=3):
+#   1. infra + api + scheduler + frontend + controlled target come up;
+#   2. browser-worker replicas are forced to ZERO;
+#   3. the full benchmark batch is enqueued through the REAL production CLI;
+#   4. exact job ids are captured and verified non-terminal (backlog proof);
+#   5. drain-start timestamp is taken, then EXACTLY N workers start;
+#   6. the batch is observed via direct PostgreSQL queries until every job is
+#      terminal; periodic docker-stats samples are collected DURING the run;
+#   7. drain-end timestamp stops the measurement.
+# Drain wall time therefore includes worker startup after the benchmark start
+# and excludes image build / container pre-start / enqueue time.
+#
+# Queue observation uses direct PostgreSQL queries scoped to this batch's job
+# ids — never anonymous API calls; explicit timeout; hard failure on unreadable
+# state. Requires a CONTROLLED target only.
 set -euo pipefail
 
 N="${BROWSER_WORKERS:-1}"
-K="${JOBS:-12}"
-# Optional extra compose override file (e.g. to drop host port mappings when
-# another local Postgres owns 5432). Set COMPOSE_OVERRIDE=/path/to/file.yml.
+K="${JOBS:-60}"
+TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-900}"
+POLL_INTERVAL="${POLL_INTERVAL:-5}"
+SAMPLE_INTERVAL="${SAMPLE_INTERVAL:-1}"
+PROFILE_NOTE="${PROFILE_NOTE:-MEDIUM}"
+
 COMPOSE_FILES=(-f "$(dirname "$0")/../compose.yaml")
 if [ -n "${COMPOSE_OVERRIDE:-}" ]; then COMPOSE_FILES+=(-f "${COMPOSE_OVERRIDE}"); fi
 dc() { docker compose "${COMPOSE_FILES[@]}" "$@"; }
-TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-600}"
-POLL_INTERVAL="${POLL_INTERVAL:-10}"
 
-echo "== benchmark: ${N} browser-worker(s), ${K} checkpoints =="
+# Benchmark-only opt-in: URL validation for the controlled target happens in
+# the API, and browser egress reaches the compose-internal fixture service.
+# NEVER enable this flag for real publisher monitoring.
+export BROWSER_ALLOW_PRIVATE_NETWORKS=true
 
-BROWSER_WORKER_REPLICAS="${N}" BROWSER_ALLOW_PRIVATE_NETWORKS=true \
-  dc up -d --build --force-recreate browser-worker benchmark-target migrate api scheduler frontend
+echo "== benchmark: N=${N} browser-worker(s), K=${K} checkpoints, profile=${PROFILE_NOTE} =="
 
+# --- phase 1: runtime without browser workers -------------------------------
+dc up -d migrate api scheduler frontend benchmark-target postgres minio minio-init
+# Force browser-worker replicas to ZERO (also stops leftovers from previous
+# runs) so enqueue happens without any consumer racing the producer.
+dc --profile browser up -d --scale browser-worker=0 --no-deps browser-worker
+# Wait for the one-off migration runner to exit successfully (poll: compose
+# 'wait' is unreliable for already-exited one-offs).
+migrate_state=""
+for _ in $(seq 1 60); do
+  migrate_state=$(dc ps -a --format '{{.Service}} {{.State}} {{.ExitCode}}' \
+    | awk '$1 == "migrate" {print $2, $3}' | head -n 1)
+  if [ "${migrate_state}" = "exited 0" ]; then break; fi
+  sleep 2
+done
+if [ "${migrate_state}" != "exited 0" ]; then
+  echo "FATAL: migrations did not complete cleanly (state=${migrate_state:-missing})" >&2
+  exit 1
+fi
+echo "== migrations applied =="
+
+# --- phase 2: enqueue the full batch BEFORE any worker exists ---------------
 JOB_IDS_FILE="$(mktemp)"
-trap 'rm -f "${JOB_IDS_FILE}"' EXIT
+trap 'rm -f "${JOB_IDS_FILE}"; [ -n "${SAMPLE_PID:-}" ] && kill "${SAMPLE_PID}" 2>/dev/null || true' EXIT
 
-echo "== enqueueing ${K} checkpoints through the real production CLI =="
 for i in $(seq 1 "${K}"); do
   out=$(dc exec -T api python -m app.browser_cli register-and-enqueue \
     --tenant-slug "bench-${N}" --tenant-name Bench --publisher-name BenchPub \
@@ -34,17 +67,49 @@ for i in $(seq 1 "${K}"); do
   job_id=$(printf '%s' "${out}" | python3 -c 'import json,sys;print(json.load(sys.stdin)["job_id"])')
   echo "${job_id}" >> "${JOB_IDS_FILE}"
 done
-echo "enqueued $(wc -l < "${JOB_IDS_FILE}") jobs"
+enqueued=$(wc -l < "${JOB_IDS_FILE}")
+if [ "${enqueued}" -ne "${K}" ]; then
+  echo "FATAL: enqueued ${enqueued}/${K} jobs" >&2
+  exit 1
+fi
 
 ids_sql=$(paste -sd, "${JOB_IDS_FILE}" | sed 's/[^,]*/'\''&'\''/g')
 
+# --- phase 3: prove backlog exists before timing ----------------------------
+backlog=$(dc exec -T postgres psql -U publisher -d publisher_intelligence -tAc \
+  "SELECT count(*) FROM jobs WHERE id IN (${ids_sql}) AND status = 'PENDING'")
+if [ "${backlog}" != "${K}" ]; then
+  echo "FATAL: expected ${K} PENDING benchmark jobs before timing, saw ${backlog}" >&2
+  exit 1
+fi
+echo "== backlog verified: ${K} runnable jobs waiting; starting ${N} worker(s) =="
+
+# --- phase 4: resource sampling DURING the timed drain ----------------------
+SAMPLES_FILE="$(mktemp)"
+(
+  while :; do
+    dc stats --no-stream --format '{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' \
+      | grep 'publisher-intelligence' \
+      | while IFS=$'\t' read -r name cpu mem; do echo "$(date +%H:%M:%S)|${name}|${cpu}|${mem}"; done \
+      >> "${SAMPLES_FILE}"
+    sleep "${SAMPLE_INTERVAL}"
+  done
+) &
+SAMPLE_PID=$!
+
+drain_start=$(date +%s)
+
+# --- phase 5: start exactly N browser-worker replicas -----------------------
+dc --profile browser up -d --no-deps --scale browser-worker="${N}" browser-worker
+
+# --- phase 6: observe this exact batch until terminal -----------------------
 state_sql="SELECT count(*) FILTER (WHERE status IN ('PENDING','RETRY')),
        count(*) FILTER (WHERE status = 'RUNNING'),
        count(*) FILTER (WHERE status IN ('COMPLETE','FAILED')),
        bool_and(status IN ('COMPLETE','FAILED'))
 FROM jobs WHERE id IN (${ids_sql})"
 
-deadline=$((SECONDS + TIMEOUT_SECONDS))
+deadline=$((drain_start + TIMEOUT_SECONDS))
 while true; do
   stats=$(dc exec -T postgres psql -U publisher -d publisher_intelligence -tAc "${state_sql}")
   if [ -z "${stats}" ]; then
@@ -54,33 +119,76 @@ while true; do
   IFS='|' read -r runnable in_progress terminal all_terminal <<< "${stats}"
   echo "$(date +%H:%M:%S) runnable=${runnable} in_progress=${in_progress} terminal=${terminal}"
   if [ "${all_terminal}" = "t" ]; then
-    echo "== batch drained: ${terminal}/${K} reached a terminal state =="
     break
   fi
-  if [ "${SECONDS}" -ge "${deadline}" ]; then
+  if [ "$SECONDS" -ge "$deadline" ]; then
     dc exec -T postgres psql -U publisher -d publisher_intelligence -c \
-      "SELECT id, status, attempt FROM jobs WHERE id IN (${ids_sql});"
+      "SELECT id, status, attempt, locked_by FROM jobs WHERE id IN (${ids_sql});"
     echo "FATAL: timeout after ${TIMEOUT_SECONDS}s — batch not drained" >&2
     exit 1
   fi
   sleep "${POLL_INTERVAL}"
 done
 
-echo "== results (checkpoint_runs for this batch) =="
-dc exec -T postgres psql -U publisher -d publisher_intelligence -c "
-SELECT r.status,
-       count(*) AS runs,
-       percentile_cont(0.5) WITHIN GROUP (ORDER BY r.completed_at - r.started_at) AS p50,
-       percentile_cont(0.95) WITHIN GROUP (ORDER BY r.completed_at - r.started_at) AS p95,
-       max(r.completed_at - r.started_at) AS max_duration,
-       coalesce(sum(r.attempt_count) FILTER (WHERE r.attempt_count > 1), 0) AS retried_attempts,
-       count(*) FILTER (WHERE j.status = 'RUNNING') AS lease_reclaimed_now_running
-FROM checkpoint_runs r JOIN jobs j ON j.payload->>'checkpoint_run_id' = r.id::text
-WHERE j.id IN (${ids_sql})
-GROUP BY r.status ORDER BY r.status;
-SELECT id, status, attempt, locked_by FROM jobs WHERE id IN (${ids_sql}) ORDER BY created_at;"
+drain_end=$(date +%s)
+kill "${SAMPLE_PID}" 2>/dev/null || true
+wait "${SAMPLE_PID}" 2>/dev/null || true
 
-echo "== resource snapshot (record on your Mac) =="
-docker stats --no-stream
-echo "Host load/swap: uptime; sysctl vm.swapusage (macOS)."
+drain_wall=$((drain_end - drain_start))
+throughput=$(python3 -c "print(round(${terminal} / max(1, ${drain_wall}), 3))")
+
+# --- phase 7: batch-scoped results ------------------------------------------
+echo "== summary =="
+echo "workers=${N}"
+echo "jobs=${K}"
+dc exec -T postgres psql -U publisher -d publisher_intelligence -c "
+SELECT j.status,
+       count(*) AS jobs,
+       coalesce(sum(r.attempt_count) FILTER (WHERE r.attempt_count > 1), 0) AS retries,
+       percentile_cont(0.5) WITHIN GROUP (ORDER BY r.completed_at - r.started_at) AS checkpoint_p50,
+       percentile_cont(0.95) WITHIN GROUP (ORDER BY r.completed_at - r.started_at) AS checkpoint_p95,
+       max(r.completed_at - r.started_at) AS checkpoint_max,
+       count(*) FILTER (WHERE j.status = 'RUNNING') AS lease_reclaimed_now_running
+FROM jobs j LEFT JOIN checkpoint_runs r ON j.payload->>'checkpoint_run_id' = r.id::text
+WHERE j.id IN (${ids_sql})
+GROUP BY j.status ORDER BY j.status;"
+echo "drain_wall_seconds=${drain_wall}"
+echo "jobs_per_second=${throughput}"
+echo "profile_note=${PROFILE_NOTE}"
+
+python3 - "${SAMPLES_FILE}" <<'PYEOF'
+import sys
+
+def parse(line: str):
+    parts = line.rstrip("\n").split("|")
+    if len(parts) != 4:
+        return None
+    ts, name, cpu_raw, mem_raw = parts
+    used = float(mem_raw.split("/")[0].strip().rstrip("MiB").strip())
+    return ts, name, float(cpu_raw.rstrip("%")), used
+
+rows = [r for r in (parse(l) for l in open(sys.argv[1])) if r]
+print(f"samples={len(rows)}")
+
+per_worker_peak_mem: dict[str, float] = {}
+browser_cpu: dict[str, float] = {}
+browser_mem: dict[str, float] = {}
+all_mem: dict[str, float] = {}
+for ts, name, cpu, mem in rows:
+    per_worker_peak_mem[name] = max(per_worker_peak_mem.get(name, 0.0), mem)
+    all_mem[ts] = all_mem.get(ts, 0.0) + mem
+    if "browser-worker" in name:
+        browser_cpu[ts] = browser_cpu.get(ts, 0.0) + cpu
+        browser_mem[ts] = browser_mem.get(ts, 0.0) + mem
+
+for name, peak in sorted(per_worker_peak_mem.items()):
+    print(f"peak_mem {name}: {peak:.1f} MiB")
+if browser_cpu:
+    print(f"peak_aggregate_browser_cpu_pct: {max(browser_cpu.values()):.2f}%")
+if browser_mem:
+    print(f"peak_aggregate_browser_mem_mib: {max(browser_mem.values()):.1f} MiB")
+if all_mem:
+    print(f"peak_aggregate_app_mem_mib: {max(all_mem.values()):.1f} MiB")
+PYEOF
+echo "raw_samples_file=${SAMPLES_FILE}"
 echo "== done =="
