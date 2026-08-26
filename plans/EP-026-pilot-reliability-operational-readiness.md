@@ -13,8 +13,7 @@
 - [x] (planning) Repository reconciliation @ main 3c96157: SECURITY.md §201 present;
       ADR-131 present and pointing at §201; PLANS.md §76.1 states EP-026 is a
       mandatory prerequisite for Limited Pilot; EP-025b COMPLETE. No contradictions.
-- [x] M1 — SECURE-COOKIE PRE-PILOT HARD GATE COMPLETE (code-complete;
-      pilot-gate-pending-HTTPS-smoke): Settings gained environment-aware
+- [x] M1 — SECURE-COOKIE PRE-PILOT HARD GATE COMPLETE: Settings gained environment-aware
       cookie_secure (default False) with fail-closed model_validator —
       staging/production MUST set cookie_secure=True or construction raises
       (SECURITY.md §201 wording); _set_session_cookies defense-in-depth
@@ -24,9 +23,11 @@
       RED 3 failed/1 passed (no cookie_secure field, no validator, insecure
       emission) → GREEN 5/5 + 4/4 fail-closed negative tests. Auth
       regression: test_product_http_auth.py + test_auth_boundary.py →
-      18 passed. Unit suite 298 passed. mypy full scope green. Remaining
-      deployment verification: real HTTPS smoke of browser-visible cookie
-      attributes (procedure in runbook, M7).
+      18 passed. Unit suite 298 passed. mypy full scope green. Live HTTPS
+      verification PASS on 2026-08-26 against the real Oracle Cloud ARM64
+      staging deployment at commit 59b0f42: both cookies survived independently
+      with the required attributes and the authenticated session round-trip
+      succeeded (full evidence in the M7 entry and pilot runbook A1).
 - [x] M2a — browser-source taxonomy + classifier + monitoring UA +
       challenge/recovery HTTP scenario COMPLETE
 - [x] M2b-1a-1 — additive DIAGNOSTIC derive input path COMPLETE
@@ -268,7 +269,7 @@
       passed; unit 340 passed; ruff/mypy(261) clean; scheduler+worker smoke
       green.
       failure-rate visibility)
-- [ ] M7 — Pilot runbook + technical-readiness exit gate NOT COMPLETE:
+- [x] M7 — Pilot runbook + technical-readiness exit gate COMPLETE:
       docs/runbooks/pilot-readiness.md adds the operator runbook (HTTPS/
       secure-cookie verification incl. live-smoke procedure, OAuth permission
       checklist, degraded/revoked connector handling incl. STALE semantics,
@@ -291,17 +292,25 @@
       Next.js middleware proxy collapsed the two upstream Set-Cookie headers,
       dropping pi_session while pi_csrf survived. The focused middleware fix
       forwards each getSetCookie() value with append semantics and has dedicated
-      two-cookie regression coverage. M7 remains incomplete pending redeployment
-      and a repeated live HTTPS smoke proving both cookies survive with their
-      required attributes, so EP-026 TECHNICAL READINESS = HUMAN GATE;
-      Limited Pilot authorization NOT GRANTED (independent human gate).
+      two-cookie regression coverage. After redeploying verified commit
+      59b0f42a71133c3b04131630d0f4b3636b774af7, the required repeated live
+      HTTPS smoke on https://158-180-38-153.sslip.io passed: /login and
+      POST /auth/login returned 200; two independent Set-Cookie headers
+      survived; pi_session retained Secure + HttpOnly + SameSite=Lax + Path=/;
+      pi_csrf retained Secure + SameSite=Lax + Path=/ and intentionally remained
+      non-HttpOnly; immediate GET /auth/session returned 200 with the expected
+      tenant and ADMIN role; Chrome DevTools confirmed the cookie attributes;
+      authenticated Home / Timeline / Incidents routes were accessible. The
+      production-path Set-Cookie blocker is CLOSED and the EP-026 M1-M7
+      technical-readiness gate is PASS. Limited Pilot authorization remains
+      NOT GRANTED as an independent human gate.
       RED→GREEN: the focused middleware regression failed with 1 surviving
       cookie instead of 2, then passed 1/1; full frontend passed 45/45 tests,
       lint (0 errors), typecheck, and production build; secret scan and
       git diff --check passed. Local docker compose config was unavailable
-      because this runtime has no Docker CLI and remains required from CI.
-      Findings: 1 BLOCKER / 0 HIGH / 0 MEDIUM unresolved release findings; the
-      blocker closes only after the repeated live HTTPS smoke succeeds.
+      because that runtime had no Docker CLI; CI run 33000504952 subsequently
+      passed the exact repository-safety job including docker compose config.
+      Findings: 0 BLOCKER / 0 HIGH / 0 MEDIUM unresolved release findings.
       LOW/debt explicitly retained (~10 SQLAlchemy lifecycle warnings,
       3 diagnostic-only M3b commits in branch history, provider-selection
       gate deferred to deployment). validation

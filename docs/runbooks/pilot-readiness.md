@@ -31,6 +31,15 @@ Status legend for the readiness matrix: `PASS` / `FAIL` /
   the fail-closed gate working; fix configuration, never bypass it.
 - Forbidden: disabling Secure/HttpOnly to "make login work"; serving auth
   cookies over plain HTTP.
+- Live gate result: **PASS** on 2026-08-26 at
+  `https://158-180-38-153.sslip.io`, verified deployed commit
+  `59b0f42a71133c3b04131630d0f4b3636b774af7`. Public login returned 200 with
+  two independent Set-Cookie headers: `pi_session` retained Secure, HttpOnly,
+  SameSite=Lax, Path=/; `pi_csrf` retained Secure, SameSite=Lax, Path=/ and was
+  intentionally non-HttpOnly. Immediate `GET /auth/session` returned 200 with
+  the expected tenant and ADMIN role. Chrome DevTools confirmed the same
+  attributes, and authenticated Home / Timeline / Incidents routes loaded over
+  HTTPS.
 
 ### A2. OAuth permission checklist (GA4 / GSC / GAM)
 
@@ -182,8 +191,8 @@ Read surface: authenticated `GET /product/operations` (M6).
 
 | Criterion | Status | Evidence |
 |---|---|---|
-| M1 secure-cookie fail-closed posture | PASS | settings validator + emission guard tests (plan M1 entry); HTTPS attribute smoke on real deployment remains operator step A1 |
-| M1 HTTPS smoke on live deployment | FAIL | 2026-08-26 Oracle Cloud ARM64 smoke: `pi_csrf` survived the frontend edge but `pi_session` was lost; middleware fix requires redeployment and repeat of A1 |
+| M1 secure-cookie fail-closed posture | PASS | settings validator + emission guard tests (plan M1 entry); live HTTPS evidence recorded in A1 |
+| M1 HTTPS smoke on live deployment | PASS | 2026-08-26 Oracle Cloud ARM64 repeat smoke at deployed commit `59b0f42`: both cookies survived independently with required attributes; session round-trip and authenticated browser routes passed |
 | M2 stable monitoring UA / non-deceptive identity | PASS | docs/runbooks/publisher-allowlisting.md; browser UA contract tests |
 | M2 deterministic challenge detection → source-health impact | PASS | test_access_challenge_detection.py (real HTTP fixture → real Playwright → canonical event) |
 | M2 degradation ≠ publisher failure; other connectors unaffected | PASS | test_product_read_p2a.py::test_degraded_source_health…; cross-source independence assertions in M3b suite |
@@ -203,7 +212,7 @@ Read surface: authenticated `GET /product/operations` (M6).
 | M6 infra health separate from publisher health | PASS | stale scheduler/worker tests assert home publisher_site_condition untouched |
 | Exit-gate E2E investigations executed | PASS (execution) | three production-path investigations freshly executed — see Part C |
 | Exit-gate investigations **manually reviewed** | PASS | human reviews recorded 2026-08-25: INV-01 ACCEPT, INV-02 ACCEPT, INV-03 ACCEPT WITH NOTE — see Part C verdict lines |
-| Zero unresolved BLOCKER/HIGH/MEDIUM | FAIL | findings review (Part D): 1/0/0 unresolved release findings pending successful repeat HTTPS smoke |
+| Zero unresolved BLOCKER/HIGH/MEDIUM | PASS | findings review (Part D): 0/0/0 unresolved release findings |
 | Provider selection / deployment egress identity / pilot go-ahead | HUMAN GATE | EP-024 deferred decision; A4 deployment-dependent egress identity; Limited Pilot human gate |
 
 ## Part C — End-to-end investigation records
@@ -265,12 +274,13 @@ duplicate existing coverage without adding review value.)
 
 ## Part D — Findings classification (release-relevant)
 
-- BLOCKER: 1 — the 2026-08-26 live HTTPS smoke lost `pi_session` at the
-  frontend proxy boundary while `pi_csrf` survived. The middleware fix and
-  two-cookie regression test are implemented; closure requires redeployment
-  and a successful repeat of A1.
+- BLOCKER: 0
 - HIGH: 0
 - MEDIUM: 0
+- CLOSED: the Set-Cookie proxy blocker discovered on 2026-08-26 is resolved.
+  Repeated live A1 verification at deployed commit `59b0f42` proved both
+  cookies survive independently with the required attributes and the
+  authenticated session round-trip succeeds.
 - LOW / TECHNICAL DEBT (explicitly out of EP-026 release scope):
   - ~10 residual SQLAlchemy "non-checked-in connection" warnings from other
     pre-existing tests (latent async session hygiene debt; no EP-026 criterion
@@ -278,10 +288,8 @@ duplicate existing coverage without adding review value.)
   - 3 diagnostic-only M3b CI commits remain in branch history
     (`3e6dc89`, `367f3a1`, `f2561fc`); effect removed from workflow, history
     cleanup deliberately deferred.
-- HUMAN GATES: repeat the HTTPS cookie smoke on the real deployment (A1) after
-  redeployment — the one remaining technical-readiness blocker; stable egress
-  identity publication (A4); EP-024 provider selection; Limited Pilot
-  authorization itself.
+- HUMAN GATES: stable egress identity publication (A4); EP-024 provider
+  selection; Limited Pilot authorization itself.
   (Investigation manual reviews are no longer a gate: recorded ACCEPT /
   ACCEPT / ACCEPT WITH NOTE in Part C.)
 
@@ -289,9 +297,9 @@ duplicate existing coverage without adding review value.)
 
 - Investigation manual-review gate: PASS (INV-01 ACCEPT, INV-02 ACCEPT,
   INV-03 ACCEPT WITH NOTE with the reviewer's preserved scope note).
-- Remaining readiness blocker: M1 live HTTPS secure-cookie smoke on the real
-  authorized deployment has not yet been performed successfully (procedure A1).
-- EP-026 TECHNICAL READINESS: HUMAN GATE until that smoke is actually
-  completed on the real deployment. All other technical criteria PASS.
+- A1 live HTTPS secure-cookie gate: PASS on the real Oracle Cloud ARM64 staging
+  deployment at verified commit `59b0f42`.
+- M7: COMPLETE. EP-026 M1-M7 TECHNICAL READINESS: PASS.
+- M8: NOT STARTED; release readiness has not been evaluated in this task.
 - LIMITED PILOT AUTHORIZATION: NOT GRANTED (independent human decision;
   completing the HTTPS smoke does not by itself authorize Limited Pilot).
