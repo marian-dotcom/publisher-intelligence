@@ -277,9 +277,11 @@ duplicate existing coverage without adding review value.)
 
 - BLOCKER: 0
 - HIGH: 0
-- MEDIUM: 1 (F-001: ORM CheckConstraint drift — `models.py:165` missing
-  `CHECKPOINT_RUN` while migration 0027 adds it; code-hygiene only, no runtime
-  impact since the DB-level constraint is authoritative; tracked as debt)
+- MEDIUM: 0
+- CLOSED: F-001 (ORM CheckConstraint drift — `models.py:165` missing
+  `CHECKPOINT_RUN` while migration 0027 adds it; remediated by one-line string
+  update + regression test at `test_orm_check_constraint_includes_checkpoint_run`;
+  migration 0027 untouched; codebase and DB now consistent).
 - CLOSED: the Set-Cookie proxy blocker discovered on 2026-08-26 is resolved.
   Repeated live A1 verification at deployed commit `59b0f42` proved both
   cookies survive independently with the required attributes and the
@@ -311,9 +313,9 @@ duplicate existing coverage without adding review value.)
 - A1 live HTTPS secure-cookie gate: PASS on the real Oracle Cloud ARM64 staging
   deployment at verified commit `59b0f42`.
 - M7: COMPLETE. EP-026 M1-M7 TECHNICAL READINESS: PASS.
-- M8: COMPLETE. Adversarial review found 0 BLOCKER / 0 HIGH / 1 MEDIUM / 6 LOW
-  release findings (see docs/reviews/EP-026-M8-adversarial-review.md). The single
-  MEDIUM (ORM CheckConstraint drift) is code-hygiene only — no runtime impact.
-  EP-026 M1-M8 TECHNICAL READINESS: PASS.
+- M8: COMPLETE. Adversarial review found 0 BLOCKER / 0 HIGH / 0 MEDIUM / 6 LOW
+  release findings (see docs/reviews/EP-026-M8-adversarial-review.md). F-001
+  (ORM CheckConstraint drift) remediated and CLOSED; 6 LOW findings remain as
+  documented technical debt. EP-026 M1-M8 TECHNICAL READINESS: PASS.
 - LIMITED PILOT AUTHORIZATION: NOT GRANTED (independent human decision; completing
   the adversarial review does not by itself authorize Limited Pilot).

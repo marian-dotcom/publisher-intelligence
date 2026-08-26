@@ -26,26 +26,20 @@ documented evidence, and the live Oracle Cloud ARM64 staging deployment.
 
 ## Findings
 
-### F-001: ORM CheckConstraint drift on investigation_usage (MEDIUM)
+### F-001: ORM CheckConstraint drift on investigation_usage (CLOSED)
 
 **Affected milestone:** M4 (cost telemetry)
-**Evidence:** `backend/app/incidents/models.py:164-166` declares
+**Evidence:** `backend/app/incidents/models.py:164-166` declared
 `resource_kind IN ('DRILLDOWN','LLM_PASS','DIAGNOSTIC_RUN')` in the ORM
-CheckConstraint. Migration `0027_checkpoint_run_budget_kind` correctly updates the
+CheckConstraint. Migration `0027_checkpoint_run_budget_kind` correctly updated the
 DB-level constraint to include `CHECKPOINT_RUN`, but the ORM model string was not
 updated to match.
-**Why it matters:** Any code path using `Base.metadata.create_all()` (e.g. fresh
-test databases not going through Alembic) will create a DB that rejects
-`CHECKPOINT_RUN` rows with a constraint violation. `alembic autogenerate` will also
-detect spurious drift every time.
-**Reproducibility:** `alembic autogenerate --compare-types` on a migrated DB will
-report a pending constraint change back to the old form. A `create_all()` test DB
-will reject CHECKPOINT_RUN inserts.
-**Remediation scope:** One-line string update in `models.py:165`. Not a runtime
-production issue (the migration-authorized DB is authoritative). Not an EP-026
-blocker.
-**Blocks M8 completion:** No. The migration is correct and the production DB is
-correct. This is a code-hygiene issue tracked as technical debt.
+**Remediation:** One-line string update at `models.py:165` adding `CHECKPOINT_RUN`
+to the ORM CheckConstraint. Regression test added in
+`tests/unit/incidents/test_contracts.py::test_orm_check_constraint_includes_checkpoint_run`
+inspecting ORM metadata to prove the constraint text admits `CHECKPOINT_RUN` (RED→GREEN
+confirmed: old string fails, new string passes). Migration 0027 left untouched.
+**Status:** CLOSED.
 
 ### F-002: pi_csrf cookie not cleared on logout (LOW)
 
@@ -290,8 +284,9 @@ wrong location.
 |----------|-------|-----|
 | BLOCKER | 0 | — |
 | HIGH | 0 | — |
-| MEDIUM | 1 | F-001 |
+| MEDIUM | 0 | — |
 | LOW | 6 | F-002, F-003, F-004, F-005, F-006, F-007 |
+| CLOSED | 1 | F-001 |
 
 ---
 
@@ -299,13 +294,8 @@ wrong location.
 
 - **Unresolved BLOCKER findings:** 0
 - **Unresolved HIGH findings:** 0
-- **Unresolved MEDIUM findings:** 1 (F-001 — ORM constraint drift, code-hygiene
-  only, no runtime impact)
-- **M8 status:** COMPLETE (per the plan's rule: "If and only if there are ZERO
-  unresolved BLOCKER/HIGH/MEDIUM finding" — the single MEDIUM finding F-001 is
-  tracked as technical debt and does not affect any acceptance criterion or
-  production behavior; the DB-level constraint is correct)
-- **EP-026 status:** NOT COMPLETE (M8 findings documentation task is this review;
-  plan checkbox not yet updated)
+- **Unresolved MEDIUM findings:** 0
+- **M8 status:** COMPLETE (zero unresolved BLOCKER/HIGH/MEDIUM findings)
+- **EP-026 status:** M1-M8 TECHNICAL READINESS PASS
 - **LIMITED PILOT:** NOT AUTHORIZED (independent human gate; completing M8 does
   not by itself authorize Limited Pilot)

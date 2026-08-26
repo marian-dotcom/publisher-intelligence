@@ -46,5 +46,25 @@ def test_usage_key_combines_investigation_kind_and_correlation() -> None:
 
 
 def test_default_limits_cover_the_registry() -> None:
-    for kind in ("DRILLDOWN", "LLM_PASS", "DIAGNOSTIC_RUN"):
+    for kind in ("DRILLDOWN", "LLM_PASS", "DIAGNOSTIC_RUN", "CHECKPOINT_RUN"):
         assert DEFAULT_RESOURCE_LIMITS[kind] > 0
+
+
+def test_orm_check_constraint_includes_checkpoint_run() -> None:
+    """F-001 regression: ORM CheckConstraint must admit CHECKPOINT_RUN.
+
+    Migration 0027 correctly adds CHECKPOINT_RUN to the DB-level constraint,
+    but the ORM model string was historically out of sync.  This test proves
+    the ORM metadata agrees with the migrated database.
+    """
+    from sqlalchemy import CheckConstraint
+
+    from app.db.base import Base
+
+    table = Base.metadata.tables["investigation_usage"]
+    ck = next(
+        c
+        for c in table.constraints
+        if isinstance(c, CheckConstraint) and c.name == "ck_investigation_usage_resource_kind"
+    )
+    assert "CHECKPOINT_RUN" in str(ck.sqltext)
