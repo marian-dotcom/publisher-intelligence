@@ -314,7 +314,23 @@
       LOW/debt explicitly retained (~10 SQLAlchemy lifecycle warnings,
       3 diagnostic-only M3b commits in branch history, provider-selection
       gate deferred to deployment). validation
-- [ ] M8 — Adversarial review & release readiness
+- [x] M8 — Adversarial review & release readiness COMPLETE: full adversarial
+      pass over EP-026 M1-M7 against actual code, tests, documented evidence,
+      and the live Oracle Cloud ARM64 staging deployment. HEAD
+      `2facfeb6318bf9f9d31daccb58cc2f020040f81d` verified; working tree clean.
+      10 challenge areas reviewed (auth/tenant-isolation, monitoring-network
+      reliability, retention, connector staleness, cost controls, DST/timezone,
+      self-observability, incident/evidence correctness, deployment/runtime,
+      canonical-document consistency). Findings: 0 BLOCKER / 0 HIGH / 1 MEDIUM
+      (F-001: ORM CheckConstraint drift — `models.py:165` missing `CHECKPOINT_RUN`
+      while migration 0027 adds it; code-hygiene only, no runtime impact since
+      the DB-level constraint is authoritative) / 6 LOW (F-002: pi_csrf not
+      cleared on logout; F-003: CSRF hash comparison not timing-safe; F-004:
+      mypy full-scope claim slightly overstated; F-005: no automated SameSite
+      test; F-006: rate limiting not implemented [pre-existing, out of EP-026
+      scope]; F-007: RetentionSchedulingService duplicate in health.py). Full
+      review at docs/reviews/EP-026-M8-adversarial-review.md. M8 COMPLETE.
+      EP-026 M1-M8 technical readiness: PASS. Limited Pilot remains NOT AUTHORIZED.
 
 ## Canonical References
 

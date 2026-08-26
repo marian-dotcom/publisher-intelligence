@@ -212,7 +212,8 @@ Read surface: authenticated `GET /product/operations` (M6).
 | M6 infra health separate from publisher health | PASS | stale scheduler/worker tests assert home publisher_site_condition untouched |
 | Exit-gate E2E investigations executed | PASS (execution) | three production-path investigations freshly executed — see Part C |
 | Exit-gate investigations **manually reviewed** | PASS | human reviews recorded 2026-08-25: INV-01 ACCEPT, INV-02 ACCEPT, INV-03 ACCEPT WITH NOTE — see Part C verdict lines |
-| Zero unresolved BLOCKER/HIGH/MEDIUM | PASS | findings review (Part D): 0/0/0 unresolved release findings |
+| Zero unresolved BLOCKER/HIGH/MEDIUM | PASS | M8 adversarial review (docs/reviews/EP-026-M8-adversarial-review.md): 0 BLOCKER / 0 HIGH / 1 MEDIUM (ORM drift, code-hygiene only) / 6 LOW |
+| M8 adversarial review & release readiness | PASS | Full adversarial pass over M1-M7 code, tests, evidence, and deployment; 10 challenge areas; findings recorded in Part D and M8 review report |
 | Provider selection / deployment egress identity / pilot go-ahead | HUMAN GATE | EP-024 deferred decision; A4 deployment-dependent egress identity; Limited Pilot human gate |
 
 ## Part C — End-to-end investigation records
@@ -276,7 +277,9 @@ duplicate existing coverage without adding review value.)
 
 - BLOCKER: 0
 - HIGH: 0
-- MEDIUM: 0
+- MEDIUM: 1 (F-001: ORM CheckConstraint drift — `models.py:165` missing
+  `CHECKPOINT_RUN` while migration 0027 adds it; code-hygiene only, no runtime
+  impact since the DB-level constraint is authoritative; tracked as debt)
 - CLOSED: the Set-Cookie proxy blocker discovered on 2026-08-26 is resolved.
   Repeated live A1 verification at deployed commit `59b0f42` proved both
   cookies survive independently with the required attributes and the
@@ -288,6 +291,14 @@ duplicate existing coverage without adding review value.)
   - 3 diagnostic-only M3b CI commits remain in branch history
     (`3e6dc89`, `367f3a1`, `f2561fc`); effect removed from workflow, history
     cleanup deliberately deferred.
+  - F-002: pi_csrf cookie not cleared on logout (pre-existing).
+  - F-003: CSRF hash comparison not timing-safe (pre-existing).
+  - F-004: mypy full-scope claim slightly overstated (11 intentional test-only
+    errors).
+  - F-005: no automated SameSite cookie attribute test.
+  - F-006: rate limiting not implemented on auth endpoints (pre-existing,
+    SECURITY.md §95 requirement, out of EP-026 scope).
+  - F-007: RetentionSchedulingService duplicate in health.py (dead code).
 - HUMAN GATES: stable egress identity publication (A4); EP-024 provider
   selection; Limited Pilot authorization itself.
   (Investigation manual reviews are no longer a gate: recorded ACCEPT /
@@ -300,6 +311,9 @@ duplicate existing coverage without adding review value.)
 - A1 live HTTPS secure-cookie gate: PASS on the real Oracle Cloud ARM64 staging
   deployment at verified commit `59b0f42`.
 - M7: COMPLETE. EP-026 M1-M7 TECHNICAL READINESS: PASS.
-- M8: NOT STARTED; release readiness has not been evaluated in this task.
-- LIMITED PILOT AUTHORIZATION: NOT GRANTED (independent human decision;
-  completing the HTTPS smoke does not by itself authorize Limited Pilot).
+- M8: COMPLETE. Adversarial review found 0 BLOCKER / 0 HIGH / 1 MEDIUM / 6 LOW
+  release findings (see docs/reviews/EP-026-M8-adversarial-review.md). The single
+  MEDIUM (ORM CheckConstraint drift) is code-hygiene only — no runtime impact.
+  EP-026 M1-M8 TECHNICAL READINESS: PASS.
+- LIMITED PILOT AUTHORIZATION: NOT GRANTED (independent human decision; completing
+  the adversarial review does not by itself authorize Limited Pilot).
