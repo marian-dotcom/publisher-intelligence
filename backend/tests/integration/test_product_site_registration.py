@@ -38,7 +38,7 @@ def _clean_db() -> Generator[None, None, None]:
 async def operator_with_two_tenants() -> tuple[uuid.UUID, list[uuid.UUID], str]:
     factory = get_session_factory()
     operator_id = uuid.uuid4()
-    email = f"site-op-{operator_id.hex[:8]}@example.com"
+    email = f"site-admin-{operator_id.hex[:8]}@example.com"
     tenant_ids = [uuid.uuid4(), uuid.uuid4()]
     async with factory() as session, session.begin():
         for index, tenant_id in enumerate(tenant_ids):
@@ -56,7 +56,7 @@ async def operator_with_two_tenants() -> tuple[uuid.UUID, list[uuid.UUID], str]:
                 actor_subject_id=uuid.uuid4(),
                 email=email,
                 password_hash=hash_password("operator-site-password"),
-                role="OPERATOR",
+                role="ADMIN",
                 is_active=True,
             )
         )
@@ -172,6 +172,51 @@ def test_registration_requires_authentication_and_csrf(
         json=_payload(),
     )
     assert invalid.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_non_admin_operator_cannot_manage_sites(
+    operator_with_two_tenants: tuple[uuid.UUID, list[uuid.UUID], str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(BrowserNetworkGuard, "validate_initial", _allow_target)
+    _admin_id, tenants, _admin_email = operator_with_two_tenants
+    tenant_id = tenants[0]
+    operator_id = uuid.uuid4()
+    email = f"site-member-{operator_id.hex[:8]}@example.com"
+    factory = get_session_factory()
+    async with factory() as session, session.begin():
+        session.add(
+            Operator(
+                id=operator_id,
+                actor_subject_id=uuid.uuid4(),
+                email=email,
+                password_hash=hash_password("operator-site-password"),
+                role="OPERATOR",
+                is_active=True,
+            )
+        )
+        await session.flush()
+        session.add(OperatorTenant(operator_id=operator_id, tenant_id=tenant_id))
+
+    client = TestClient(app)
+    csrf, cookies = _login(client, email=email, tenant_id=tenant_id)
+    response = client.post(
+        "/product/sites",
+        headers={"X-CSRF-Token": csrf},
+        cookies=cookies,
+        json=_payload(),
+    )
+    assert response.status_code == 403
+    assert response.json() == {"detail": "insufficient permissions"}
+
+    async with factory() as session:
+        sites = list((await session.scalars(select(Site))).all())
+        runs = list((await session.scalars(select(CheckpointRun))).all())
+        jobs = list((await session.scalars(select(Job))).all())
+    assert sites == []
+    assert runs == []
+    assert jobs == []
 
 
 def test_payload_cannot_select_tenant(
