@@ -32,6 +32,9 @@ async def register_site(
     payload: RegisterSiteRequest,
     actor: ActorContext = Depends(get_current_actor_with_csrf),  # noqa: B008
 ) -> dict[str, str]:
+    if actor.role != "ADMIN":
+        raise HTTPException(status_code=403, detail="insufficient permissions")
+
     try:
         registered = await _registration_service().register_for_tenant(
             tenant_id=actor.tenant_id,
