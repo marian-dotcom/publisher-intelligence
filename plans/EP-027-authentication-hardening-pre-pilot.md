@@ -4,6 +4,7 @@
 **Owner:** Codex / Engineering
 **Created:** 2026-08-27
 **Updated:** 2026-08-27
+**Accepted checkpoint:** `108f4d01848bd636be61f892efab898666ab0328`
 **Target milestone:** Pre-Limited-Pilot security hardening (EP-026 M8 findings F-002, F-003, F-005, F-006)
 **MVP scope impact:** NO — hardening of already-built auth; no new product behavior
 **New infrastructure category:** NO — in-memory rate limiter, no Redis/Celery/new services
@@ -58,35 +59,38 @@ Relevant invariants:
 Auth implementation (EP-025a COMPLETE):
 
 - routes.py: login, logout, session; _set_session_cookies sets both cookies with SameSite=lax
-- service.py: verify_csrf uses == (F-003); login generates/rotates sessions
-- dependencies.py: SESSION_COOKIE = "pi_session", CSRF_HEADER = "X-CSRF-Token"
+- service.py: verify_csrf uses hmac.compare_digest (F-003 remediated)
+- dependencies.py: SESSION_COOKIE = "pi_session", CSRF_HEADER = "X-CSRF-Token", CSRF_COOKIE = "pi_csrf"
 - security.py: SHA-256 hash, Argon2id, CSPRNG tokens
 - settings.py: cookie_secure field with fail-closed validator
+- rate_limit.py: in-memory RateLimitStore with periodic stale-key cleanup, client_ip(), check_rate_limit()
 
-Known gaps (EP-026 M8):
+Deployment trust boundary (final):
 
-- F-006: No rate limiting anywhere in backend
-- F-002: Logout only deletes pi_session, not pi_csrf
-- F-003: verify_csrf uses == not hmac.compare_digest
-- F-005: test_secure_cookie_gate.py asserts Secure/HttpOnly but not SameSite
+```text
+Internet → Caddy (public TLS edge, loopback-only Next.js)
+  → Next.js (frontend proxy, reads Caddy X-Forwarded-For)
+    → FastAPI backend (single-host Limited Pilot)
+```
 
-Deployment topology:
+Client identity semantics:
 
-- Browser -> Next.js (:3000) -> FastAPI (:8000)
-- Next.js middleware proxies backend-owned paths at request time
-- No external reverse proxy in repo (Caddy/nginx deferred)
-- request.client.host in FastAPI always shows Next.js container IP
-- No X-Forwarded-For or X-Real-IP handling exists
+- Caddy is the ONLY trusted public ingress and sets X-Forwarded-For.
+- Next.js middleware reads X-Forwarded-For, validates the value is a well-formed IPv4 or IPv6 address, and strips ALL forwarding headers (x-real-ip, x-forwarded-for, x-forwarded-host, x-forwarded-proto).
+- Next.js emits exactly ONE internal header: X-Real-IP containing the validated client IP.
+- FastAPI reads X-Real-IP via client_ip() for the rate-limiting key.
+- If the selected IP is missing or malformed, X-Real-IP is not set; FastAPI falls back to socket peer identity.
+- Topology changes require this trust model to be revisited.
 
 ## 5. Target Behavior
 
 Rate limiting:
 
-- 5 failed logins from same client IP within 60s -> HTTP 429 with Retry-After header
-- Subsequent attempts within window -> 429
-- Window expires -> counter resets, login allowed again
-- Successful login -> counter cleared for that key (allow recovery)
-- In test environment: rate limiting disabled
+- 5 failed logins from same client IP within 60s → HTTP 429 with Retry-After header
+- Subsequent attempts within window → 429
+- Window expires → counter resets, login allowed again
+- Successful login → counter cleared for that key (allow recovery)
+- No environment-based runtime bypass; integration tests reset the in-memory store through test fixtures (autouse `_clear_rate_limit_store` in `tests/integration/conftest.py`)
 
 Logout:
 
@@ -104,11 +108,11 @@ SameSite:
 
 ```text
 Rate Limiting:
-  Browser -> Next.js (sets X-Real-IP) -> FastAPI /auth/login
+  Internet → Caddy (X-Forwarded-For) → Next.js (validate + strip + X-Real-IP) → FastAPI /auth/login
      |
-  _client_ip(request) -> extracts X-Real-IP or falls back to client.host
+  client_ip(request) -> reads X-Real-IP; falls back to socket peer if missing/malformed
      |
-  _check_rate_limit(key, max_attempts, window) -> in-memory dict
+  check_rate_limit(key, max_attempts, window) -> in-memory dict
      |
   429 if exceeded; proceed to AuthService.login if not
 
@@ -123,20 +127,21 @@ CSRF:
 
 Existing:
 
-- backend/app/auth/routes.py — logout cookie cleanup, rate limit on login
-- backend/app/auth/service.py — verify_csrf change
-- backend/app/auth/dependencies.py — add CSRF_COOKIE constant
-- frontend/middleware.ts — add X-Real-IP header
-- backend/tests/unit/test_secure_cookie_gate.py — add SameSite assertions
-- backend/tests/integration/test_product_http_auth.py — verify logout clears both
-- docs/runbooks/pilot-readiness.md — update rate-limiting section
-- README.md — fix boundary summary contradiction
+- backend/app/auth/routes.py — logout cookie cleanup (both cookies), rate limit on login
+- backend/app/auth/service.py — hmac.compare_digest for CSRF
+- backend/app/auth/dependencies.py — CSRF_COOKIE constant
+- frontend/middleware.ts — Caddy trust boundary, isValidIpAddress(), header stripping, X-Real-IP
+- backend/tests/unit/test_secure_cookie_gate.py — SameSite assertions
+- backend/tests/integration/conftest.py — autouse _clear_rate_limit_store fixture
+- README.md — boundary summary corrected
 
-To create:
+Created:
 
-- backend/app/auth/rate_limit.py — in-memory rate limiter
-- backend/tests/unit/test_auth_rate_limit.py — rate limiter unit tests
-- backend/tests/integration/test_auth_rate_limit_http.py — HTTP-layer rate limit test
+- backend/app/auth/rate_limit.py — in-memory rate limiter with periodic stale-key cleanup
+- backend/tests/unit/test_auth_rate_limit.py — rate limiter unit tests (13 tests)
+- backend/tests/unit/test_auth_rate_limit.py — deterministic mock-based time tests
+- backend/tests/integration/test_auth_rate_limit_http.py — HTTP-layer rate limit integration tests (3 tests)
+- frontend/tests/middleware.test.ts — trust boundary adversarial tests (8 tests)
 
 ## 8. Milestones
 
@@ -146,8 +151,8 @@ Goal: Document rate-limiting design decisions; create branch.
 
 Acceptance:
 
-- [ ] Design decisions documented in Decision Log
-- [ ] Branch created from HEAD 1d61c1b
+- [x] Design decisions documented in Decision Log
+- [x] Branch created from HEAD 1d61c1b
 
 ### M1 — Rate limiting (F-006)
 
@@ -155,22 +160,22 @@ Goal: Implement in-memory rate limiting on POST /auth/login.
 
 Implementation:
 
-1. Create backend/app/auth/rate_limit.py with RateLimitStore, _client_ip, check_rate_limit
+1. Create backend/app/auth/rate_limit.py with RateLimitStore, client_ip, check_rate_limit
 2. Add CSRF_COOKIE constant to dependencies.py
 3. Modify routes.py login endpoint: call check_rate_limit before auth service
-4. Set X-Real-IP header in frontend/middleware.ts from request.ip
-5. Write unit tests for RateLimitStore
+4. Add Caddy trust boundary to frontend/middleware.ts: read X-Forwarded-For, validate IP format, strip all forwarding headers, emit X-Real-IP
+5. Write unit tests for RateLimitStore (including deterministic mock-based time tests)
 6. Write integration test for HTTP-layer rate limiting
 
 Acceptance:
 
-- [ ] 5 failed logins from same IP -> 429 on 6th attempt
-- [ ] 429 response includes Retry-After header
-- [ ] Successful login clears counter
-- [ ] Window expiry resets counter
-- [ ] Test environment disables rate limiting
-- [ ] X-Real-IP set by Next.js middleware
-- [ ] No new dependencies added
+- [x] 5 failed logins from same IP → 429 on 6th attempt
+- [x] 429 response includes Retry-After header
+- [x] Successful login clears counter
+- [x] Window expiry resets counter
+- [x] Integration tests reset rate-limit store via shared autouse fixture (no environment bypass)
+- [x] X-Real-IP set by Next.js middleware from validated Caddy X-Forwarded-For
+- [x] No new dependencies added
 
 ### M2 — Logout cookie hygiene (F-002)
 
@@ -183,9 +188,9 @@ Implementation:
 
 Acceptance:
 
-- [ ] Logout clears both pi_session and pi_csrf
-- [ ] Both delete_cookie calls match creation attributes
-- [ ] Existing logout test still passes
+- [x] Logout clears both pi_session and pi_csrf
+- [x] Both delete_cookie calls match creation attributes
+- [x] Existing logout test still passes
 
 ### M3 — Timing-safe CSRF comparison (F-003)
 
@@ -193,8 +198,8 @@ Goal: Replace == with hmac.compare_digest() in verify_csrf.
 
 Acceptance:
 
-- [ ] hmac.compare_digest used instead of ==
-- [ ] All existing CSRF tests pass
+- [x] hmac.compare_digest used instead of ==
+- [x] All existing CSRF tests pass
 
 ### M4 — SameSite regression test (F-005)
 
@@ -202,8 +207,8 @@ Goal: Add automated assertion that both cookies carry SameSite=lax.
 
 Acceptance:
 
-- [ ] Test asserts samesite=lax on both cookies
-- [ ] Test would fail if samesite changed to "none"
+- [x] Test asserts samesite=lax on both cookies
+- [x] Test would fail if samesite changed to "none"
 
 ### M5 — Canonical and boundary reconciliation
 
@@ -216,28 +221,32 @@ Implementation:
 
 Acceptance:
 
-- [ ] README boundary summary accurate
-- [ ] Runbook updated with rate-limiting guidance
+- [x] README boundary summary accurate
+- [x] Runbook updated with rate-limiting guidance
 
 ## 9. Final Acceptance Criteria
 
-- [ ] Rate limiting blocks brute-force on POST /auth/login
-- [ ] Logout clears both pi_session and pi_csrf cookies
-- [ ] CSRF comparison uses hmac.compare_digest
-- [ ] SameSite=lax has automated regression guard
-- [ ] All existing auth tests pass
-- [ ] README boundary summary accurate
-- [ ] No new infrastructure dependencies
+- [x] Rate limiting blocks brute-force on POST /auth/login
+- [x] Logout clears both pi_session and pi_csrf cookies
+- [x] CSRF comparison uses hmac.compare_digest
+- [x] SameSite=lax has automated regression guard
+- [x] All existing auth tests pass
+- [x] README boundary summary accurate
+- [x] No new infrastructure dependencies
 
 ## 10. Final Validation
+
+All validation performed against accepted checkpoint `108f4d01848bd636be61f892efab898666ab0328`.
 
 ```bash
 cd backend && uv run ruff check app tests
 cd backend && uv run ruff format --check app tests
 cd backend && uv run mypy app tests scripts migrations/env.py
-cd backend && uv run pytest tests/unit/test_auth_rate_limit.py tests/unit/test_secure_cookie_gate.py -v
-cd backend && uv run pytest tests/integration/test_product_http_auth.py tests/integration/test_auth_rate_limit_http.py -v
+cd backend && uv run pytest tests/unit                    # 364 passed
+cd backend && uv run pytest tests/integration             # CI 33025776067 green
 ```
+
+CI run `33025776067` on branch `agent/implement-ep-027`: all three jobs (backend, frontend, repository-safety) passed, including the full integration suite with rate limiting active and no environment bypass.
 
 ## 11. Test Cases
 
@@ -259,6 +268,14 @@ Regression:
 - Logout without clearing pi_csrf fails (was F-002)
 - CSRF comparison with == instead of hmac.compare_digest fails (was F-003)
 
+Trust boundary:
+
+- Caddy X-Forwarded-For → X-Real-IP emitted to FastAPI
+- Spoofed X-Forwarded-For from client is stripped
+- Two concurrent clients get independent rate-limit buckets
+- Missing or malformed X-Forwarded-For falls back to socket peer
+- IPv6 addresses accepted and validated
+
 ## 12. Data / Migration Impact
 
 None. No schema changes. Rate limiter state is in-memory only.
@@ -271,8 +288,16 @@ No new data collection. No tenant boundary changes.
 ## 14. Observability / Failure Handling
 
 Rate limit 429 responses include Retry-After header. Rate limiter logs at WARNING level on
-breach. In-memory state is per-process; no cross-process coordination needed for single-host
-deployment.
+breach. In-memory state is process-local; API restart clears all counters; no cross-process
+coordination is needed for the single-host Limited Pilot topology.
+
+### Process-local limitation
+
+- The rate-limit store is a plain Python dict, not shared across processes or API replicas.
+- For Limited Pilot with one uvicorn worker this is acceptable.
+- API restart clears all counters; brute-force protection resets until the next window fills.
+- If scaled to multiple workers or replicas, a shared store (PostgreSQL or Redis) is required — this triggers an architecture review.
+- Periodic stale-key cleanup (every 60s) prevents permanent one-off-IP accumulation.
 
 ## 15. Rollback Strategy
 
@@ -298,11 +323,14 @@ Alternatives: Redis (infrastructure), PostgreSQL-backed (complexity), slowapi (d
 Impact: No new infrastructure; adequate for Limited Pilot scale
 
 Date: 2026-08-27
-Decision: Client identity via X-Real-IP header set by Next.js middleware
-Reason: request.client.host always shows Next.js container IP in Docker; X-Real-IP
-from the trusted edge proxy gives real client IP
-Alternatives: ProxyFix (adds dependency), X-Forwarded-For (multi-hop complexity)
-Impact: Next.js middleware gains one header; FastAPI reads it for rate limiting key
+Decision: Client identity via Caddy → Next.js → FastAPI trust boundary
+Reason: request.client.host in FastAPI always shows Next.js container IP; Caddy is the only
+trusted public ingress. Next.js reads Caddy-supplied X-Forwarded-For, validates IP format,
+strips all forwarding headers, emits exactly one X-Real-IP. FastAPI reads X-Real-IP for the
+rate-limit key.
+Alternatives: ProxyFix (adds dependency), request.ip (not available in Next.js 16.3.0)
+Impact: Middleware gains trust-boundary logic; FastAPI reads X-Real-IP; topology changes require
+this trust model to be revisited.
 
 Date: 2026-08-27
 Decision: Rate limit only POST /auth/login (5 attempts per 60s window)
@@ -310,29 +338,41 @@ Reason: Most critical auth-sensitive endpoint; conservative scope for pilot
 Alternatives: Rate limit all state-changing endpoints (broader scope)
 Impact: Focused protection; other endpoints can be added later
 
+Date: 2026-08-27
+Decision: Integration tests reset rate-limit store via shared autouse fixture; no environment bypass
+Reason: CI sets ENVIRONMENT=test; an environment-based bypass would silently disable rate limiting
+in the test suite. Shared conftest fixture provides deterministic per-test reset instead.
+Alternatives: environment=="test" runtime bypass (removed in 108f4d0)
+Impact: Rate limiter is always active; integration tests exercise real rate-limit code paths.
+
 ## 19. Discoveries / Surprises
 
-- No rate limiting exists anywhere in the backend codebase
-- No proxy header handling exists (no ProxyFix, no X-Forwarded-For)
+- No rate limiting exists anywhere in the backend codebase (pre-EP-027)
+- No proxy header handling exists (no ProxyFix, no X-Forwarded-For) (pre-EP-027)
 - Uvicorn started without --proxy-headers flag
-- pi_csrf cookie name is a hardcoded string, not a constant
-- README.md has a known contradiction (claims and denies Home/Timeline UI existence)
+- pi_csrf cookie name is a hardcoded string, not a constant (pre-EP-027)
+- README.md had a known contradiction (claims and denies Home/Timeline UI existence)
+- Next.js 16.3.0 request.ip is undefined (property commented out in adapter)
+- Caddy is the only public ingress in the Limited Pilot deployment topology
+- CI sets ENVIRONMENT=test which triggered initial rate-limiter bypass removal
 
 ## 20. Progress Log
 
 2026-08-27: M0 planning complete. Branch created.
-2026-08-27: M1 complete. In-memory rate limiter on POST /auth/login. X-Real-IP from Next.js.
+2026-08-27: M1 complete. In-memory rate limiter on POST /auth/login. Trust boundary in middleware.
 2026-08-27: M2 complete. Logout clears pi_session + pi_csrf with matching attributes.
 2026-08-27: M3 complete. hmac.compare_digest for CSRF hash comparison.
 2026-08-27: M4 complete. SameSite=lax regression test added.
 2026-08-27: M5 complete. README boundary summary corrected.
+2026-08-27: CI fix complete. Removed environment=test bypass; added autouse conftest fixture.
+2026-08-27: EP-027 accepted at `108f4d01848bd636be61f892efab898666ab0328`. CI 33025776067 green.
 
 ## 21. Final Outcome / Retrospective
 
 What shipped:
 
-- In-memory rate limiter on POST /auth/login (5 attempts per 60s window)
-- Client identity via X-Real-IP header from Next.js middleware
+- In-memory rate limiter on POST /auth/login (5 attempts per 60s window, process-local)
+- Caddy → Next.js → FastAPI client-IP trust boundary with header validation and stripping
 - Logout clears both pi_session and pi_csrf cookies with matching attributes
 - hmac.compare_digest for timing-safe CSRF hash comparison
 - SameSite=lax regression test for both auth cookies
@@ -341,19 +381,23 @@ What shipped:
 What changed from original plan:
 
 - Rate limit threshold is 5 attempts (plan said 5-6, chose 5 for maximum protection)
-- No separate integration test for HTTP rate limiting (PostgreSQL unavailable locally; integration test file created but requires Docker)
+- No environment-based runtime bypass (CI fix commit 108f4d0 removed it)
+- Integration tests share a common autouse fixture for rate-limit store reset instead
+- Trust boundary uses Caddy X-Forwarded-For → validated → stripped → X-Real-IP (not request.ip)
 
 Validation performed:
 
-- 361 unit tests pass
+- 364 unit tests pass
 - ruff check clean
 - ruff format clean
 - mypy full scope clean (265 files)
+- CI run 33025776067: all three jobs green, full integration suite executed with rate limiting active
 
 Known limitations:
 
-- In-memory rate limiter does not share state across API processes
-- Integration tests require Docker PostgreSQL (pre-existing environment constraint)
+- In-memory rate limiter does not share state across API processes (process-local)
+- API restart clears all rate-limit counters
+- Multiple API workers/replicas require shared state / architecture review
 - Rate limiting only on POST /auth/login; other endpoints deferred
 
 Follow-ups:
@@ -365,3 +409,4 @@ Lessons for AGENTS/DECISIONS:
 
 - Rate limiting should have been part of EP-025a (auth implementation)
 - CSRF_COOKIE constant should have been introduced with the double-submit pattern
+- Never use environment-based test bypasses for security-critical code; use shared test fixtures

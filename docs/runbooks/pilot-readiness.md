@@ -212,7 +212,7 @@ Read surface: authenticated `GET /product/operations` (M6).
 | M6 infra health separate from publisher health | PASS | stale scheduler/worker tests assert home publisher_site_condition untouched |
 | Exit-gate E2E investigations executed | PASS (execution) | three production-path investigations freshly executed — see Part C |
 | Exit-gate investigations **manually reviewed** | PASS | human reviews recorded 2026-08-25: INV-01 ACCEPT, INV-02 ACCEPT, INV-03 ACCEPT WITH NOTE — see Part C verdict lines |
-| Zero unresolved BLOCKER/HIGH/MEDIUM | PASS | M8 adversarial review (docs/reviews/EP-026-M8-adversarial-review.md): 0 BLOCKER / 0 HIGH / 1 MEDIUM (ORM drift, code-hygiene only) / 6 LOW |
+| Zero unresolved BLOCKER/HIGH/MEDIUM | PASS | M8 adversarial review (docs/reviews/EP-026-M8-adversarial-review.md): 0 BLOCKER / 0 HIGH / 0 MEDIUM / 1 LOW / 6 CLOSED (F-001–F-006); F-002–F-006 remediated by EP-027 |
 | M8 adversarial review & release readiness | PASS | Full adversarial pass over M1-M7 code, tests, evidence, and deployment; 10 challenge areas; findings recorded in Part D and M8 review report |
 | Provider selection / deployment egress identity / pilot go-ahead | HUMAN GATE | EP-024 deferred decision; A4 deployment-dependent egress identity; Limited Pilot human gate |
 
@@ -278,36 +278,29 @@ duplicate existing coverage without adding review value.)
 - BLOCKER: 0
 - HIGH: 0
 - MEDIUM: 0
-- CLOSED: F-001 (ORM CheckConstraint drift — `models.py:165` missing
-  `CHECKPOINT_RUN` while migration 0027 adds it; remediated by one-line string
-  update + regression test at `test_orm_check_constraint_includes_checkpoint_run`;
-  migration 0027 untouched; codebase and DB now consistent).
-- CLOSED: F-004 (mypy full-scope claim slightly overstated — CI run 33011814483 on
-  `b6eeadb` reported "Success: no issues found in 262 source files" for full
-  canonical scope `mypy app tests scripts migrations/env.py`; 11 prior test-only
-  annotations resolved before CI green).
-- CLOSED: the Set-Cookie proxy blocker discovered on 2026-08-26 is resolved.
-  Repeated live A1 verification at deployed commit `59b0f42` proved both
-  cookies survive independently with the required attributes and the
-  authenticated session round-trip succeeds.
-- LOW / TECHNICAL DEBT (explicitly out of EP-026 release scope):
-  - ~10 residual SQLAlchemy "non-checked-in connection" warnings from other
-    pre-existing tests (latent async session hygiene debt; no EP-026 criterion
-    violated; first lifecycle leak already fixed at `53fac01`).
-  - 3 diagnostic-only M3b CI commits remain in branch history
-    (`3e6dc89`, `367f3a1`, `f2561fc`); effect removed from workflow, history
-    cleanup deliberately deferred.
-  - F-002: pi_csrf cookie not cleared on logout (pre-existing).
-  - F-003: CSRF hash comparison not timing-safe (pre-existing).
-  - F-005: no automated SameSite cookie attribute test.
-  - F-006: rate limiting not implemented on auth endpoints (pre-existing,
-    SECURITY.md §95 requirement, out of EP-026 scope; explicit pre-Limited-Pilot
-    security gap — must be resolved before Limited Pilot authorization).
-  - F-007: RetentionSchedulingService duplicate in health.py (dead code).
+- LOW: 1 — F-007 (RetentionSchedulingService duplicate in `health.py`; dead code; trivial cleanup deferred).
+- CLOSED: 6 — F-001, F-002, F-003, F-004, F-005, F-006.
+
+Detail:
+
+- F-001 CLOSED (EP-026 M8 remediation): ORM CheckConstraint drift on
+  `models.py:165` missing `CHECKPOINT_RUN` while migration 0027 adds it;
+  one-line string update + regression test.
+- F-002 CLOSED (EP-027 M2): pi_csrf cookie not cleared on logout — now both
+  `pi_session` and `pi_csrf` are cleared with matching attributes.
+- F-003 CLOSED (EP-027 M3): CSRF hash comparison not timing-safe — now uses
+  `hmac.compare_digest()`.
+- F-004 CLOSED (EP-026 M8 reconciliation): mypy full-scope claim slightly
+  overstated — CI run 33011814483 on `b6eeadb` confirmed 262 source files clean.
+- F-005 CLOSED (EP-027 M4): no automated SameSite cookie attribute test — now
+  `test_secure_cookie_gate.py` asserts `samesite=lax` on both cookies.
+- F-006 CLOSED (EP-027 M1): rate limiting not implemented on auth endpoints —
+  in-memory rate limiter on `POST /auth/login` (5 attempts per 60s window).
+- F-007 LOW / TECHNICAL DEBT: `RetentionSchedulingService` duplicated in
+  `health.py` (dead code; trivial cleanup deferred).
+
 - HUMAN GATES: stable egress identity publication (A4); EP-024 provider
   selection; Limited Pilot authorization itself.
-  (Investigation manual reviews are no longer a gate: recorded ACCEPT /
-  ACCEPT / ACCEPT WITH NOTE in Part C.)
 
 ## Part E — Gates
 
@@ -316,9 +309,45 @@ duplicate existing coverage without adding review value.)
 - A1 live HTTPS secure-cookie gate: PASS on the real Oracle Cloud ARM64 staging
   deployment at verified commit `59b0f42`.
 - M7: COMPLETE. EP-026 M1-M7 TECHNICAL READINESS: PASS.
-- M8: COMPLETE. Adversarial review found 0 BLOCKER / 0 HIGH / 0 MEDIUM / 6 LOW
-  release findings (see docs/reviews/EP-026-M8-adversarial-review.md). F-001
-  (ORM CheckConstraint drift) remediated and CLOSED; 6 LOW findings remain as
-  documented technical debt. EP-026 M1-M8 TECHNICAL READINESS: PASS.
+- M8: COMPLETE. Adversarial review found 0 BLOCKER / 0 HIGH / 0 MEDIUM / 1 LOW
+  release finding (see docs/reviews/EP-026-M8-adversarial-review.md). F-001
+  (ORM CheckConstraint drift) remediated and CLOSED; F-002–F-006 CLOSED by
+  EP-027; F-007 remains LOW (dead-code duplication, deferred).
+  EP-026 M1-M8 TECHNICAL READINESS: PASS.
+- EP-027: COMPLETE (accepted at `108f4d01848bd636be61f892efab898666ab0328`).
+  CI run 33025776067 green. Auth hardening: rate limiting on POST /auth/login
+  (5 attempts / 60s, process-local, no environment bypass), logout clears both
+  cookies, timing-safe CSRF comparison, SameSite regression test, Caddy trust
+  boundary with validated X-Forwarded-For → stripped → X-Real-IP.
 - LIMITED PILOT AUTHORIZATION: NOT GRANTED (independent human decision; completing
   the adversarial review does not by itself authorize Limited Pilot).
+
+### Operational rate-limit guidance (EP-027)
+
+- Endpoint: POST /auth/login
+- Limit: 5 failed attempts per trusted client IP per 60-second window
+- Response: HTTP 429 with Retry-After header on the 6th and subsequent attempts
+- Recovery: successful login clears the counter for that client IP
+- State: in-memory Python dict, process-local to the FastAPI uvicorn worker
+- Restart: API restart clears all rate-limit counters; brute-force protection
+  resets until the next window fills
+- Topology: current Limited Pilot assumes one API process; shared state is not
+  required
+- Scaling: multiple API workers or replicas require a shared store
+  (PostgreSQL or Redis) and an architecture review
+- Cleanup: periodic stale-key cleanup prevents permanent one-off-IP accumulation
+
+### Client-IP trust boundary (EP-027)
+
+```text
+Internet → Caddy (public TLS edge, loopback-only Next.js)
+  → Next.js reads Caddy X-Forwarded-For
+    → validates IP format (IPv4 or IPv6)
+    → strips ALL forwarding headers
+    → emits exactly one X-Real-IP for FastAPI
+  → FastAPI reads X-Real-IP via client_ip() for rate-limit key
+```
+
+If the selected IP is missing or malformed, no X-Real-IP is set; FastAPI falls
+back to socket peer identity. Topology changes require this trust model to be
+revisited.

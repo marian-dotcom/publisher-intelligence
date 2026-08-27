@@ -41,7 +41,7 @@ inspecting ORM metadata to prove the constraint text admits `CHECKPOINT_RUN` (RE
 confirmed: old string fails, new string passes). Migration 0027 left untouched.
 **Status:** CLOSED.
 
-### F-002: pi_csrf cookie not cleared on logout (LOW)
+### F-002: pi_csrf cookie not cleared on logout (CLOSED by EP-027)
 
 **Affected milestone:** M1 (secure-cookie)
 **Evidence:** `backend/app/auth/routes.py:97-109` — the `/auth/logout` endpoint
@@ -55,8 +55,12 @@ at creation, which may prevent proper cookie deletion in some edge cases.
 **Remediation scope:** Add `response.delete_cookie("pi_csrf", path="/")` and match
 creation attributes on both delete calls. Pre-existing, not introduced by EP-026.
 **Blocks M8 completion:** No.
+**Remediation:** EP-027 M2. Logout now clears both `pi_session` and `pi_csrf` with
+matching attributes (`CSRF_COOKIE` constant, `samesite="lax"`, `secure=<flag>`).
+Verified at accepted checkpoint `108f4d0`.
+**Status:** CLOSED by EP-027.
 
-### F-003: CSRF hash comparison not timing-safe (LOW)
+### F-003: CSRF hash comparison not timing-safe (CLOSED by EP-027)
 
 **Affected milestone:** M1 (secure-cookie)
 **Evidence:** `backend/app/auth/service.py` — `verify_csrf` uses Python `==` for
@@ -72,6 +76,9 @@ tokens.
 **Remediation scope:** Replace `==` with `hmac.compare_digest()` in one function.
 Pre-existing, not introduced by EP-026.
 **Blocks M8 completion:** No.
+**Remediation:** EP-027 M3. `service.py:191` now uses `hmac.compare_digest()`.
+Verified at accepted checkpoint `108f4d0`.
+**Status:** CLOSED by EP-027.
 
 ### F-004: Mypy full-scope claim slightly overstated (CLOSED)
 
@@ -89,7 +96,7 @@ found in 262 source files"**. The 11 prior test-file annotations were resolved
 between the initial finding and CI green. F-004 is CLOSED.
 **Status:** CLOSED.
 
-### F-005: No automated SameSite cookie attribute test (LOW)
+### F-005: No automated SameSite cookie attribute test (CLOSED by EP-027)
 
 **Affected milestone:** M1
 **Evidence:** `test_secure_cookie_gate.py::test_pilot_production_cookies_must_be_secure`
@@ -102,8 +109,12 @@ removes it, no test would catch it.
 all existing tests still pass.
 **Remediation scope:** Add one assertion to the existing test. Trivial.
 **Blocks M8 completion:** No.
+**Remediation:** EP-027 M4. `test_secure_cookie_gate.py` now asserts
+`samesite=lax` on both `pi_session` and `pi_csrf` cookies. Verified at accepted
+checkpoint `108f4d0`.
+**Status:** CLOSED by EP-027.
 
-### F-006: Rate limiting not implemented on auth endpoints (LOW — pre-existing, out of EP-026 scope)
+### F-006: Rate limiting not implemented on auth endpoints (CLOSED by EP-027)
 
 **Affected milestone:** None (pre-existing gap)
 **Evidence:** SECURITY.md §95 explicitly requires rate-limiting on login-sensitive
@@ -118,6 +129,11 @@ throttling.
 out of EP-026 scope. Should be tracked as a separate pre-pilot work item.
 **Blocks M8 completion:** No (out of scope). Explicit pre-Limited-Pilot security
 gap — must be resolved before Limited Pilot authorization.
+**Remediation:** EP-027 M1. In-memory rate limiter on `POST /auth/login`
+(5 attempts per 60s window, process-local). Rate-limit key derived from validated
+Caddy X-Forwarded-For via Next.js trust boundary. CI run 33025776067 verified full
+integration suite with rate limiting active and no environment bypass.
+**Status:** CLOSED by EP-027.
 
 ### F-007: RetentionSchedulingService duplicated in health.py (LOW)
 
@@ -137,7 +153,7 @@ wrong location.
 
 ### 1. Authentication / tenant isolation
 
-**Verdict: PASS (with LOW findings F-002, F-003)**
+**Verdict: PASS (with LOW findings F-002, F-003 — both CLOSED by EP-027)**
 
 - Secure cookie: `cookie_secure` field + fail-closed model_validator +
   defense-in-depth RuntimeError — triple guard.
@@ -149,7 +165,7 @@ wrong location.
 - Non-disclosing errors: login failures produce generic "authentication failed".
 - Fail-closed: startup refuses to boot without secure-cookie config in staging/production.
 - Live HTTPS: PASS on Oracle Cloud ARM64 at deployed commit `59b0f42`.
-- Logout: pi_session cleared; pi_csrf not cleared (F-002).
+- Logout: pi_session + pi_csrf cleared with matching attributes (F-002 remediated by EP-027 M2).
 
 ### 2. Monitoring-network reliability
 
@@ -197,7 +213,7 @@ wrong location.
 
 ### 5. Cost controls
 
-**Verdict: PASS (with MEDIUM finding F-001)**
+**Verdict: PASS (F-001 CLOSED by EP-026 M8 remediation)**
 
 - CHECKPOINT_RUN resource kind: constants, Literal type, migration 0027.
 - CheckpointCostRecorder: idempotent run-scoped entry, amount=1, records on
@@ -284,8 +300,8 @@ wrong location.
 | BLOCKER | 0 | — |
 | HIGH | 0 | — |
 | MEDIUM | 0 | — |
-| LOW | 5 | F-002, F-003, F-005, F-006, F-007 |
-| CLOSED | 2 | F-001, F-004 |
+| LOW | 1 | F-007 |
+| CLOSED | 6 | F-001, F-002, F-003, F-004, F-005, F-006 |
 
 ---
 
@@ -294,10 +310,9 @@ wrong location.
 - **Unresolved BLOCKER findings:** 0
 - **Unresolved HIGH findings:** 0
 - **Unresolved MEDIUM findings:** 0
-- **Unresolved LOW findings:** 5 (F-002, F-003, F-005, F-006, F-007 — documented technical debt)
-- **CLOSED findings:** 2 (F-001, F-004)
+- **Unresolved LOW findings:** 1 (F-007 — dead-code duplication, documented technical debt)
+- **CLOSED findings:** 6 (F-001, F-002, F-003, F-004, F-005, F-006)
 - **M8 status:** COMPLETE (zero unresolved BLOCKER/HIGH/MEDIUM findings)
 - **EP-026 status:** M1-M8 TECHNICAL READINESS PASS
 - **LIMITED PILOT:** NOT AUTHORIZED (independent human gate; completing M8 does
-  not by itself authorize Limited Pilot; F-006 rate limiting remains an explicit
-  pre-Limited-Pilot security gap)
+  not by itself authorize Limited Pilot)
