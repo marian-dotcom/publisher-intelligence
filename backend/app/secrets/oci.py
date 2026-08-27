@@ -5,17 +5,20 @@ authentication.  Option C: operator-assisted persistent Google credential
 bundles stored as OCI secrets; short-lived access tokens produced at
 resolve-time via the standard Google token refresh endpoint.
 
-Secret reference format: ``oci:<secret-ocid>``
-where ``<secret-ocid>`` is a valid OCI Vault secret OCID.
+Secret reference format: ``oci:<vaultsecret-ocid>``
+where ``<vaultsecret-ocid>`` is a valid OCI Vault secret OCID.
 
 Credential bundle stored in OCI Vault (JSON)::
 
     {
       "client_id": "...",
       "client_secret": "...",
-      "refresh_token": "...",
-      "token_uri": "https://oauth2.googleapis.com/token"
+      "refresh_token": "..."
     }
+
+OCI Vault stores secret content as Base64-encoded; this module decodes
+it at retrieval time.  The Google token refresh endpoint is hardcoded
+(``_GOOGLE_TOKEN_ENDPOINT``) and cannot be overridden via the bundle.
 
 PostgreSQL stores only the opaque reference.  No credential material
 enters the database.  Refreshed access tokens exist only in process
@@ -24,6 +27,8 @@ memory and are never persisted.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import re
 from dataclasses import dataclass
@@ -46,7 +51,7 @@ try:
 except ImportError:  # pragma: no cover — SDK present in production
     _OCI_AVAILABLE = False
 
-_SECRET_REF_RE = re.compile(r"^oci:(ocid1\.secret\.[a-zA-Z0-9._:-]+)$")
+_SECRET_REF_RE = re.compile(r"^oci:(ocid1\.vaultsecret\.[a-zA-Z0-9._:-]+)$")
 
 _GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 _GOOGLE_SCOPES = (
@@ -110,13 +115,56 @@ class OciSecretStore:
     # -- read path (allowed) -----------------------------------------------
 
     def resolve(self, reference: str) -> str | None:
-        """Fetch the CURRENT secret bundle from OCI Vault."""
+        """Fetch the CURRENT secret bundle from OCI Vault.
+
+        OCI Vault returns Base64-encoded content with content_type="BASE64".
+        This method validates the content type, decodes Base64, and decodes
+        the result as UTF-8, raising ``SECRET_BUNDLE_INVALID`` on any
+        malformation.
+        """
         secret_ocid = parse_secret_ocid(reference)
         try:
             client = self._get_client()
             response = client.get_secret_bundle(secret_ocid, stage="CURRENT")
-            content: str = response.data.secret_bundle_content.content
-            return content
+            bundle_content = response.data.secret_bundle_content
+            if bundle_content is None:
+                raise SecretResolutionError(
+                    "SECRET_BUNDLE_INVALID",
+                    retryable=False,
+                    message="OCI secret has no content",
+                )
+            content_type = getattr(bundle_content, "content_type", None)
+            if content_type != "BASE64":
+                raise SecretResolutionError(
+                    "SECRET_BUNDLE_INVALID",
+                    retryable=False,
+                    message="Unsupported OCI secret content type",
+                )
+            raw_content: str | None = getattr(bundle_content, "content", None)
+            if not isinstance(raw_content, str) or not raw_content:
+                raise SecretResolutionError(
+                    "SECRET_BUNDLE_INVALID",
+                    retryable=False,
+                    message="OCI secret content is empty",
+                )
+            try:
+                decoded = base64.b64decode(raw_content, validate=True)
+            except (binascii.Error, ValueError) as exc:
+                raise SecretResolutionError(
+                    "SECRET_BUNDLE_INVALID",
+                    retryable=False,
+                    message="OCI secret content is not valid Base64",
+                ) from exc
+            try:
+                return decoded.decode("utf-8")
+            except UnicodeDecodeError as exc:
+                raise SecretResolutionError(
+                    "SECRET_BUNDLE_INVALID",
+                    retryable=False,
+                    message="OCI secret content is not valid UTF-8",
+                ) from exc
+        except SecretResolutionError:
+            raise
         except oci.exceptions.ServiceError as exc:
             self._raise_service_error(exc)
         return None  # unreachable but satisfies type checker
@@ -177,7 +225,7 @@ class OciSecretStore:
 # Google credential bundle
 # ---------------------------------------------------------------------------
 
-_REQUIRED_BUNDLE_FIELDS = ("client_id", "client_secret", "refresh_token", "token_uri")
+_REQUIRED_BUNDLE_FIELDS = ("client_id", "client_secret", "refresh_token")
 
 
 @dataclass(frozen=True, slots=True)
@@ -187,7 +235,6 @@ class GoogleCredentialBundle:
     client_id: str
     client_secret: str
     refresh_token: str
-    token_uri: str
 
 
 def parse_credential_bundle(raw_json: str) -> GoogleCredentialBundle:
@@ -228,7 +275,6 @@ def parse_credential_bundle(raw_json: str) -> GoogleCredentialBundle:
         client_id=str(data["client_id"]),
         client_secret=str(data["client_secret"]),
         refresh_token=str(data["refresh_token"]),
-        token_uri=str(data["token_uri"]),
     )
 
 
@@ -252,7 +298,7 @@ def _refresh_access_token(
     assert client is not None
     try:
         response = client.post(
-            bundle.token_uri,
+            _GOOGLE_TOKEN_ENDPOINT,
             data={
                 "client_id": bundle.client_id,
                 "client_secret": bundle.client_secret,

@@ -6,6 +6,8 @@ Google token refresh calls are mocked — no real OAuth.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 from unittest.mock import MagicMock, patch
 
@@ -28,7 +30,7 @@ from app.secrets.oci import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
-_VALID_SECRET_OCID = "ocid1.secret.oc1.eu-frankfurt-1.exampleuniqueid"
+_VALID_SECRET_OCID = "ocid1.vaultsecret.oc1.eu-frankfurt-1.exampleuniqueid"
 _VALID_REFERENCE = f"oci:{_VALID_SECRET_OCID}"
 
 _VALID_BUNDLE_JSON = json.dumps(
@@ -36,7 +38,6 @@ _VALID_BUNDLE_JSON = json.dumps(
         "client_id": "test-client-id.apps.googleusercontent.com",
         "client_secret": "test-client-secret",
         "refresh_token": "test-refresh-token",
-        "token_uri": "https://oauth2.googleapis.com/token",
     }
 )
 
@@ -99,13 +100,19 @@ class TestParseSecretOcid:
 
     def test_accepts_various_ocid_shapes(self) -> None:
         shapes = [
-            "ocid1.secret.oc1.iad.aaaaaaaa",
-            "ocid1.secret.oc2.us-ashburn-1.abc123",
-            "ocid1.secret.oc1.eu-frankfurt-1.x",
+            "ocid1.vaultsecret.oc1.iad.aaaaaaaa",
+            "ocid1.vaultsecret.oc2.us-ashburn-1.abc123",
+            "ocid1.vaultsecret.oc1.eu-frankfurt-1.x",
         ]
         for shape in shapes:
             result = parse_secret_ocid(f"oci:{shape}")
             assert result == shape
+
+    def test_rejects_ocid1_secret_prefix(self) -> None:
+        """oci:ocid1.secret... is rejected (must use ocid1.vaultsecret...)."""
+        with pytest.raises(SecretResolutionError) as exc_info:
+            parse_secret_ocid("oci:ocid1.secret.oc1.eu-frankfurt-1.abcdef")
+        assert exc_info.value.code == "SECRET_REFERENCE_INVALID"
 
 
 # ---------------------------------------------------------------------------
@@ -131,29 +138,160 @@ class TestOciSecretStoreReadOnly:
 
 
 # ---------------------------------------------------------------------------
+# OciSecretStore.resolve — strict Base64 decode tests
+# ---------------------------------------------------------------------------
+
+
+def _make_base64_response(content: str) -> MagicMock:
+    """Create a mock OCI response with BASE64-encoded content."""
+    b64_content = base64.b64encode(content.encode("utf-8")).decode("ascii")
+    mock_content = MagicMock()
+    mock_content.content_type = "BASE64"
+    mock_content.content = b64_content
+    mock_response = MagicMock()
+    mock_response.data.secret_bundle_content = mock_content
+    return mock_response
+
+
+def _make_raw_response(content_type: str, content: object) -> MagicMock:
+    """Create a mock OCI response with arbitrary content type and content."""
+    mock_content = MagicMock()
+    mock_content.content_type = content_type
+    mock_content.content = content
+    mock_response = MagicMock()
+    mock_response.data.secret_bundle_content = mock_content
+    return mock_response
+
+
+def _make_null_bundle_response() -> MagicMock:
+    """Create a mock OCI response where secret_bundle_content is None."""
+    mock_response = MagicMock()
+    mock_response.data.secret_bundle_content = None
+    return mock_response
+
+
+class TestOciSecretStoreBase64Decode:
+    def test_base64_decodes_valid_content(self) -> None:
+        """BASE64 content type + valid Base64 → plaintext JSON."""
+        bundle_json = json.dumps({"client_id": "test"})
+        store = OciSecretStore.__new__(OciSecretStore)
+        store._client = MagicMock()
+        store._client.get_secret_bundle.return_value = _make_base64_response(bundle_json)
+        result = store.resolve(_VALID_REFERENCE)
+        assert result == bundle_json
+
+    def test_rejects_missing_secret_bundle_content(self) -> None:
+        """Missing secret_bundle_content → SECRET_BUNDLE_INVALID."""
+        store = OciSecretStore.__new__(OciSecretStore)
+        store._client = MagicMock()
+        store._client.get_secret_bundle.return_value = _make_null_bundle_response()
+        with pytest.raises(SecretResolutionError) as exc_info:
+            store.resolve(_VALID_REFERENCE)
+        assert exc_info.value.code == "SECRET_BUNDLE_INVALID"
+        assert not exc_info.value.retryable
+
+    def test_rejects_unsupported_content_type(self) -> None:
+        """Unknown/unsupported content type → SECRET_BUNDLE_INVALID."""
+        store = OciSecretStore.__new__(OciSecretStore)
+        store._client = MagicMock()
+        store._client.get_secret_bundle.return_value = _make_raw_response(
+            "UNKNOWN_FORMAT", "some-data"
+        )
+        with pytest.raises(SecretResolutionError) as exc_info:
+            store.resolve(_VALID_REFERENCE)
+        assert exc_info.value.code == "SECRET_BUNDLE_INVALID"
+
+    def test_rejects_missing_content_field(self) -> None:
+        """content attribute is None → SECRET_BUNDLE_INVALID."""
+        store = OciSecretStore.__new__(OciSecretStore)
+        store._client = MagicMock()
+        store._client.get_secret_bundle.return_value = _make_raw_response("BASE64", None)
+        with pytest.raises(SecretResolutionError) as exc_info:
+            store.resolve(_VALID_REFERENCE)
+        assert exc_info.value.code == "SECRET_BUNDLE_INVALID"
+
+    def test_rejects_empty_content(self) -> None:
+        """Empty string content → SECRET_BUNDLE_INVALID."""
+        store = OciSecretStore.__new__(OciSecretStore)
+        store._client = MagicMock()
+        store._client.get_secret_bundle.return_value = _make_raw_response("BASE64", "")
+        with pytest.raises(SecretResolutionError) as exc_info:
+            store.resolve(_VALID_REFERENCE)
+        assert exc_info.value.code == "SECRET_BUNDLE_INVALID"
+
+    def test_rejects_non_string_content(self) -> None:
+        """Non-string content (e.g. int) → SECRET_BUNDLE_INVALID."""
+        store = OciSecretStore.__new__(OciSecretStore)
+        store._client = MagicMock()
+        store._client.get_secret_bundle.return_value = _make_raw_response("BASE64", 12345)
+        with pytest.raises(SecretResolutionError) as exc_info:
+            store.resolve(_VALID_REFERENCE)
+        assert exc_info.value.code == "SECRET_BUNDLE_INVALID"
+
+    def test_rejects_malformed_base64(self) -> None:
+        """Malformed Base64 content → SECRET_BUNDLE_INVALID."""
+        store = OciSecretStore.__new__(OciSecretStore)
+        store._client = MagicMock()
+        store._client.get_secret_bundle.return_value = _make_raw_response(
+            "BASE64", "!!!not-valid-base64!!!"
+        )
+        with pytest.raises(SecretResolutionError) as exc_info:
+            store.resolve(_VALID_REFERENCE)
+        assert exc_info.value.code == "SECRET_BUNDLE_INVALID"
+        assert "Base64" in str(exc_info.value)
+
+    def test_malformed_base64_wraps_binascii_error(self) -> None:
+        """Malformed Base64 error wraps binascii.Error."""
+        store = OciSecretStore.__new__(OciSecretStore)
+        store._client = MagicMock()
+        store._client.get_secret_bundle.return_value = _make_raw_response("BASE64", "not-valid===")
+        with pytest.raises(SecretResolutionError) as exc_info:
+            store.resolve(_VALID_REFERENCE)
+        assert exc_info.value.code == "SECRET_BUNDLE_INVALID"
+        assert isinstance(exc_info.value.__cause__, (binascii.Error, ValueError))
+
+    def test_rejects_valid_base64_invalid_utf8(self) -> None:
+        """Valid Base64 encoding bytes that are not valid UTF-8 → SECRET_BUNDLE_INVALID."""
+        invalid_utf8_bytes = b"\x80\x81\x82\x83"
+        b64_content = base64.b64encode(invalid_utf8_bytes).decode("ascii")
+        store = OciSecretStore.__new__(OciSecretStore)
+        mock_content = MagicMock()
+        mock_content.content_type = "BASE64"
+        mock_content.content = b64_content
+        mock_response = MagicMock()
+        mock_response.data.secret_bundle_content = mock_content
+        store._client = MagicMock()
+        store._client.get_secret_bundle.return_value = mock_response
+        with pytest.raises(SecretResolutionError) as exc_info:
+            store.resolve(_VALID_REFERENCE)
+        assert exc_info.value.code == "SECRET_BUNDLE_INVALID"
+        assert "UTF-8" in str(exc_info.value)
+        assert isinstance(exc_info.value.__cause__, UnicodeDecodeError)
+
+    def test_base64_decodes_unicode_json(self) -> None:
+        """Valid Base64 containing UTF-8 JSON with unicode chars → decoded correctly."""
+        bundle_json = json.dumps({"client_id": "test-üñîcôdé"})
+        b64_content = base64.b64encode(bundle_json.encode("utf-8")).decode("ascii")
+        store = OciSecretStore.__new__(OciSecretStore)
+        mock_content = MagicMock()
+        mock_content.content_type = "BASE64"
+        mock_content.content = b64_content
+        mock_response = MagicMock()
+        mock_response.data.secret_bundle_content = mock_content
+        store._client = MagicMock()
+        store._client.get_secret_bundle.return_value = mock_response
+        result = store.resolve(_VALID_REFERENCE)
+        assert result == bundle_json
+
+
+# ---------------------------------------------------------------------------
 # OciSecretStore.resolve — success and OCI service errors
 # ---------------------------------------------------------------------------
 
 
-def _make_mock_client(response_content: str = "secret-value") -> MagicMock:
-    """Create a mock OCI SecretsClient with a successful response."""
-    mock_response = MagicMock()
-    mock_response.data.secret_bundle_content.content = response_content
-    mock_client = MagicMock()
-    mock_client.get_secret_bundle.return_value = mock_response
-    return mock_client
-
-
-def test_resolve_success() -> None:
-    store = OciSecretStore.__new__(OciSecretStore)
-    store._client = _make_mock_client("resolved-secret")
-    result = store.resolve(_VALID_REFERENCE)
-    assert result == "resolved-secret"
-
-
 def test_resolve_invalid_reference() -> None:
     store = OciSecretStore.__new__(OciSecretStore)
-    store._client = _make_mock_client()
+    store._client = MagicMock()
     with pytest.raises(SecretResolutionError) as exc_info:
         store.resolve("env:SOME_VAR")
     assert exc_info.value.code == "SECRET_REFERENCE_INVALID"
@@ -229,7 +367,8 @@ def test_resolve_secret_disabled() -> None:
 
 def test_exists_true() -> None:
     store = OciSecretStore.__new__(OciSecretStore)
-    store._client = _make_mock_client("value")
+    store._client = MagicMock()
+    store._client.get_secret_bundle.return_value = _make_base64_response("value")
     assert store.exists(_VALID_REFERENCE) is True
 
 
@@ -254,7 +393,7 @@ class TestParseCredentialBundle:
         assert bundle.client_id == "test-client-id.apps.googleusercontent.com"
         assert bundle.client_secret == "test-client-secret"
         assert bundle.refresh_token == "test-refresh-token"
-        assert bundle.token_uri == "https://oauth2.googleapis.com/token"
+        assert not hasattr(bundle, "token_uri")
 
     def test_rejects_invalid_json(self) -> None:
         with pytest.raises(SecretResolutionError) as exc_info:
@@ -271,7 +410,6 @@ class TestParseCredentialBundle:
             {
                 "client_secret": "s",
                 "refresh_token": "r",
-                "token_uri": "https://example.com/token",
             }
         )
         with pytest.raises(SecretResolutionError) as exc_info:
@@ -283,7 +421,6 @@ class TestParseCredentialBundle:
             {
                 "client_id": "id",
                 "client_secret": "s",
-                "token_uri": "https://example.com/token",
             }
         )
         with pytest.raises(SecretResolutionError) as exc_info:
@@ -296,7 +433,6 @@ class TestParseCredentialBundle:
                 "client_id": "id",
                 "client_secret": "",
                 "refresh_token": "r",
-                "token_uri": "https://example.com/token",
             }
         )
         with pytest.raises(SecretResolutionError) as exc_info:
@@ -309,19 +445,6 @@ class TestParseCredentialBundle:
                 "client_id": "id",
                 "client_secret": "s",
                 "refresh_token": "  ",
-                "token_uri": "https://example.com/token",
-            }
-        )
-        with pytest.raises(SecretResolutionError) as exc_info:
-            parse_credential_bundle(bundle)
-        assert exc_info.value.code == "SECRET_BUNDLE_INVALID"
-
-    def test_rejects_missing_token_uri(self) -> None:
-        bundle = json.dumps(
-            {
-                "client_id": "id",
-                "client_secret": "s",
-                "refresh_token": "r",
             }
         )
         with pytest.raises(SecretResolutionError) as exc_info:
@@ -341,6 +464,15 @@ class TestParseCredentialBundle:
         bundle = parse_credential_bundle(json.dumps(bundle_data))
         assert bundle.client_id == "test-client-id.apps.googleusercontent.com"
 
+    def test_token_uri_extra_field_ignored(self) -> None:
+        """token_uri in secret JSON is ignored — only 3 fields required."""
+        bundle_data = json.loads(_VALID_BUNDLE_JSON)
+        bundle_data["token_uri"] = "https://evil.example/token"
+        bundle = parse_credential_bundle(json.dumps(bundle_data))
+        assert bundle.client_id == "test-client-id.apps.googleusercontent.com"
+        assert bundle.refresh_token == "test-refresh-token"
+        assert not hasattr(bundle, "token_uri")
+
 
 # ---------------------------------------------------------------------------
 # Google token refresh
@@ -353,7 +485,6 @@ class TestRefreshAccessToken:
             "client_id": "test-client-id",
             "client_secret": "test-client-secret",
             "refresh_token": "test-refresh-token",
-            "token_uri": "https://oauth2.googleapis.com/token",
         }
         defaults.update(overrides)
         return GoogleCredentialBundle(**defaults)
@@ -504,14 +635,61 @@ class TestRefreshAccessToken:
 
 
 # ---------------------------------------------------------------------------
+# Adversarial token_uri endpoint pinning test
+# ---------------------------------------------------------------------------
+
+
+class TestRefreshAccessTokenEndpointPinning:
+    """Adversarial test: secret cannot redirect token refresh to attacker endpoint."""
+
+    def test_token_refresh_ignores_token_uri_in_secret(self) -> None:
+        """Prove that token_uri in raw secret JSON is ignored as an unknown field
+        and refresh always goes to the canonical Google endpoint."""
+        raw_secret_json = json.dumps(
+            {
+                "client_id": "test-client-id",
+                "client_secret": "test-client-secret",
+                "refresh_token": "test-refresh-token",
+                "token_uri": "https://evil.example/token",
+            }
+        )
+        bundle = parse_credential_bundle(raw_secret_json)
+
+        # Prove: bundle has no token_uri attribute
+        assert not hasattr(bundle, "token_uri")
+        # Prove: bundle has exactly the 3 expected fields
+        assert set(bundle.__dataclass_fields__) == {
+            "client_id",
+            "client_secret",
+            "refresh_token",
+        }
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = _GOOGLE_TOKEN_RESPONSE_200
+        mock_client = MagicMock(spec=httpx.Client)
+        mock_client.post.return_value = mock_response
+
+        token = _refresh_access_token(bundle, client=mock_client)
+        assert token == "ya29.test-access-token"
+
+        # Prove: exactly one POST was made
+        assert mock_client.post.call_count == 1
+        call_args = mock_client.post.call_args
+        # Prove: POST destination is exactly the canonical endpoint
+        assert call_args.args[0] == "https://oauth2.googleapis.com/token"
+        # Prove: no request was made to attacker URI
+        assert "evil.example" not in call_args.args[0]
+        assert call_args.kwargs.get("url", call_args.args[0]) != "https://evil.example/token"
+
+
+# ---------------------------------------------------------------------------
 # OciAccessTokenResolver — end-to-end with mocked OCI + Google
 # ---------------------------------------------------------------------------
 
 
 class TestOciAccessTokenResolver:
-    def _make_resolver_with_mock_store(
-        self, bundle_json: str | None
-    ) -> OciAccessTokenResolver:
+    def _make_resolver_with_mock_store(self, bundle_json: str | None) -> OciAccessTokenResolver:
         mock_store = MagicMock(spec=OciSecretStore)
         mock_store.resolve.return_value = bundle_json
         resolver = OciAccessTokenResolver.__new__(OciAccessTokenResolver)
@@ -636,8 +814,8 @@ class TestSecretBackendSettings:
                 cookie_secure=True,
                 database_url="postgresql+psycopg://user:pass@host:5432/db",
                 s3_endpoint_url="https://s3.example.com",
-                s3_access_key_id="AKIAIOSFODNN7EXAMPLE",
-                s3_secret_access_key="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+                s3_access_key_id="test-production-access-key-id",
+                s3_secret_access_key="test-production-secret-access-key",
             )
         assert "secret_backend=oci" in str(exc_info.value)
 

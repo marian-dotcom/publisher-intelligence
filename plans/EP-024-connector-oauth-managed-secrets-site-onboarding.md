@@ -152,11 +152,15 @@ Instance Principal authentication: no API keys on disk.
      via official OCI SDK (`oci.auth.signers.InstancePrincipalsSecurityTokenSigner`,
      `oci.secrets.SecretsClient`). Write methods (store/replace/delete) raise
      `InvestigationStateError` — consistent with `EnvironmentSecretStore` pattern.
+   - Strict Base64 decode: validates `content_type == "BASE64"`, non-empty content,
+     strict Base64 validation, UTF-8 decode. Malformed content → `SECRET_BUNDLE_INVALID`.
    - `OciAccessTokenResolver`: connector-level credential resolution.
-     Reference format: `oci:<secret-ocid>`. Fetches credential bundle from OCI Vault,
+     Reference format: `oci:<vaultsecret-ocid>`. Fetches credential bundle from OCI Vault,
      validates structure, exchanges Google refresh token for short-lived access token.
-   - `parse_credential_bundle()`: validates Google credential bundle JSON structure.
-   - `_refresh_access_token()`: Google token refresh via standard endpoint.
+   - `parse_credential_bundle()`: validates 3-field Google credential bundle JSON
+     (client_id, client_secret, refresh_token). Unknown fields ignored.
+   - `_refresh_access_token()`: Google token refresh via hardcoded canonical endpoint
+     (`https://oauth2.googleapis.com/token`). Cannot be overridden via bundle.
    - Error mapping: OCI ServiceError → SecretResolutionError codes.
 
 2. **`backend/app/config/settings.py`** — secret backend configuration:
@@ -168,12 +172,17 @@ Instance Principal authentication: no API keys on disk.
    - `_build_token_resolver(settings)`: factory selects resolver based on `secret_backend`
    - Connectors share a single resolver instance per worker process
 
-4. **`backend/tests/unit/test_oci_secret_store.py`** — 59 unit tests covering:
-   - OCID reference format validation
+4. **`backend/tests/unit/test_oci_secret_store.py`** — 70 unit tests covering:
+   - OCID reference format validation (vaultsecret prefix, rejection of ocid1.secret)
    - OciSecretStore read-only enforcement
-   - OciSecretStore.resolve success/failure paths (mocked OCI SDK)
-   - Credential bundle parsing (valid/malformed/missing fields)
+   - OciSecretStore.resolve: strict Base64 decode tests (valid content, missing bundle,
+     unsupported content type, missing/empty/non-string content, malformed Base64,
+     invalid UTF-8, unicode JSON)
+   - OciServiceError paths (401/403/404/500/secret disabled)
+   - Credential bundle parsing (valid/malformed/missing fields, extra fields ignored,
+     token_uri extra field ignored)
    - Google token refresh (success, invalid_grant, insufficient_scope, server_error)
+   - Adversarial token_uri endpoint pinning (proves attacker URI is never contacted)
    - OciAccessTokenResolver end-to-end (mocked OCI + Google)
    - Settings fail-closed for staging/production
    - Worker factory function
@@ -184,21 +193,40 @@ Instance Principal authentication: no API keys on disk.
 ### Secret reference format
 
 ```
-oci:ocid1.secret.oc1.eu-frankfurt-1.xxxxx...
+oci:ocid1.vaultsecret.oc1.eu-frankfurt-1.xxxxx...
 ```
 
 PostgreSQL stores only this opaque reference. No credential material enters the database.
 
+### Credential bundle schema
+
+3-field JSON stored in OCI Vault:
+
+```json
+{
+  "client_id": "...",
+  "client_secret": "...",
+  "refresh_token": "..."
+}
+```
+
+The `token_uri` field is neither required nor recognized. The Google token refresh
+endpoint is hardcoded (`https://oauth2.googleapis.com/token`).
+
+OCI Vault stores secret content as Base64-encoded; retrieval decodes at access time
+with strict validation (content type must be `BASE64`, content must be valid Base64
+and valid UTF-8).
+
 ### Credential flow (Option C)
 
 ```
-data_connection.secret_reference: "oci:<secret-ocid>"
+data_connection.secret_reference: "oci:<vaultsecret-ocid>"
         ↓
 OciAccessTokenResolver.resolve()
         ↓
 OciSecretStore.resolve() → OCI Vault REST API (Instance Principal)
         ↓
-Google credential bundle (client_id, client_secret, refresh_token, token_uri)
+Base64-decode → UTF-8 decode → credential bundle (client_id, client_secret, refresh_token)
         ↓
 Google token refresh endpoint → short-lived access_token
         ↓
@@ -210,8 +238,11 @@ Refreshed access tokens exist only in process memory. Never persisted.
 ### Validation
 
 - ruff check: PASS
+- ruff format: PASS
 - mypy: PASS (no errors)
-- unit tests: 423 passed (59 new OCI tests + 364 existing)
+- unit tests: 434 passed (70 OCI tests including Base64 decode, adversarial token_uri, OCID rejection + 364 existing)
+- secret scan: PASS
+- uv lock --locked: PASS
 
 ### M2 status vs Gate N status
 

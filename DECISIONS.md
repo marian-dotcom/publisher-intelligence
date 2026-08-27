@@ -3144,12 +3144,20 @@ OCI Secret Management selected as the production SecretStore provider.
 Instance Principal authentication: no API keys on disk. The compute instance's
 identity is the credential.
 
-Reference format: `oci:<secret-ocid>` — PostgreSQL stores only the opaque
+Reference format: `oci:<vaultsecret-ocid>` — PostgreSQL stores only the opaque
 reference. No credential material enters the database.
 
 Runtime: read-only. Write operations (store/replace/delete) are explicitly
 disabled on `OciSecretStore`, consistent with the `EnvironmentSecretStore`
 pattern. Secret provisioning is operator-assisted and out-of-band.
+
+Credential bundle schema: 3-field JSON stored in OCI Vault —
+`client_id`, `client_secret`, `refresh_token`. The Google token refresh
+endpoint (`https://oauth2.googleapis.com/token`) is hardcoded and cannot be
+overridden via the bundle.
+
+OCI Vault stores secret content as Base64-encoded; retrieval decodes at
+access time with strict validation (content type, Base64, UTF-8).
 
 ## Reason
 
@@ -3162,6 +3170,8 @@ pattern. Secret provisioning is operator-assisted and out-of-band.
    is replaceable behind these abstractions.
 5. Minimal configuration: only `secret_backend=oci` and `oci_region` at runtime.
    No vault/key/compartment configuration required for secret retrieval.
+6. Google token endpoint is hardcoded (`_GOOGLE_TOKEN_ENDPOINT`) — credential
+   bundles cannot redirect token refresh to attacker-controlled endpoints.
 
 ## Consequences
 
@@ -3169,6 +3179,11 @@ pattern. Secret provisioning is operator-assisted and out-of-band.
 - `OciSecretStore` write methods raise `InvestigationStateError`.
 - Google credential bundles stored as OCI secrets; refresh tokens exchanged
   for short-lived access tokens at resolve-time.
+- Secret bundles are 3-field (`client_id`, `client_secret`, `refresh_token`).
+  The `token_uri` field is neither required nor recognized.
+- OCI content is Base64-encoded and decoded at retrieval time with strict
+  validation (content type must be `BASE64`, content must be valid Base64
+  and valid UTF-8).
 - Option C revisit triggers (§4a) remain binding.
 - Provider replaceable: switching to AWS/GCP/Vault requires a new
   `AccessTokenResolver` implementation, not domain logic changes.
