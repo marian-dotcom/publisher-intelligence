@@ -1,5 +1,6 @@
 import asyncio
 import uuid
+from collections.abc import Generator
 
 import pytest
 from fastapi.testclient import TestClient
@@ -26,7 +27,7 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(autouse=True)
-def _clean_db() -> None:
+def _clean_db() -> Generator[None, None, None]:
     purge = make_purge(get_session_factory)
     asyncio.run(purge())
     yield
@@ -128,7 +129,9 @@ async def test_valid_csrf_registration_is_tenant_bound_and_atomic(
         jobs = list(
             (
                 await session.scalars(
-                    select(Job).where(Job.tenant_id == tenant_id, Job.job_type == "BROWSER_CHECKPOINT")
+                    select(Job).where(
+                        Job.tenant_id == tenant_id, Job.job_type == "BROWSER_CHECKPOINT"
+                    )
                 )
             ).all()
         )
