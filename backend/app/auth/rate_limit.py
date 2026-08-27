@@ -4,7 +4,7 @@ Conservative per-process in-memory rate limiting suitable for the single-host
 Limited Pilot deployment. No external dependencies (no Redis/Celery).
 
 Client identity: X-Real-IP header (set by Next.js trusted-edge proxy) with
-fallback to request.client.host. In test environments rate limiting is disabled.
+fallback to request.client.host.
 """
 
 import logging
@@ -102,12 +102,6 @@ def check_rate_limit(
 
     Raises HTTPException 429 if rate limit exceeded.
     """
-    from app.config.settings import get_settings
-
-    settings = get_settings()
-    if settings.environment == "test":
-        return
-
     ip = client_ip(request)
     store = get_rate_limit_store()
     limited, retry_after = store.is_rate_limited(

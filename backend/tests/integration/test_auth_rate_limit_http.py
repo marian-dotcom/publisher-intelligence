@@ -7,7 +7,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.auth.models import Operator, OperatorTenant
-from app.auth.rate_limit import get_rate_limit_store
 from app.auth.security import hash_password
 from app.db.models import Tenant
 from app.db.session import get_session_factory
@@ -20,11 +19,6 @@ pytestmark = pytest.mark.integration
 @pytest.fixture(autouse=True)
 def _clean_db() -> None:
     asyncio.run(make_purge(get_session_factory)())
-
-
-@pytest.fixture(autouse=True)
-def _clear_rate_limit() -> None:
-    get_rate_limit_store()._counts.clear()
 
 
 @pytest.fixture
