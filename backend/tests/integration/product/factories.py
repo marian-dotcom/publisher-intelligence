@@ -485,3 +485,152 @@ async def create_incident(
             )
         )
     return incident_id
+
+
+async def seed_diagnostic_event_chain(*, slug: str | None = None) -> dict[str, object]:
+    """EP-026 M2b: minimal canonical chain for diagnostic-run → event persistence.
+
+    Creates tenant, publisher/site, template, monitored URL, scenario,
+    checkpoint window, and a COMPLETED scheduled baseline run plus a DIAGNOSTIC
+    run (trigger_source=INCIDENT, correlation = window-scoped UUID), returning
+    the identifiers needed to derive/persist browser-source reliability events.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    tenant_id, publisher_id, site_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    template_id, monitored_url_id, scenario_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    baseline_window_id, diagnostic_window_id = uuid.uuid4(), uuid.uuid4()
+    baseline_run_id, diagnostic_run_id = uuid.uuid4(), uuid.uuid4()
+    correlation_id = uuid.uuid4()
+    slug = slug or f"m2b-{tenant_id.hex[:8]}"
+    when = datetime.now(UTC) - timedelta(hours=2)
+    factory = get_session_factory()
+    async with factory() as session, session.begin():
+        session.add(Tenant(id=tenant_id, slug=slug, name=slug.title()))
+        await session.flush()
+        session.add(
+            Publisher(
+                id=publisher_id,
+                tenant_id=tenant_id,
+                name=f"P {slug}",
+                slug=f"pub-{publisher_id.hex[:8]}",
+                default_timezone="UTC",
+                status="ACTIVE",
+            )
+        )
+        await session.flush()
+        session.add(
+            Site(
+                id=site_id,
+                tenant_id=tenant_id,
+                publisher_id=publisher_id,
+                name=f"Site {slug}",
+                canonical_domain=f"{site_id.hex}.example.com",
+                canonical_scheme="https",
+                timezone="UTC",
+                status="ACTIVE",
+            )
+        )
+        await session.flush()
+        session.add(
+            Template(
+                id=template_id,
+                tenant_id=tenant_id,
+                site_id=site_id,
+                code="article",
+                display_name="Article",
+                status="ACTIVE",
+            )
+        )
+        await session.flush()
+        session.add(
+            MonitoredUrl(
+                id=monitored_url_id,
+                tenant_id=tenant_id,
+                site_id=site_id,
+                template_id=template_id,
+                url=f"https://{site_id.hex}.example.com/a",
+                status="ACTIVE",
+            )
+        )
+        session.add(
+            BrowserScenario(
+                id=scenario_id,
+                tenant_id=tenant_id,
+                site_id=site_id,
+                code=f"core_desktop_{scenario_id.hex[:6]}",
+                version=1,
+                status="ACTIVE",
+            )
+        )
+        session.add(
+            CheckpointWindow(
+                id=baseline_window_id,
+                tenant_id=tenant_id,
+                site_id=site_id,
+                scheduled_for=when,
+                window_start=when,
+                window_end=when + timedelta(minutes=30),
+            )
+        )
+        session.add(
+            CheckpointWindow(
+                id=diagnostic_window_id,
+                tenant_id=tenant_id,
+                site_id=site_id,
+                scheduled_for=when + timedelta(minutes=40),
+                window_start=when + timedelta(minutes=40),
+                window_end=when + timedelta(hours=1),
+            )
+        )
+        await session.flush()
+        common = dict(
+            tenant_id=tenant_id,
+            site_id=site_id,
+            monitored_url_id=monitored_url_id,
+            template_id=template_id,
+            scenario_id=scenario_id,
+            attempt_count=1,
+            environment={},
+            limitations=[],
+            manifest={},
+        )
+        # Healthy scheduled baseline (the LKG-comparable observation).
+        session.add(
+            CheckpointRun(
+                id=baseline_run_id,
+                checkpoint_window_id=baseline_window_id,
+                observation_kind="SCHEDULED",
+                scheduled_for=when,
+                started_at=when,
+                completed_at=when + timedelta(minutes=5),
+                status="RUNNING",
+                collector_bundle_version="b8-v1",
+                **common,
+            )
+        )
+        # Degraded diagnostic observation of our own access path.
+        session.add(
+            CheckpointRun(
+                id=diagnostic_run_id,
+                checkpoint_window_id=diagnostic_window_id,
+                observation_kind="DIAGNOSTIC",
+                trigger_source="INCIDENT",
+                trigger_correlation_id=correlation_id,
+                scheduled_for=when + timedelta(minutes=40),
+                started_at=when + timedelta(minutes=41),
+                completed_at=when + timedelta(minutes=46),
+                status="RUNNING",
+                http_status=403,
+                final_url=f"https://{site_id.hex}.example.com/a",
+                collector_bundle_version="b8-v1",
+                **common,
+            )
+        )
+    return {
+        "tenant_id": tenant_id,
+        "site_id": site_id,
+        "baseline_run_id": baseline_run_id,
+        "diagnostic_run_id": diagnostic_run_id,
+        "correlation_id": correlation_id,
+    }

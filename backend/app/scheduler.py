@@ -16,6 +16,7 @@ from app.metrics.persistence import MetricDerivationRepository
 from app.metrics.scheduling import CrossSourceSchedulingService
 from app.public_config.persistence import PublicConfigRepository
 from app.public_config.scheduling import PublicConfigSchedulingService
+from app.retention.scheduling import RetentionSchedulingService
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,11 @@ async def run_once() -> None:
                 "job_count": public_config_result.job_count,
             }
         },
+    )
+    retention_job_count = await RetentionSchedulingService(queue).schedule_due()
+    logger.info(
+        "retention scheduling pass completed",
+        extra={"context": {"job_count": retention_job_count}},
     )
 
 

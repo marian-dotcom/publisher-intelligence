@@ -2,7 +2,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from app.events.contracts import EvaluationInput
+from app.events.contracts import DiagnosticInput, EvaluationInput
 from app.events.persistence import PersistenceResult
 from app.events.service import EventService
 
@@ -45,9 +45,21 @@ def _window_input(monitored_url_id: uuid.UUID) -> EvaluationInput:
 
 
 class Repository:
-    def __init__(self, values: tuple[EvaluationInput, ...]) -> None:
+    async def load_diagnostic_input(
+        self, *, tenant_id: object, checkpoint_run_id: object
+    ) -> object:
+        return self.diagnostic
+
+    def __init__(
+        self,
+        values: tuple[EvaluationInput, ...],
+        *,
+        diagnostic: DiagnosticInput | None = None,
+    ) -> None:
         self.values = values
+        self.diagnostic = diagnostic
         self.persisted: tuple[Any, ...] = ()
+        self.persisted_diagnostic: tuple[Any, ...] = ()
 
     async def load_input(self, **kwargs: Any) -> None:
         return None
@@ -60,6 +72,12 @@ class Repository:
     ) -> PersistenceResult:
         self.persisted = candidates
         return PersistenceResult(created_count=1)
+
+    async def persist_diagnostic(
+        self, value: DiagnosticInput, candidates: tuple[Any, ...]
+    ) -> PersistenceResult:
+        self.persisted_diagnostic = candidates
+        return PersistenceResult(created_count=len(candidates))
 
 
 async def test_complete_window_still_aggregates_when_trigger_run_has_no_predecessor() -> None:
@@ -86,3 +104,56 @@ async def test_complete_window_still_aggregates_when_trigger_run_has_no_predeces
     )
     assert result.persisted_count == 1
     assert any(candidate.code == "NOINDEX_ADDED" for candidate in repository.persisted)
+
+
+async def test_diagnostic_classification_persists_canonical_event() -> None:
+    """EP-026 M2b-1a-2b-i: derive routes a classified diagnostic run into the
+    dedicated diagnostic persistence path (no scheduled lineage consulted)."""
+    repository = Repository(
+        (),
+        diagnostic=DiagnosticInput(
+            tenant_id=uuid.uuid4(),
+            site_id=uuid.uuid4(),
+            checkpoint_run_id=uuid.uuid4(),
+            checkpoint_window_id=uuid.uuid4(),
+            observed_at=datetime(2026, 8, 24, tzinfo=UTC),
+            trigger_correlation_id=None,
+            status="PARTIAL",
+            browser_access_classification={
+                "state": "degraded",
+                "reason": "unexpected HTTP status 403",
+            },
+        ),
+    )
+    result = await EventService(repository).derive(  # type: ignore[arg-type]
+        tenant_id=uuid.uuid4(),
+        checkpoint_run_id=uuid.uuid4(),
+    )
+    assert result.candidate_count == 1
+    assert result.persisted_count == 1
+    assert [candidate.code for candidate in repository.persisted_diagnostic] == [
+        "BROWSER_SOURCE_DEGRADED"
+    ]
+    assert repository.persisted_diagnostic[0].action == "RECORD"
+
+
+async def test_healthy_diagnostic_derives_nothing() -> None:
+    repository = Repository(
+        (),
+        diagnostic=DiagnosticInput(
+            tenant_id=uuid.uuid4(),
+            site_id=uuid.uuid4(),
+            checkpoint_run_id=uuid.uuid4(),
+            checkpoint_window_id=uuid.uuid4(),
+            observed_at=datetime(2026, 8, 24, tzinfo=UTC),
+            trigger_correlation_id=None,
+            status="COMPLETE",
+            browser_access_classification={"state": "ok", "reason": "no anomalies"},
+        ),
+    )
+    result = await EventService(repository).derive(  # type: ignore[arg-type]
+        tenant_id=uuid.uuid4(),
+        checkpoint_run_id=uuid.uuid4(),
+    )
+    assert result.persisted_count == 0
+    assert repository.persisted_diagnostic == ()

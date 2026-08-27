@@ -162,7 +162,7 @@ class InvestigationUsageEntry(Base):
     __tablename__ = "investigation_usage"
     __table_args__ = (
         CheckConstraint(
-            "resource_kind IN ('DRILLDOWN','LLM_PASS','DIAGNOSTIC_RUN')",
+            "resource_kind IN ('DRILLDOWN','LLM_PASS','DIAGNOSTIC_RUN','CHECKPOINT_RUN')",
             name="ck_investigation_usage_resource_kind",
         ),
         CheckConstraint("amount > 0", name="ck_investigation_usage_amount_positive"),

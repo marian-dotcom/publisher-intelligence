@@ -12,14 +12,16 @@
 /** ISO-8601 datetime string (backend serializes via datetime.isoformat()). */
 export type Iso = string;
 
-export type SourceKey = "BROWSER_MONITORING" | "GA4" | "GSC" | "GAM";
+export type SourceKey = "BROWSER_MONITORING" | "GA4" | "GSC" | "GAM" | "PUBLIC_CONFIG";
 
 /**
  * Source health states. UNKNOWN means lack of evidence; it is distinct from
  * DEGRADED (evidence exists but quality/state is degraded) and neither may be
- * rendered as publisher/site failure.
+ * rendered as publisher/site failure. STALE (EP-026 M3b) means the latest
+ * trustworthy successful observation from this source is older than its
+ * freshness window — a source-data fact, never publisher/site failure.
  */
-export type SourceHealth = "HEALTHY" | "DEGRADED" | "UNAVAILABLE" | "ACTION_REQUIRED" | "BLOCKED" | "UNKNOWN";
+export type SourceHealth = "HEALTHY" | "STALE" | "DEGRADED" | "UNAVAILABLE" | "ACTION_REQUIRED" | "BLOCKED" | "UNKNOWN";
 
 export type MonetizationCapability = "ABSOLUTE" | "RELATIVE_ONLY" | "UNKNOWN";
 

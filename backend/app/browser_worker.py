@@ -8,6 +8,7 @@ import traceback
 import uuid
 from pathlib import Path
 
+from app.browser.cost import CheckpointCostRecorder
 from app.browser.persistence import CheckpointRepository, CheckpointStateError, EvidencePersister
 from app.browser.runner import BrowserRunner
 from app.common.logging import configure_logging
@@ -39,6 +40,7 @@ async def handle_browser_job(
     runner: BrowserRunner,
     lease: JobLease,
     backoff_seconds: int,
+    cost_recorder: CheckpointCostRecorder | None = None,
 ) -> None:
     context = {
         "job_id": str(lease.id),
@@ -93,6 +95,15 @@ async def handle_browser_job(
     except Exception as error:
         runtime_error_class = type(error).__name__[:100]
         error_source = _safe_error_source(error)
+        # EP-026 M4: the browser attempt happened — record its measured cost
+        # even on failure (idempotent per run; retries fold into one entry).
+        if cost_recorder is not None:
+            await cost_recorder.record(
+                tenant_id=lease.tenant_id,
+                checkpoint_run_id=checkpoint_run_id,
+                status="RUNTIME_ERROR",
+                attempt_count=lease.attempt,
+            )
         retryable = lease.attempt < lease.max_attempts
         if retryable:
             await repository.record_retryable_failure(
@@ -130,6 +141,15 @@ async def handle_browser_job(
             },
         )
         return
+    # EP-026 M4: measured cost telemetry — one run unit over the bounded
+    # one-page set, recorded on every terminal execution outcome.
+    if cost_recorder is not None:
+        await cost_recorder.record(
+            tenant_id=lease.tenant_id,
+            checkpoint_run_id=checkpoint_run_id,
+            status=evidence.status,
+            attempt_count=lease.attempt,
+        )
     if evidence.status == "BROWSER_ERROR" and lease.attempt < lease.max_attempts:
         await repository.record_retryable_failure(
             tenant_id=lease.tenant_id,
@@ -246,6 +266,7 @@ async def run(*, once: bool) -> None:
     repository = CheckpointRepository(factory)
     persister = EvidencePersister(repository, S3Storage(settings))
     runner = BrowserRunner(settings)
+    cost_recorder = CheckpointCostRecorder(factory)
     worker_id = f"{socket.gethostname()}:{id(asyncio.current_task())}"
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -281,6 +302,7 @@ async def run(*, once: bool) -> None:
                     runner=runner,
                     lease=lease,
                     backoff_seconds=settings.job_reclaim_backoff_seconds,
+                    cost_recorder=cost_recorder,
                 )
             finally:
                 heartbeat_stop.set()

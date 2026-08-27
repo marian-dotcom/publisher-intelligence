@@ -1,4 +1,32 @@
+# EP-026 local production-like runtime
+#
+# Extends the canonical infrastructure (postgres/minio/minio-init) with the
+# full application topology: api, frontend, scheduler, worker, browser-worker.
+# One shared codebase image (backend/Dockerfile) runs every backend process
+# type (ADR-078/ADR-083). browser-worker is ONE scalable service:
+#   docker compose up --scale browser-worker=3
+#
+# Resource budgets are environment-driven so a small VPS can be simulated;
+# see docs/runbooks/local-runtime.md for SMALL/MEDIUM/ORACLE-FREE profiles.
+
 name: publisher-intelligence
+
+x-backend-env: &backend-env
+  ENVIRONMENT: ${ENVIRONMENT:-local}
+  # M1 fail-closed contract: staging/production REQUIRE true (settings
+  # validator refuses otherwise). Local default stays empty/false.
+  COOKIE_SECURE: ${COOKIE_SECURE:-false}
+  DATABASE_URL: postgresql+psycopg://publisher:publisher-local@postgres:5432/publisher_intelligence
+  S3_ENDPOINT_URL: http://minio:9000
+  S3_REGION: us-east-1
+  S3_BUCKET: publisher-intelligence-local
+  S3_ACCESS_KEY_ID: publisher-local
+  S3_SECRET_ACCESS_KEY: replace-with-local-only-secret
+  S3_USE_SSL: "false"
+  LOG_LEVEL: INFO
+  # Opt-in ONLY for controlled-fixture benchmarks (registration-time URL
+  # validation + browser egress). Default false keeps real monitoring safe.
+  BROWSER_ALLOW_PRIVATE_NETWORKS: ${BROWSER_ALLOW_PRIVATE_NETWORKS:-false}
 
 services:
   postgres:
@@ -10,12 +38,20 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      # Fresh, dedicated local-runtime volume. The legacy
+      # publisher-intelligence_postgres-data volume has unknown provenance and
+      # stays quarantined/untouched (EP-026 M7 reconciliation).
+      - postgres-local-runtime:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U publisher -d publisher_intelligence"]
       interval: 2s
       timeout: 3s
       retries: 20
+    deploy:
+      resources:
+        limits:
+          cpus: "${POSTGRES_CPU_LIMIT:-0.20}"
+          memory: ${POSTGRES_MEMORY_LIMIT:-512M}
     restart: unless-stopped
 
   minio:
@@ -34,6 +70,11 @@ services:
       interval: 2s
       timeout: 3s
       retries: 20
+    deploy:
+      resources:
+        limits:
+          cpus: "${MINIO_CPU_LIMIT:-0.10}"
+          memory: ${MINIO_MEMORY_LIMIT:-256M}
     restart: unless-stopped
 
   minio-init:
@@ -49,6 +90,121 @@ services:
       '
     restart: "no"
 
+  migrate:
+    build:
+      context: ./backend
+      target: migrate
+    environment: *backend-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: ./backend
+      target: api
+    environment: *backend-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8000:8000"
+    deploy:
+      resources:
+        limits:
+          cpus: "${API_CPU_LIMIT:-0.30}"
+          memory: ${API_MEMORY_LIMIT:-512M}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request;urllib.request.urlopen('http://localhost:8000/health/live')",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  scheduler:
+    build:
+      context: ./backend
+      target: scheduler
+    environment: *backend-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: "${SCHEDULER_CPU_LIMIT:-0.10}"
+          memory: ${SCHEDULER_MEMORY_LIMIT:-192M}
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./backend
+      target: worker
+    environment: *backend-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: "${WORKER_CPU_LIMIT:-0.30}"
+          memory: ${WORKER_MEMORY_LIMIT:-320M}
+    restart: unless-stopped
+
+  browser-worker:
+    build:
+      context: ./backend
+      target: browser
+    # Started explicitly by the benchmark harness / operator so replica count
+    # is always deliberate (profiles exclude it from generic `up`).
+    profiles: ["browser"]
+    environment:
+      <<: *backend-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+    deploy:
+      replicas: ${BROWSER_WORKER_REPLICAS:-1}
+      resources:
+        limits:
+          cpus: "${BROWSER_CPU_LIMIT:-0.70}"
+          memory: ${BROWSER_MEMORY_LIMIT:-1536M}
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    environment:
+      BACKEND_INTERNAL_URL: http://api:8000
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "127.0.0.1:3000:3000"
+    deploy:
+      resources:
+        limits:
+          cpus: "${FRONTEND_CPU_LIMIT:-0.25}"
+          memory: ${FRONTEND_MEMORY_LIMIT:-384M}
+    restart: unless-stopped
+
+  benchmark-target:
+    image: python:3.12-slim
+    volumes:
+      - ./scripts:/srv:ro
+    command: python /srv/benchmark_target.py
+    ports:
+      - "127.0.0.1:8099:8099"
+    restart: unless-stopped
+
 volumes:
-  postgres-data:
+  postgres-local-runtime:
   minio-data:

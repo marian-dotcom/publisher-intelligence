@@ -523,7 +523,15 @@ async def test_diagnostic_run_is_excluded_from_cohorts_and_keeps_provenance() ->
             diagnostic_run = await session.scalar(
                 select(CheckpointRun).where(CheckpointRun.id == diagnostic_id)
             )
-        assert derive_jobs == []
+        # EP-026 M2b-1a-2b-ii: a finalized DIAGNOSTIC run enqueues exactly one
+        # operational-reliability derivation job (e26-v1 key) when its bounded
+        # classification is present. Cohort purity is preserved: it never
+        # enters comparison lineage or scheduled cohorts, and scheduled
+        # derivation keeps its e2-v1 key unchanged.
+        assert len(derive_jobs) == 1
+        derive_job = derive_jobs[0]
+        assert derive_job.payload == {"checkpoint_run_id": str(diagnostic_id)}
+        assert derive_job.idempotency_key == f"derive-browser-events:{diagnostic_id}:e26-v1"
         assert diagnostic_run is not None
         assert diagnostic_run.observation_kind == "DIAGNOSTIC"
         assert diagnostic_run.trigger_source == "OPERATOR_CLI"

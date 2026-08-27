@@ -474,6 +474,23 @@ class CheckpointRepository:
             attempt.failure_message = evidence.failure_message
             attempt.metadata_json = {"environment": evidence.environment}
             run.status = evidence.status
+            if run.observation_kind == "DIAGNOSTIC":
+                # EP-026 M2a/M2b-1b: bounded access classification from the
+                # deterministic marker signal (challenge) and status-only
+                # anomalies (degraded). Never affects run state; no raw page
+                # content is consumed or persisted here.
+                from app.browser.access_reliability import classify_access
+
+                classification_result = classify_access(
+                    navigation_failed=evidence.status in ("BROWSER_ERROR", "TIMEOUT"),
+                    http_status=evidence.http_status,
+                    response_body=None,
+                    challenge_marker=evidence.challenge_marker,
+                )
+                run.browser_access_classification = {
+                    "state": classification_result.state,
+                    "reason": classification_result.reason,
+                }
             run.completed_at = evidence.completed_at
             run.final_url = evidence.final_url
             run.http_status = evidence.http_status
@@ -482,10 +499,13 @@ class CheckpointRepository:
             run.environment = evidence.environment
             run.limitations = evidence.limitations
             run.manifest = manifest
-            # ADR-130 cohort purity: only routine scheduled observations feed
-            # semantic event derivation. Diagnostic and incident-diagnostic
-            # runs stay immutable first-class evidence but generate no
-            # derivation job and therefore no events.
+            # ADR-130 cohort purity: routine scheduled observations feed
+            # semantic/comparison derivation and are governed by ADR-130.
+            # DIAGNOSTIC runs never enter comparison lineage or contribute
+            # predecessor/current cohort evidence; they may enqueue ONLY their
+            # own operational browser-source reliability derivation, based
+            # solely on the bounded classification persisted above
+            # (EP-026 M2b-1a-2b-ii).
             if run.observation_kind == "SCHEDULED":
                 await session.execute(
                     insert(Job)
@@ -497,6 +517,25 @@ class CheckpointRepository:
                         priority=-10,
                         max_attempts=3,
                         idempotency_key=(f"derive-browser-events:{target.checkpoint_run_id}:e2-v1"),
+                    )
+                    .on_conflict_do_nothing()
+                )
+            elif (
+                run.observation_kind == "DIAGNOSTIC"
+                and run.browser_access_classification is not None
+            ):
+                await session.execute(
+                    insert(Job)
+                    .values(
+                        id=uuid.uuid4(),
+                        tenant_id=target.tenant_id,
+                        job_type="DERIVE_BROWSER_EVENTS",
+                        payload={"checkpoint_run_id": str(target.checkpoint_run_id)},
+                        priority=-10,
+                        max_attempts=3,
+                        idempotency_key=(
+                            f"derive-browser-events:{target.checkpoint_run_id}:e26-v1"
+                        ),
                     )
                     .on_conflict_do_nothing()
                 )

@@ -362,11 +362,32 @@ incident-diagnostic checkpoints under a persistent budget ledger — service lay
 manual operational notes (human-reported evidence kept separate from machine observation), and
 deterministic content-hashed evidence packs. EP-022 adds a replaceable Inspect AI eval runtime
 behind an adapter boundary (ADR-129): Inspect is the eval engine, EVALS.md remains the contract. EP-023 adds deterministic hypothesis lifecycle, contradiction
-handling, and ranked explanations over stored evidence (no LLM, no causal overclaiming). No path delivers alerts or makes indexing,
+handling, and ranked explanations over stored evidence (no LLM, no causal overclaiming). EP-024 adds
+connector onboarding foundations: first-party/cloud-agnostic OAuth architecture and contracts, a
+SecretStore abstraction, EnvironmentSecretStore and InMemorySecretStore where actually implemented,
+and Option C operator-assisted secret-reference fallback for Limited Pilot under its explicit
+revisit triggers. Home/Timeline UI exists (EP-025b). EP-025a adds the authenticated product
+backend: operator sessions with tenant-scoped authorization, Home/status, source health, timeline,
+incident, evidence, and monetization-capability read APIs. EP-025b adds the product frontend
+rendering those APIs with source-health badges whose states never assert publisher/site health.
+EP-026 adds pilot reliability hardening: environment-aware secure-cookie fail-closed posture,
+browser-source reliability events with deterministic degradation/recovery episodes surfaced through
+source health (DEGRADED override), audited retention enforcement draining the full eligible backlog
+with hold-safe finalization and truthful execution timestamps, derived STALE connector freshness
+over trustworthy success timestamps with hard per-source caps on staleness detection, and measured
+checkpoint cost telemetry with per-site/per-window hard caps plus a deterministic ledger-backed
+circuit breaker surfaced as BLOCKED. EP-027 adds pre-Limited-Pilot authentication hardening:
+rate limiting on POST /auth/login (5 attempts per 60 seconds per trusted client IP, process-local
+in-memory store), logout clearing both pi_session and pi_csrf cookies with matching attributes,
+timing-safe CSRF hash comparison via hmac.compare_digest, automated SameSite=lax regression
+coverage, and a Caddy → Next.js → FastAPI client-IP trust boundary with validated X-Forwarded-For
+header stripping. No path delivers alerts or makes indexing,
 authorization, revenue, or causal claims.
 
-The repository still excludes production OAuth onboarding, a managed secret provider, provider
-write access, alert delivery, Home/Timeline UI, automated incident conclusions, LLM-selected
-queries, and production rollout. Refresh this summary after no more than three completed EPs, and
-earlier whenever an EP materially changes the implemented product or security boundary. Always
-state the latest fully covered EP and distinguish partial work from completed capability.
+The repository still excludes a concrete production SecretStore provider, full
+self-service OAuth onboarding where not implemented, deployment-specific provider
+choice, production rollout, provider write access, alert delivery,
+automated incident conclusions, and LLM synthesis. Refresh this summary after no
+more than three completed EPs, and earlier whenever an EP materially changes the
+implemented product or security boundary. Always state the latest fully covered
+EP and distinguish partial work from completed capability.

@@ -17,7 +17,7 @@ SymptomFamily = Literal[
     "PROGRAMMATIC_MARKET",
     "OTHER",
 ]
-ResourceKind = Literal["DRILLDOWN", "LLM_PASS", "DIAGNOSTIC_RUN"]
+ResourceKind = Literal["DRILLDOWN", "LLM_PASS", "DIAGNOSTIC_RUN", "CHECKPOINT_RUN"]
 
 INCIDENT_STATUSES = frozenset({"OPEN", "INVESTIGATING", "RESOLVED", "CLOSED_UNRESOLVED"})
 SYMPTOM_FAMILIES = frozenset(
@@ -36,7 +36,7 @@ SYMPTOM_FAMILIES = frozenset(
         "OTHER",
     }
 )
-RESOURCE_KINDS = frozenset({"DRILLDOWN", "LLM_PASS", "DIAGNOSTIC_RUN"})
+RESOURCE_KINDS = frozenset({"DRILLDOWN", "LLM_PASS", "DIAGNOSTIC_RUN", "CHECKPOINT_RUN"})
 
 MAX_TITLE_LENGTH = 300
 MAX_SEGMENT_LENGTH = 200
@@ -47,6 +47,11 @@ DEFAULT_RESOURCE_LIMITS: dict[str, int] = {
     "DIAGNOSTIC_RUN": 8,
     # Reserved until the LLM milestone; no runtime consumer exists yet.
     "LLM_PASS": 20,
+    # EP-026 M4: per-site/per-window scheduled checkpoint budget. Normal
+    # cadence schedules two runs (desktop + mobile) per site per six-hour
+    # window; the cap tolerates headroom while tripping the circuit breaker
+    # on runaway scheduling.
+    "CHECKPOINT_RUN": 4,
 }
 
 

@@ -96,6 +96,28 @@ class EventCandidate:
 
 
 @dataclass(frozen=True, slots=True)
+class DiagnosticInput:
+    tenant_id: uuid.UUID
+    site_id: uuid.UUID
+    checkpoint_run_id: uuid.UUID
+    checkpoint_window_id: uuid.UUID
+    observed_at: datetime | None
+    trigger_correlation_id: uuid.UUID | None
+    status: str
+    # EP-026 M2b-1a-2b: bounded {state, reason} access classification stored
+    # on the DIAGNOSTIC run at finalize. None = not classified / malformed.
+    browser_access_classification: dict[str, object] | None = None
+    # EP-026 M2b-2: bounded context of the site's OPEN degradation episode
+    # (latest reliability event is a degradation without later recovery).
+    # Populated deterministically by the repository; all fields required for
+    # recovery emission must be present, else no recovery is derived.
+    open_degradation_event_id: uuid.UUID | None = None
+    open_degradation_code: str | None = None
+    open_degradation_detected_at: datetime | None = None
+    open_degradation_checkpoint_run_id: uuid.UUID | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class EvaluationInput:
     tenant_id: uuid.UUID
     site_id: uuid.UUID

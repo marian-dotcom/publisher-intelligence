@@ -19,24 +19,30 @@ const SOURCE_LABELS: Record<SourceKey, string> = {
   GA4: "GA4",
   GSC: "Search Console",
   GAM: "Ad Manager",
+  PUBLIC_CONFIG: "Public Config",
 };
 
 const HEALTHY_STATES: SourceHealth[] = ["HEALTHY"];
 const FAILURE_STATES: SourceHealth[] = ["ACTION_REQUIRED", "BLOCKED"];
 
 export function SourceHealthBadge({ source, health }: { source: SourceKey; health: SourceHealth }) {
-  // UNKNOWN is rendered as absence-of-evidence, visually distinct from failure states.
+  // UNKNOWN is rendered as absence-of-evidence, visually distinct from failure
+  // states; STALE is data freshness, also distinct from failure/degraded.
   const tone = HEALTHY_STATES.includes(health)
     ? "healthy"
     : FAILURE_STATES.includes(health)
       ? "failure"
       : health === "DEGRADED"
         ? "degraded"
-        : "unknown";
+        : health === "STALE"
+          ? "stale"
+          : "unknown";
   const meaning =
     health === "UNKNOWN"
       ? `${SOURCE_LABELS[source]}: no evidence available`
-      : `${SOURCE_LABELS[source]}: ${health.toLowerCase()}`;
+      : health === "STALE"
+        ? `${SOURCE_LABELS[source]}: no trustworthy new evidence within its freshness window`
+        : `${SOURCE_LABELS[source]}: ${health.toLowerCase()}`;
   return (
     <span className={`badge badge-${tone}`} title={meaning}>
       {`${SOURCE_LABELS[source]} · ${health}`}

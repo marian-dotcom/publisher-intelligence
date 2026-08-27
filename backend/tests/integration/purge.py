@@ -16,6 +16,7 @@ PURGE_ORDER = (
     "investigation_usage",
     "last_known_good_refs",
     "retention_holds",
+    "retention_runs",
     "incident_symptom_segments",
     "incidents",
     "ads_txt_records",

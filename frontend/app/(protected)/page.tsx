@@ -13,7 +13,13 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/primitives";
 import { apiFetch } from "@/lib/api";
 import type { HomeStatus, SourceHealth, SourceHealthResponse, SourceKey } from "@/lib/api-types";
 
-const SOURCE_KEYS: SourceKey[] = ["BROWSER_MONITORING", "GA4", "GSC", "GAM"];
+const SOURCE_KEYS: SourceKey[] = [
+  "BROWSER_MONITORING",
+  "GA4",
+  "GSC",
+  "GAM",
+  "PUBLIC_CONFIG",
+];
 
 export default function HomePage() {
   const [home, setHome] = useState<HomeStatus | null>(null);

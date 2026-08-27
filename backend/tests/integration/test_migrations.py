@@ -52,6 +52,7 @@ async def test_schema_is_minimal_and_rejects_cancelled_status() -> None:
             "investigation_usage",
             "last_known_good_refs",
             "retention_holds",
+            "retention_runs",
             "alembic_version",
             "artifacts",
             "browser_scenarios",

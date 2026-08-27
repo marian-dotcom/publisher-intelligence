@@ -2120,6 +2120,29 @@ Do not implement B8 before B1–B4 are reliable.
 
 ---
 
+# 81.1 EP-026 — Browser-source reliability (operational)
+
+DIAGNOSTIC observations carry a bounded deterministic access classification
+(`ok | degraded | challenge_suspected`) derived by `classify_access` from
+status anomalies and a capped transient marker scan (never persisted text).
+They deterministically produce source-health events (`BROWSER_SOURCE_DEGRADED`,
+`BROWSER_ACCESS_CHALLENGE_SUSPECTED`, `BROWSER_SOURCE_RECOVERED`) — see
+EVENTS.md §0.1.
+
+Data-quality semantics (normative):
+
+- A degraded/challenge state means **Publisher Intelligence's browser
+  observation source** may be incomplete or unavailable for that period.
+- It is NOT evidence that publisher traffic fell, advertising failed, the site
+  was unavailable to users, or search traffic changed.
+- GA4/GSC/GAM/public-config monitoring continue unaffected and keep
+  contributing evidence; browser-derived evidence for the degraded period is
+  simply lower-confidence or missing.
+- Current health is a deterministic read-time projection over immutable
+  reliability events. No persistent mutable source-health state exists.
+
+---
+
 # 82. MVP acceptance criteria
 
 BROWSER v1 is acceptable when, for one pilot domain:

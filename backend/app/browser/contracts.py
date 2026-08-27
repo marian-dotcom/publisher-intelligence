@@ -3,6 +3,12 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal
 
+# EP-026 M2: documented, stable, non-deceptive monitoring identity for
+# publisher allowlisting. Not a consumer-browser impersonation string.
+MONITORING_USER_AGENT = (
+    "PublisherIntelligenceMonitoring/1.0 (+operational monitoring; "
+    "allowlisting contact: operator runbook)"
+)
 CheckpointStatus = Literal[
     "COMPLETE",
     "PARTIAL",
@@ -312,6 +318,10 @@ class BrowserEvidence:
     seo_observation: SEOObservation | None = None
     failure_class: str | None = None
     failure_message: str | None = None
+    # EP-026 M2b-1b: pre-reduced deterministic challenge signal from bounded
+    # transient page text (detect_challenge_marker). Only the marker name is
+    # carried; the source text is never persisted by this feature.
+    challenge_marker: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

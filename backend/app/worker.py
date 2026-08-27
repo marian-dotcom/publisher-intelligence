@@ -35,6 +35,8 @@ from app.public_config.event_persistence import PublicConfigEventRepository
 from app.public_config.event_service import PublicConfigEventService
 from app.public_config.persistence import PublicConfigRepository, PublicConfigStateError
 from app.public_config.service import PublicConfigRunError, PublicConfigService
+from app.retention.service import RetentionService
+from app.storage.s3 import S3Storage
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +51,7 @@ async def handle_job(
     metric_service: CrossSourceMetricService | None = None,
     event_service: EventService | None = None,
     public_config_service: PublicConfigService | None = None,
+    retention_service: RetentionService | None = None,
 ) -> None:
     context: dict[str, object] = {
         "job_id": str(lease.id),
@@ -100,6 +103,9 @@ async def handle_job(
         await _handle_public_config_validation_job(
             queue, lease, backoff_seconds, public_config_service, context
         )
+        return
+    if lease.job_type == "ENFORCE_RETENTION" and retention_service is not None:
+        await _handle_retention_job(queue, lease, backoff_seconds, retention_service, context)
         return
     failed = await queue.fail_or_retry(
         job_id=lease.id,
@@ -176,6 +182,43 @@ async def _handle_browser_events_job(
                 "resolved_count": result.resolved_count,
                 "unsupported_count": result.unsupported_count,
                 "skip_reasons": list(result.skip_reasons),
+                "fenced_update": completed,
+            }
+        },
+    )
+
+
+async def _handle_retention_job(
+    queue: JobQueue,
+    lease: JobLease,
+    backoff_seconds: int,
+    service: RetentionService,
+    context: dict[str, object],
+) -> None:
+    try:
+        result = await service.enforce()
+    except Exception:
+        failed = await queue.fail_or_retry(
+            job_id=lease.id,
+            lock_token=lease.lock_token,
+            retryable=True,
+            error_class="RETENTION_RUNTIME_ERROR",
+            error_message="RETENTION_RUNTIME_ERROR",
+            backoff_seconds=backoff_seconds,
+        )
+        logger.exception(
+            "retention job failed", extra={"context": {**context, "fenced_update": failed}}
+        )
+        return
+    completed = await queue.complete(job_id=lease.id, lock_token=lease.lock_token)
+    logger.info(
+        "retention job completed",
+        extra={
+            "context": {
+                **context,
+                "run_id": str(result.run_id),
+                "rows_deleted_per_table": result.rows_deleted_per_table,
+                "hold_conflicts_skipped": result.hold_conflicts_skipped,
                 "fenced_update": completed,
             }
         },
@@ -1207,6 +1250,7 @@ async def run(*, once: bool) -> None:
     )
     metric_service = CrossSourceMetricService(MetricDerivationRepository(factory))
     event_service = EventService(EventRepository(factory))
+    retention_service = RetentionService(factory, S3Storage(settings))
     public_config_repository = PublicConfigRepository(factory)
     public_config_service = PublicConfigService(
         public_config_repository,
@@ -1249,6 +1293,7 @@ async def run(*, once: bool) -> None:
                 metric_service,
                 event_service,
                 public_config_service,
+                retention_service,
             )
         if once:
             return

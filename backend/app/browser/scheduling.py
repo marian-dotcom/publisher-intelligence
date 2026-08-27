@@ -8,6 +8,12 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.browser.cost import (
+    DEFAULT_CHECKPOINTS_PER_SITE_WINDOW,
+    breaker_open_for_usage,
+    current_window_usage,
+    site_window_scope,
+)
 from app.browser.models import BrowserScenario, CheckpointRun, CheckpointWindow, MonitoredUrl, Site
 from app.browser.service import (
     B2_DESKTOP_SCENARIO_CODE,
@@ -41,6 +47,8 @@ class SchedulingResult:
     site_count: int
     run_count: int
     job_count: int
+    # EP-026 M4: sites whose scope had an open circuit breaker this pass.
+    breaker_skipped_sites: int = 0
 
 
 def resolve_six_hour_window(instant: datetime, timezone_name: str) -> WindowBounds:
@@ -100,6 +108,7 @@ class CheckpointSchedulingService:
 
         scheduled_runs: list[ScheduledRun] = []
         valid_site_count = 0
+        breaker_skipped_sites = 0
         for site in sites:
             try:
                 bounds = resolve_six_hour_window(instant, site.timezone)
@@ -116,7 +125,12 @@ class CheckpointSchedulingService:
                 )
                 continue
             valid_site_count += 1
-            scheduled_runs.extend(await self._materialize_site(site, bounds, instant))
+            materialized = await self._materialize_site(site, bounds, instant)
+            if materialized is None:
+                # EP-026 M4: circuit breaker open for this scope.
+                breaker_skipped_sites += 1
+                continue
+            scheduled_runs.extend(materialized)
 
         job_count = 0
         for scheduled in scheduled_runs:
@@ -133,6 +147,7 @@ class CheckpointSchedulingService:
             site_count=valid_site_count,
             run_count=len(scheduled_runs),
             job_count=job_count,
+            breaker_skipped_sites=breaker_skipped_sites,
         )
 
     async def _materialize_site(
@@ -140,9 +155,29 @@ class CheckpointSchedulingService:
         site: Site,
         bounds: WindowBounds,
         now: datetime,
-    ) -> list[ScheduledRun]:
+    ) -> list[ScheduledRun] | None:
         async with self._session_factory() as session, session.begin():
             window_id = await self._window_id(session, site, bounds)
+            # EP-026 M4 circuit breaker: deterministic read-time projection of
+            # the cost ledger — once this site's checkpoint usage for the
+            # window reaches the cap, no further runs/jobs are scheduled in
+            # this scope until the window rolls over. Fail-closed, auditable.
+            scope = site_window_scope(site_id=site.id, window_id=window_id)
+            used = await current_window_usage(session, tenant_id=site.tenant_id, scope=scope)
+            if breaker_open_for_usage(used=used):
+                logger.warning(
+                    "checkpoint budget circuit breaker open",
+                    extra={
+                        "context": {
+                            "tenant_id": str(site.tenant_id),
+                            "site_id": str(site.id),
+                            "window_id": str(window_id),
+                            "used": used,
+                            "limit": DEFAULT_CHECKPOINTS_PER_SITE_WINDOW,
+                        }
+                    },
+                )
+                return None
             monitored_urls = list(
                 (
                     await session.scalars(
