@@ -42,7 +42,9 @@ async def register_site(
     except DuplicateSiteRegistrationError as error:
         raise HTTPException(status_code=409, detail="site already registered") from error
     except BrowserBlockedError as error:
-        raise HTTPException(status_code=400, detail="site URL is not an allowed public target") from error
+        raise HTTPException(
+            status_code=400, detail="site URL is not an allowed public target"
+        ) from error
     except ValueError as error:
         raise HTTPException(status_code=400, detail="invalid site registration") from error
 
