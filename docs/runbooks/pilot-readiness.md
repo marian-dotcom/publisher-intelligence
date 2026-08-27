@@ -214,7 +214,8 @@ Read surface: authenticated `GET /product/operations` (M6).
 | Exit-gate investigations **manually reviewed** | PASS | human reviews recorded 2026-08-25: INV-01 ACCEPT, INV-02 ACCEPT, INV-03 ACCEPT WITH NOTE — see Part C verdict lines |
 | Zero unresolved BLOCKER/HIGH/MEDIUM | PASS | M8 adversarial review (docs/reviews/EP-026-M8-adversarial-review.md): 0 BLOCKER / 0 HIGH / 0 MEDIUM / 1 LOW / 6 CLOSED (F-001–F-006); F-002–F-006 remediated by EP-027 |
 | M8 adversarial review & release readiness | PASS | Full adversarial pass over M1-M7 code, tests, evidence, and deployment; 10 challenge areas; findings recorded in Part D and M8 review report |
-| Provider selection / deployment egress identity / pilot go-ahead | HUMAN GATE | EP-024 deferred decision; A4 deployment-dependent egress identity; Limited Pilot human gate |
+| Gate N: OCI SecretStore live validation (Instance Principal, container proof, regression) | PASS | EP-024 merge `810db9ee`; host Instance Principal proof; container-level OciSecretStore proof; Base64 decode + 3-field bundle parse; HTTPS/auth regression; rate limiting; network/egress; credential/log leak absent |
+| Provider selection / deployment egress identity / pilot go-ahead | HUMAN GATE | A4 deployment-dependent egress identity; Limited Pilot human gate |
 
 ## Part C — End-to-end investigation records
 
@@ -299,8 +300,12 @@ Detail:
 - F-007 LOW / TECHNICAL DEBT: `RetentionSchedulingService` duplicated in
   `health.py` (dead code; trivial cleanup deferred).
 
-- HUMAN GATES: stable egress identity publication (A4); EP-024 provider
-  selection; Limited Pilot authorization itself.
+- Gate N: PASS. OCI SecretStore live validation on Oracle Cloud ARM64 staging
+  at deployed commit `810db9ee`. Host Instance Principal proof + container-level
+  OciSecretStore proof + Base64 decode + 3-field bundle parse + all regression
+  gates (HTTPS/auth, rate limiting, network/egress, credential/log leak).
+- HUMAN GATES: stable egress identity publication (A4); Limited Pilot
+  authorization itself.
 
 ## Part E — Gates
 
@@ -319,6 +324,12 @@ Detail:
   (5 attempts / 60s, process-local, no environment bypass), logout clears both
   cookies, timing-safe CSRF comparison, SameSite regression test, Caddy trust
   boundary with validated X-Forwarded-For → stripped → X-Real-IP.
+- Gate N: PASS. EP-024 OCI SecretStore live staging validation completed at deployed commit
+  `810db9ee`, including Instance Principal/container proof, Base64 decode + 3-field bundle parse,
+  and auth/rate-limit/network/egress/operations/leak regressions. Detailed evidence in
+  Part B matrix and `plans/EP-024-...md` §Gate N.
+- Gate O: NOT STARTED
+- Gate P: HUMAN GATE
 - LIMITED PILOT AUTHORIZATION: NOT GRANTED (independent human decision; completing
   the adversarial review does not by itself authorize Limited Pilot).
 

@@ -1,6 +1,6 @@
 # EP-024 — Connector OAuth, Managed Secrets & Site Onboarding
 
-**Status:** M2 implementation COMPLETE; deployment/live validation PENDING
+**Status:** COMPLETE (Gate N PASS)
 **Owner:** Codex / Engineering
 **Created:** 2026-08-23
 **Updated:** 2026-08-27
@@ -13,8 +13,8 @@
 - [x] M1a — Privacy-preserving monetization capability semantics (non-gated)
 - [x] M1b — Documented non-deceptive User-Agent identity + publisher allowlisting runbook
       (vendor-neutral; no egress architecture chosen)
-- [x] M2 — OCI SecretStore provider: implementation COMPLETE; deployment validation PENDING
-      (see §M2 IMPLEMENTATION below)
+- [x] M2 — OCI SecretStore provider: implementation COMPLETE; Gate N deployment/live validation
+      PASS (see §M2 IMPLEMENTATION below)
 
 ## 1. Purpose and User Outcome
 
@@ -44,12 +44,20 @@ relative/indexed metrics are available.
   (`docs/runbooks/publisher-allowlisting.md`);
 - tests: DB constraint coverage via integration suite extension point + contracts unit test.
 
-## 4. HUMAN GATE — decision required before M2+
+## 4. Provider decision — HUMAN GATE (RESOLVED 2026-08-23; Gate N PASS 2026-08-27)
 
-Decision required: OAuth provider architecture + managed-secret storage + production egress
-architecture for GA4/GSC/GAM onboarding.
+**Status: RESOLVED.** The provider/OAuth-secret-storage decision below was made 2026-08-23 and
+the concrete OCI Secret Store implementation was live-validated on staging (Gate N) on 2026-08-27.
+This section is retained as historical record of the options and resolution.
 
-Alternatives:
+The decision resolved: OAuth provider architecture + managed-secret storage architecture (with the
+concrete OCI SecretStore selection) for GA4/GSC/GAM onboarding. Two cloud-agnostic decisions were
+made (see §5a), and the concrete secret-storage provider was selected as OCI Secret Management
+(ADR-132, implemented in the M2 slice, Gate N PASS on staging). The concrete egress/network
+provider selection is NOT part of this resolution; it remains a separate deployment-time human gate
+(§5a item 4) and the approved egress contract is unchanged.
+
+Alternatives considered:
 
 A. Google-idiomatic OAuth web flow + cloud-provider managed secrets (e.g., provider-native
    secret manager) with NAT-gateway style stable egress.
@@ -58,15 +66,13 @@ B. Cloud-agnostic approach: OAuth web flow + external secret manager service + v
 C. Defer OAuth entirely; pilot uses operator-supplied refresh tokens injected via a managed
    secret reference only (no UI consent flow) — fastest to pilot, weakest UX.
 
-Implications: credential-blast-radius, auditability, cost, lock-in, and deployment complexity
+Implications (credential-blast-radius, auditability, cost, lock-in, and deployment complexity)
 differ per option. All preserve read-only scopes and ADR-091's boundary (DB stores references
 only).
 
-Recommendation: Option B (cloud-agnostic contract now; concrete provider chosen at deployment),
-with Option C acceptable as a Limited-Pilot stopgap if no cloud account exists yet.
-
-What can proceed without the decision: everything already merged in this PR (capability modes,
-identity documentation/runbook); token-lifecycle implementation itself cannot proceed.
+Resolution: egress architecture and concrete network provider remain a deployment-time human
+gate (§5a item 4); OAuth stays cloud-agnostic first-party (§5a item 1); the concrete managed-secret
+provider is OCI Secret Management (ADR-132, Gate N PASS on staging).
 
 ## 4a. OPTION C REVISIT TRIGGER (operator-assisted secret-reference path)
 
@@ -104,7 +110,10 @@ documented egress identity requirement stands regardless of vendor choice.
    behind the boundary; no provider leakage into domain logic.
 2. Secrets: cloud-agnostic SecretStore abstraction — PostgreSQL stores references only, never
    tokens. Implemented: InMemorySecretStore (tests), EnvironmentSecretStore (local/dev,
-   read-only resolver). Production provider remains a deployment-time human gate.
+   read-only resolver). OCI Secret Management is the selected concrete staging/production
+   SecretStore implementation (ADR-132; `OciSecretStore`, Instance Principal auth, read-only,
+   strict Base64 decode, 3-field credential bundle). Staging live validation / Gate N is PASS.
+   Production rollout has NOT occurred.
 3. Option C authorized as Limited-Pilot fallback only (§4a triggers binding).
 4. Egress: vendor-neutral stable-identity contract documented in the runbook; concrete network
    provider deferred to EP-026/deployment (human gate).
@@ -247,11 +256,61 @@ Refreshed access tokens exist only in process memory. Never persisted.
 ### M2 status vs Gate N status
 
 - **M2 implementation:** COMPLETE
-- **Gate N deployment validation:** PENDING (requires staging deployment + live OCI verification)
+- **Gate N deployment validation:** PASS (2026-08-27)
 
-### What was NOT done
+### Gate status
 
-- No OCI infrastructure created (Vault/key/secret/dynamic group/policy) — requires OCI Console
-- No staging deployment — existing release 52b5201 must remain running
+- **GATE N:** PASS (OCI SecretStore live staging validation, 2026-08-27)
+- **GATE O:** NOT STARTED
+- **GATE P:** HUMAN GATE
+- **LIMITED PILOT:** NOT AUTHORIZED
+
+## Gate N — Live validation evidence (2026-08-27)
+
+### Deployed release
+
+- OCI staging deployment: commit `810db9ee5c679f9d15c3eebb54767a3d758d94a2` (EP-024 merge to main)
+- Previous staging release: `52b5201` (replaced by EP-024 merge)
+
+### OCI staging infrastructure
+
+- Vault: standard vault created in eu-frankfurt-1
+- Key: AES-256 software key created
+- Secret: synthetic 3-field credential bundle created (client_id, client_secret, refresh_token)
+- Dynamic Group: exact-instance membership rule for the staging compute instance
+- IAM Policy: least-privilege policy granting Dynamic Group SECRET_BUNDLE_READ only
+
+### Host Instance Principal proof
+
+- Instance Principal from host: PASS
+- SECRET_BUNDLE_READ: PASS
+- CONTENT_TYPE: BASE64 (strict Base64 decode validated)
+- CONTENT_PRESENT: True
+
+### Container-level OciSecretStore proof
+
+- INSTANCE_PRINCIPAL_FROM_CONTAINER: PASS
+- OCI_SECRETSTORE_RESOLVE: PASS
+- BASE64_UTF8_DECODE: PASS
+- CREDENTIAL_BUNDLE_JSON_PARSE: PASS
+- Fields exactly client_id, client_secret, refresh_token; no Google token request made
+
+### Runtime config
+
+- SECRET_BACKEND=oci for api, scheduler, worker, browser-worker
+- OCI_REGION=eu-frankfurt-1
+- BROWSER_ALLOW_PRIVATE_NETWORKS=false
+
+### Regression gates
+
+- HTTPS/auth regression: PASS (login 200, cookies Secure/HttpOnly/SameSite correct, CSRF logout 200, post-logout 401)
+- Rate limiting: PASS (6th bad login → 429, spoofed IPs blocked)
+- Network/egress: egress 92.5.61.217, raw ports bound to 127.0.0.1 only, externally CLOSED
+- Operations endpoint: PASS
+- Credential/log leak: NOT PRESENT, PASS
+
+### What was NOT done (still out of scope)
+
 - No real publisher credential handling
 - No Limited Pilot authorization
+- No full self-service OAuth onboarding UI
