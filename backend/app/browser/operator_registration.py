@@ -79,9 +79,7 @@ class OperatorSiteRegistrationService(CheckpointService):
                 canonical_scheme=parts.scheme.lower(),
             )
             template = await self._template(session, tenant_id, site.id)
-            monitored_url = await self._monitored_url(
-                session, tenant_id, site.id, template.id, url
-            )
+            monitored_url = await self._monitored_url(session, tenant_id, site.id, template.id, url)
             scenario = await self._scenario(session, tenant_id, site.id)
             await self._ensure_b2_configuration(
                 session,
