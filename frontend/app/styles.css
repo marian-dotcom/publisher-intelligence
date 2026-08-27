@@ -127,6 +127,19 @@ h2 { font-size: var(--font-size-lg); margin: 0 0 var(--space-3); }
 .investigate-dialog::backdrop { background: rgb(0 0 0 / 40%); }
 .dialog-actions { display: flex; gap: var(--space-2); justify-content: flex-end; margin-top: var(--space-4); }
 
+/* EP-028 M3 — add site dialog */
+.add-site-dialog {
+  border: var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-6);
+  min-width: min(480px, 90vw);
+}
+.add-site-dialog::backdrop { background: rgb(0 0 0 / 40%); }
+
+/* EP-028 M3 — initial diagnostic badge */
+.badge-diagnostic { border-color: var(--provenance-machine); color: var(--provenance-machine); }
+.badge-diagnostic-unknown { border-color: var(--status-unknown); color: var(--status-unknown); border-style: dashed; }
+
 /* incident views */
 .incident-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
 .incident-card { display: flex; gap: var(--space-3); align-items: center; color: inherit; text-decoration: none; }

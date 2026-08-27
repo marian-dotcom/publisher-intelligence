@@ -23,6 +23,7 @@ const HOME_BODY = {
     GSC: "UNKNOWN",
     GAM: "UNKNOWN",
   },
+  initial_diagnostic: null,
   open_incident_count: 2,
   monetization_capability: "RELATIVE_ONLY",
 };

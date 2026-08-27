@@ -25,6 +25,20 @@ export type SourceHealth = "HEALTHY" | "STALE" | "DEGRADED" | "UNAVAILABLE" | "A
 
 export type MonetizationCapability = "ABSOLUTE" | "RELATIVE_ONLY" | "UNKNOWN";
 
+/** EP-028 M3 — bounded initial-diagnostic status (checkpoint_runs.status CHECK). */
+export type DiagnosticStatus =
+  | "PENDING"
+  | "RUNNING"
+  | "COMPLETE"
+  | "PARTIAL"
+  | "SITE_ERROR"
+  | "BROWSER_ERROR"
+  | "TIMEOUT"
+  | "BLOCKED";
+
+/** EP-028 M3 — bounded browser access classification. */
+export type BrowserAccessClassification = "ok" | "degraded" | "challenge_suspected";
+
 export type Severity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
 /** Incident lifecycle status (canonical check constraint). */
@@ -85,8 +99,17 @@ export interface HomeStatus {
   selected_site_id: string | null;
   publisher_site_condition: string; // site status; independent of source_health by contract
   source_health: Record<SourceKey, SourceHealth>;
+  initial_diagnostic: InitialDiagnostic | null;
   open_incident_count: number;
   monetization_capability: MonetizationCapability;
+}
+
+/** EP-028 M2 — bounded initial-diagnostic projection for operator registration. */
+export interface InitialDiagnostic {
+  run_id: string;
+  status: string;
+  completed_at: string | null;
+  browser_access_classification: string | null;
 }
 
 /** GET /product/source-health?site_id={id} (required param) */
@@ -347,4 +370,12 @@ export interface InvestigateSuccess {
   incident_id: string;
   investigation_key: string;
   status: IncidentStatus;
+}
+
+/** POST /product/sites success body (EP-028 M3). */
+export interface RegisterSiteSuccess {
+  site_id: string;
+  canonical_domain: string;
+  checkpoint_run_id: string;
+  diagnostic_status: string;
 }
