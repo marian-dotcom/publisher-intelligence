@@ -52,4 +52,21 @@ describe("apiFetch", () => {
       }),
     );
   });
+
+  it("sends an explicit Accept: application/json header on every request", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(mockResponse(200, { value: 1 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await apiFetch("/timeline");
+    await apiFetch("/incidents", { method: "GET" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/timeline",
+      expect.objectContaining({ headers: expect.objectContaining({ Accept: "application/json" }) }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/incidents",
+      expect.objectContaining({ headers: expect.objectContaining({ Accept: "application/json" }) }),
+    );
+  });
 });

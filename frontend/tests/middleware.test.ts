@@ -178,3 +178,173 @@ describe("EP-027 trust boundary: Caddy X-Forwarded-For → X-Real-IP", () => {
     expect(sent.get("x-real-ip")).toBe("[2001:db8::1]");
   });
 });
+
+describe("shared prefixes: document navigation renders the page, API requests proxy", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.BACKEND_INTERNAL_URL;
+  });
+
+  function spyOnFetch() {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ entries: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  it("REGRESSION: browser document navigation to /timeline is NOT proxied (renders the page)", async () => {
+    process.env.BACKEND_INTERNAL_URL = "http://api:8000";
+    const fetchMock = spyOnFetch();
+
+    const req = new NextRequest("https://publisher.test/timeline", {
+      method: "GET",
+      headers: { accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" },
+    });
+    const res = await middleware(req);
+
+    // A page navigation must never reach FastAPI; the backend call is skipped so
+    // Next.js can render the /timeline page (the exact live defect).
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+  });
+
+  it("REGRESSION: browser document navigation to /incidents and /incidents/<id> is NOT proxied", async () => {
+    process.env.BACKEND_INTERNAL_URL = "http://api:8000";
+    const fetchMock = spyOnFetch();
+
+    await middleware(
+      new NextRequest("https://publisher.test/incidents", {
+        method: "GET",
+        headers: { accept: "text/html" },
+      }),
+    );
+    await middleware(
+      new NextRequest("https://publisher.test/incidents/abc-123", {
+        method: "GET",
+        headers: { accept: "text/html" },
+      }),
+    );
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("REGRESSION: browser document navigation to /evidence/<id> is NOT proxied", async () => {
+    process.env.BACKEND_INTERNAL_URL = "http://api:8000";
+    const fetchMock = spyOnFetch();
+
+    await middleware(
+      new NextRequest("https://publisher.test/evidence/abc-123", {
+        method: "GET",
+        headers: { accept: "text/html" },
+      }),
+    );
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("API request (Accept: application/json) to /timeline is proxied to FastAPI", async () => {
+    process.env.BACKEND_INTERNAL_URL = "http://api:8000";
+    const fetchMock = spyOnFetch();
+
+    await middleware(
+      new NextRequest("https://publisher.test/timeline", {
+        method: "GET",
+        headers: { accept: "application/json" },
+      }),
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [target] = fetchMock.mock.calls[0] as [string];
+    expect(String(target)).toBe("http://api:8000/timeline");
+  });
+
+  it("API requests to /incidents, /incidents/<id>, /evidence/packs/<id> are proxied", async () => {
+    process.env.BACKEND_INTERNAL_URL = "http://api:8000";
+    const fetchMock = spyOnFetch();
+
+    await middleware(
+      new NextRequest("https://publisher.test/incidents", {
+        method: "GET",
+        headers: { accept: "application/json" },
+      }),
+    );
+    await middleware(
+      new NextRequest("https://publisher.test/incidents/abc-123", {
+        method: "GET",
+        headers: { accept: "application/json" },
+      }),
+    );
+    await middleware(
+      new NextRequest("https://publisher.test/evidence/packs/abc-123", {
+        method: "GET",
+        headers: { accept: "application/json" },
+      }),
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const targets = fetchMock.mock.calls.map((c) => String(c[0]));
+    expect(targets).toContain("http://api:8000/incidents");
+    expect(targets).toContain("http://api:8000/incidents/abc-123");
+    expect(targets).toContain("http://api:8000/evidence/packs/abc-123");
+  });
+
+  it("backend-exclusive paths still proxy regardless of Accept", async () => {
+    process.env.BACKEND_INTERNAL_URL = "http://api:8000";
+    const fetchMock = spyOnFetch();
+
+    await middleware(
+      new NextRequest("https://publisher.test/auth/session", {
+        method: "GET",
+        headers: { accept: "text/html" },
+      }),
+    );
+    await middleware(
+      new NextRequest("https://publisher.test/product/home/status", {
+        method: "GET",
+        headers: { accept: "text/html" },
+      }),
+    );
+    await middleware(
+      new NextRequest("https://publisher.test/investigations", {
+        method: "POST",
+        headers: { accept: "application/json" },
+      }),
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("trust boundary still strips spoofed forwarding headers on proxied requests", async () => {
+    process.env.BACKEND_INTERNAL_URL = "http://api:8000";
+    const sent = new Headers();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async (_url: string, opts: { headers: Headers }) => {
+        for (const [k, v] of opts.headers.entries()) sent.set(k, v);
+        return new Response(null, { status: 200 });
+      }),
+    );
+
+    await middleware(
+      new NextRequest("https://publisher.test/incidents", {
+        method: "GET",
+        headers: {
+          accept: "application/json",
+          "x-forwarded-for": "203.0.113.5",
+          "x-real-ip": "1.2.3.4",
+          "x-forwarded-host": "attacker.test",
+          "x-forwarded-proto": "http",
+        },
+      }),
+    );
+
+    expect(sent.get("x-real-ip")).toBe("203.0.113.5");
+    expect(sent.has("x-forwarded-for")).toBe(false);
+    expect(sent.has("x-forwarded-host")).toBe(false);
+    expect(sent.has("x-forwarded-proto")).toBe(false);
+  });
+});

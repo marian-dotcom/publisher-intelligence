@@ -23,6 +23,19 @@ export const BACKEND_PREFIXES = [
   "/evidence",
 ] as const;
 
+/**
+ * Prefixes that host BOTH a Next.js frontend page AND a backend API route at
+ * the same path namespace (same-origin proxy). For these, the middleware must
+ * distinguish an API request from a browser document navigation via content
+ * negotiation; document/HTML navigation renders the frontend page, and only
+ * explicit API requests (Accept: application/json) are proxied to FastAPI.
+ *
+ * Keep this set in sync with the frontend route map (app/(protected)/timeline,
+ * app/(protected)/incidents, app/(protected)/incidents/[id], app/evidence/[id])
+ * and the backend memory router (app/api/memory.py).
+ */
+export const SHARED_PREFIXES = ["/timeline", "/incidents", "/evidence"] as const;
+
 export const BACKEND_INTERNAL_URL_ENV = "BACKEND_INTERNAL_URL";
 export const DEFAULT_BACKEND_INTERNAL_URL = "http://api:8000";
 
@@ -49,4 +62,22 @@ export function isBackendPath(pathname: string): boolean {
   return BACKEND_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
   );
+}
+
+/** True when the path lives on a shared prefix (frontend page + backend API). */
+export function isSharedBackendPath(pathname: string): boolean {
+  return SHARED_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
+}
+
+/**
+ * Content negotiation: an explicit API request carries Accept: application/json
+ * (set by apiFetch). Anything else — notably the browser's default HTML Accept
+ * on top-level document navigation — is a frontend page request and must NOT be
+ * proxied to the backend on shared prefixes.
+ */
+export function requestsApiJson(acceptHeader: string | null | undefined): boolean {
+  if (!acceptHeader) return false;
+  return acceptHeader.includes("application/json");
 }

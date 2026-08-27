@@ -18,7 +18,11 @@
  * Caddy is removed, etc.).
  */
 import { NextRequest, NextResponse } from "next/server";
-import { resolveBackendInternalUrl } from "./lib/backend-routing";
+import {
+  isSharedBackendPath,
+  requestsApiJson,
+  resolveBackendInternalUrl,
+} from "./lib/backend-routing";
 
 function isValidIpAddress(raw: string): boolean {
   const s = raw.trim();
@@ -32,6 +36,18 @@ function isValidIpAddress(raw: string): boolean {
 }
 
 export async function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+
+  // Shared prefixes (frontend page + backend API at the same path) are routed
+  // by content negotiation. Top-level browser navigation sends Accept:
+  // text/html and must render the Next.js page; only explicit API requests
+  // (Accept: application/json from apiFetch) are proxied to FastAPI. This
+  // bypass happens before backend resolution so a page is rendered without
+  // requiring a backend target. All remaining prefixes below are backend-exclusive.
+  if (isSharedBackendPath(pathname) && !requestsApiJson(request.headers.get("accept"))) {
+    return NextResponse.next();
+  }
+
   const backend = resolveBackendInternalUrl(process.env);
   if (backend === null) {
     return new NextResponse(

@@ -49,7 +49,12 @@ interface RequestOptions {
 
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = options.method ?? "GET";
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = {
+    // Explicit content negotiation so the same-origin proxy can distinguish an
+    // API request from a top-level browser page navigation on shared prefixes
+    // (e.g. /timeline, /incidents, /evidence are both pages AND backend APIs).
+    Accept: "application/json",
+  };
   let body: string | undefined;
 
   if (options.body !== undefined) {
