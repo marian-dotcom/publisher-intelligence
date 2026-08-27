@@ -5,6 +5,7 @@ import signal
 import socket
 import uuid
 from datetime import UTC, date, datetime
+from typing import Any
 
 from app.common.logging import configure_logging
 from app.config.settings import get_settings
@@ -36,6 +37,7 @@ from app.public_config.event_service import PublicConfigEventService
 from app.public_config.persistence import PublicConfigRepository, PublicConfigStateError
 from app.public_config.service import PublicConfigRunError, PublicConfigService
 from app.retention.service import RetentionService
+from app.secrets.oci import OciAccessTokenResolver
 from app.storage.s3 import S3Storage
 
 logger = logging.getLogger(__name__)
@@ -1228,25 +1230,33 @@ def _payload_parameters(value: object) -> dict[str, str]:
     return value
 
 
+def _build_token_resolver(settings: Any) -> EnvironmentAccessTokenResolver | OciAccessTokenResolver:
+    """Select the appropriate AccessTokenResolver for the configured secret backend."""
+    if settings.secret_backend == "oci":
+        return OciAccessTokenResolver(region=settings.oci_region)
+    return EnvironmentAccessTokenResolver(environment=settings.environment)
+
+
 async def run(*, once: bool) -> None:
     settings = get_settings()
     configure_logging(settings.log_level)
     factory = get_session_factory()
     queue = JobQueue(factory)
+    token_resolver = _build_token_resolver(settings)
     ga4_service = GA4ConnectorService(
         ConnectorRepository(factory),
         GA4Client(HttpxGA4Transport()),
-        EnvironmentAccessTokenResolver(environment=settings.environment),
+        token_resolver,
     )
     gsc_service = GSCConnectorService(
         ConnectorRepository(factory),
         GSCClient(HttpxGSCTransport()),
-        EnvironmentAccessTokenResolver(environment=settings.environment),
+        token_resolver,
     )
     gam_service = GAMConnectorService(
         ConnectorRepository(factory),
         GAMClient(HttpxGAMTransport()),
-        EnvironmentAccessTokenResolver(environment=settings.environment),
+        token_resolver,
     )
     metric_service = CrossSourceMetricService(MetricDerivationRepository(factory))
     event_service = EventService(EventRepository(factory))

@@ -9,6 +9,7 @@ dependencies = [
   "boto3>=1.38,<2",
   "fastapi>=0.116,<1",
   "httpx>=0.28,<1",
+  "oci>=2.150,<3",
   "inspect-ai>=0.3.260",
   "playwright>=1.60,<2",
   "psycopg[binary]>=3.2,<4",
@@ -50,7 +51,7 @@ plugins = ["pydantic.mypy"]
 exclude = ["migrations/versions"]
 
 [[tool.mypy.overrides]]
-module = ["boto3", "botocore.*"]
+module = ["boto3", "botocore.*", "oci.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
