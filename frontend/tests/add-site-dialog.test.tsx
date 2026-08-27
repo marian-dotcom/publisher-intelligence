@@ -473,7 +473,7 @@ describe("Diagnostic polling", () => {
     await screen.findByText("Diagnostic: queued");
     expect(mockedFetch).toHaveBeenCalledTimes(2);
 
-    await act(async () => { vi.advanceTimersByTime(4000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
     await waitFor(() => expect(mockedFetch).toHaveBeenCalledTimes(3));
     expect(mockedFetch).toHaveBeenLastCalledWith("/product/home/status?site_id=s1");
     await screen.findByText(/Diagnostic: complete/);
