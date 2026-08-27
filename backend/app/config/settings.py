@@ -24,6 +24,12 @@ class Settings(BaseSettings):
 
     environment: Literal["local", "test", "staging", "production"] = "local"
 
+    # EP-024 M2: secret backend selection.
+    # local/test: "memory" or "environment" permitted
+    # staging/production: "oci" required (fail-closed via validator below)
+    secret_backend: Literal["memory", "environment", "oci"] = "environment"
+    oci_region: str = "eu-frankfurt-1"
+
     # EP-026 M1 (SECURITY.md §201): auth cookies MUST be Secure=True outside
     # local development. Fail-closed via model_validator below.
     cookie_secure: bool = False
@@ -35,6 +41,16 @@ class Settings(BaseSettings):
                 f"environment={self.environment} requires cookie_secure=True "
                 "(SECURITY.md §201 secure-cookie hard gate)"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _enforce_secret_backend_for_managed_environments(self) -> "Settings":
+        if self.environment in ("staging", "production"):
+            if self.secret_backend != "oci":
+                raise ValueError(
+                    f"environment={self.environment} requires secret_backend=oci; "
+                    "environment/memory backends are not permitted in managed environments"
+                )
         return self
 
     log_level: str = "INFO"
@@ -88,6 +104,8 @@ class Settings(BaseSettings):
     def safe_summary(self) -> dict[str, str | bool | int | float]:
         return {
             "environment": self.environment,
+            "secret_backend": self.secret_backend,
+            "oci_region": self.oci_region,
             "log_level": self.log_level,
             "database_url": "[REDACTED]",
             "s3_endpoint_url": self.s3_endpoint_url,

@@ -1,20 +1,20 @@
 # EP-024 — Connector OAuth, Managed Secrets & Site Onboarding
 
-**Status:** COMPLETE (human gates resolved; provider selection deferred to deployment)
+**Status:** M2 implementation COMPLETE; deployment/live validation PENDING
 **Owner:** Codex / Engineering
 **Created:** 2026-08-23
-**Updated:** 2026-08-23
+**Updated:** 2026-08-27
 **Target milestone:** Connector OAuth, managed secrets & site onboarding (PLANS.md §76.1)
 **MVP scope impact:** NO
-**New infrastructure category:** HUMAN GATE — provider selection required
+**New infrastructure category:** HUMAN GATE — provider selection resolved (OCI Secret Management)
 
 ## Progress
 
 - [x] M1a — Privacy-preserving monetization capability semantics (non-gated)
 - [x] M1b — Documented non-deceptive User-Agent identity + publisher allowlisting runbook
       (vendor-neutral; no egress architecture chosen)
-- [ ] M2 — HUMAN GATE: OAuth provider architecture / managed secret storage /
-      production egress architecture (see §HUMAN GATE below)
+- [x] M2 — OCI SecretStore provider: implementation COMPLETE; deployment validation PENDING
+      (see §M2 IMPLEMENTATION below)
 
 ## 1. Purpose and User Outcome
 
@@ -135,3 +135,92 @@ forcing function; immediate full OAuth build — deferred by human gate pending 
 
 **Impact:** EP-020+ workflows may consume secret references; onboarding of NEW external
 publishers via Option C after a trigger fires requires a new explicit human decision.
+
+---
+
+## M2 IMPLEMENTATION (2026-08-27)
+
+### Provider decision
+
+OCI Secret Management selected as the concrete SecretStore provider for staging/production.
+Instance Principal authentication: no API keys on disk.
+
+### What was implemented
+
+1. **`backend/app/secrets/oci.py`** — OCI SecretStore provider:
+   - `OciSecretStore`: read-only SecretStore implementation using OCI Vault REST API
+     via official OCI SDK (`oci.auth.signers.InstancePrincipalsSecurityTokenSigner`,
+     `oci.secrets.SecretsClient`). Write methods (store/replace/delete) raise
+     `InvestigationStateError` — consistent with `EnvironmentSecretStore` pattern.
+   - `OciAccessTokenResolver`: connector-level credential resolution.
+     Reference format: `oci:<secret-ocid>`. Fetches credential bundle from OCI Vault,
+     validates structure, exchanges Google refresh token for short-lived access token.
+   - `parse_credential_bundle()`: validates Google credential bundle JSON structure.
+   - `_refresh_access_token()`: Google token refresh via standard endpoint.
+   - Error mapping: OCI ServiceError → SecretResolutionError codes.
+
+2. **`backend/app/config/settings.py`** — secret backend configuration:
+   - `secret_backend`: `memory | environment | oci` (default: `environment`)
+   - `oci_region`: OCI region for Vault API (default: `eu-frankfurt-1`)
+   - Fail-closed validator: staging/production require `secret_backend=oci`
+
+3. **`backend/app/worker.py`** — runtime wiring:
+   - `_build_token_resolver(settings)`: factory selects resolver based on `secret_backend`
+   - Connectors share a single resolver instance per worker process
+
+4. **`backend/tests/unit/test_oci_secret_store.py`** — 59 unit tests covering:
+   - OCID reference format validation
+   - OciSecretStore read-only enforcement
+   - OciSecretStore.resolve success/failure paths (mocked OCI SDK)
+   - Credential bundle parsing (valid/malformed/missing fields)
+   - Google token refresh (success, invalid_grant, insufficient_scope, server_error)
+   - OciAccessTokenResolver end-to-end (mocked OCI + Google)
+   - Settings fail-closed for staging/production
+   - Worker factory function
+   - No credential material in errors/logs
+
+5. **`backend/pyproject.toml`** — OCI SDK dependency added
+
+### Secret reference format
+
+```
+oci:ocid1.secret.oc1.eu-frankfurt-1.xxxxx...
+```
+
+PostgreSQL stores only this opaque reference. No credential material enters the database.
+
+### Credential flow (Option C)
+
+```
+data_connection.secret_reference: "oci:<secret-ocid>"
+        ↓
+OciAccessTokenResolver.resolve()
+        ↓
+OciSecretStore.resolve() → OCI Vault REST API (Instance Principal)
+        ↓
+Google credential bundle (client_id, client_secret, refresh_token, token_uri)
+        ↓
+Google token refresh endpoint → short-lived access_token
+        ↓
+AccessCredential(access_token=...)
+```
+
+Refreshed access tokens exist only in process memory. Never persisted.
+
+### Validation
+
+- ruff check: PASS
+- mypy: PASS (no errors)
+- unit tests: 423 passed (59 new OCI tests + 364 existing)
+
+### M2 status vs Gate N status
+
+- **M2 implementation:** COMPLETE
+- **Gate N deployment validation:** PENDING (requires staging deployment + live OCI verification)
+
+### What was NOT done
+
+- No OCI infrastructure created (Vault/key/secret/dynamic group/policy) — requires OCI Console
+- No staging deployment — existing release 52b5201 must remain running
+- No real publisher credential handling
+- No Limited Pilot authorization

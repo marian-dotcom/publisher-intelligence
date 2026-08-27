@@ -29,6 +29,7 @@ def test_pilot_production_accepts_secure_true() -> None:
     settings = Settings(
         environment="staging",
         cookie_secure=True,
+        secret_backend="oci",
         database_url="postgresql+psycopg://u:p@db:5432/publisher",
         s3_endpoint_url="https://s3.example.com",
         s3_access_key_id=SecretStr("k"),

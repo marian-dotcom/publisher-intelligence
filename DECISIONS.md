@@ -3114,3 +3114,68 @@ format, cookie names, CSRF token format, login, or restoration semantics.
 Treating Secure=False as deferred LOW cleanup — rejected: it would allow
 Limited Pilot to run on transport-insecure auth cookies, contradicting
 SECURITY.md §22 and the pilot threat model.
+
+---
+
+# ADR-132 — OCI Secret Management as production SecretStore provider
+
+## Status
+
+ACCEPTED
+
+## Context
+
+EP-024 M2 requires a production secret backend for connector credential
+management. The existing `EnvironmentAccessTokenResolver` refuses to operate
+in production. Limited Pilot requires a managed secret store for Google OAuth
+credential bundles (Option C).
+
+Alternatives:
+- OCI Secret Management (Instance Principal)
+- AWS Secrets Manager (Instance Profile)
+- HashiCorp Vault (AppRole/Kubernetes)
+- GCP Secret Manager (Workload Identity)
+- Kubernetes Secrets (mounted volumes)
+
+## Decision
+
+OCI Secret Management selected as the production SecretStore provider.
+
+Instance Principal authentication: no API keys on disk. The compute instance's
+identity is the credential.
+
+Reference format: `oci:<secret-ocid>` — PostgreSQL stores only the opaque
+reference. No credential material enters the database.
+
+Runtime: read-only. Write operations (store/replace/delete) are explicitly
+disabled on `OciSecretStore`, consistent with the `EnvironmentSecretStore`
+pattern. Secret provisioning is operator-assisted and out-of-band.
+
+## Reason
+
+1. Staging environment runs on OCI (Oracle Cloud Infrastructure).
+2. Instance Principal is the native authentication mechanism — no key management.
+3. Official OCI Python SDK (`oci.auth.signers.InstancePrincipalsSecurityTokenSigner`,
+   `oci.secrets.SecretsClient`) handles token refresh and request signing.
+4. Cloud-agnostic abstraction preserved: `SecretStore` protocol and
+   `AccessTokenResolver` protocol remain the integration boundary. Provider
+   is replaceable behind these abstractions.
+5. Minimal configuration: only `secret_backend=oci` and `oci_region` at runtime.
+   No vault/key/compartment configuration required for secret retrieval.
+
+## Consequences
+
+- Staging/production require `secret_backend=oci` (fail-closed validator).
+- `OciSecretStore` write methods raise `InvestigationStateError`.
+- Google credential bundles stored as OCI secrets; refresh tokens exchanged
+  for short-lived access tokens at resolve-time.
+- Option C revisit triggers (§4a) remain binding.
+- Provider replaceable: switching to AWS/GCP/Vault requires a new
+  `AccessTokenResolver` implementation, not domain logic changes.
+
+## Alternatives considered
+
+- Direct environment variable injection — rejected: no rotation, no auditability,
+  token material in process environment.
+- Kubernetes Secrets — rejected: not applicable to bare-metal/VM deployment.
+- GCP Secret Manager — rejected: staging is on OCI, not GCP.
