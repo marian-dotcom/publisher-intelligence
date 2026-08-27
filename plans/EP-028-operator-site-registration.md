@@ -333,8 +333,8 @@ Prefer a small dedicated service/repository helper if putting write semantics di
 **M1 COMPLETE** at implementation checkpoint `d09aadc737e01b585f9dfa58081794a98ddb87a2`.
 CI evidence: GitHub Actions run `33096657603` (HEAD `d09aadc737e01b585f9dfa58081794a98ddb87a2`) — backend / frontend / repository-safety all SUCCESS, including `ruff format --check`, `ruff check`, `mypy`, `pytest tests/unit`, `alembic upgrade head`, `RUN_INTEGRATION=1 pytest tests/integration`, `python -m app.scheduler --once`, `python -m app.worker --once`, frontend lint/typecheck/test/build, secret scan + `docker compose config` + `git diff --check`. M1 code covered by `backend/tests/integration/test_product_site_registration.py` (tenant-bound atomic registration, auth/CSRF 401/403, ADMIN-only 403, no client tenant id, blocked-target rejection, deterministic same-tenant duplicate conflict, cross-tenant isolation, concurrent duplicate → one site/run/job, CLI `OPERATOR_CLI` regression) and `backend/tests/integration/test_migrations.py` (upgrade/downgrade/re-upgrade + guarded downgrade).
 
-**M2 COMPLETE** at validation checkpoint `cb9e5aacaab8bc7e43d6886ac007b50682311056`.
-Validation evidence: pre-validation HEAD `cb9e5aacaab8bc7e43d6886ac007b50682311056` on branch `agent/ep-028-operator-site-management`; working tree contained two M2 files (`backend/app/api/product.py` modified, `backend/tests/integration/test_product_initial_diagnostic_m2.py` untracked). Full integration suite: 214 passed, exit 0, 127.17s (pre-existing deprecation/GC warnings only). Scheduler `--once`: PASS, exit 0. Worker `--once`: PASS, exit 0. Post-validation `git status --short` unchanged. Gate O NOT STARTED. Gate P HUMAN GATE. Limited Pilot NOT AUTHORIZED.
+**M2 COMPLETE** at implementation commit `d5310bf6de8fa2d69350ff2766411e1d388fa264`.
+CI evidence: GitHub Actions run `33109458048` (HEAD `d5310bf6de8fa2d69350ff2766411e1d388fa264`) — backend / frontend / repository-safety all SUCCESS, including `ruff format --check`, `ruff check`, `mypy`, `pytest tests/unit`, `alembic upgrade head`, `RUN_INTEGRATION=1 pytest tests/integration`, `python -m app.scheduler --once`, `python -m app.worker --once`, frontend lint/typecheck/test/build, secret scan + `docker compose config` + `git diff --check`. Pre-existing deprecation/GC warnings only; no failures. Local pre-commit validation checkpoint: `cb9e5aacaab8bc7e43d6886ac007b50682311056`. Gate O NOT STARTED. Gate P HUMAN GATE. Limited Pilot NOT AUTHORIZED.
 
 ### M2 — Initial diagnostic read projection
 
@@ -594,9 +594,9 @@ Implemented the tenant-bound backend registration command, `OPERATOR_UI` provena
 
 Independently reconciled the implementation and CI evidence against every M1 acceptance criterion; all pass (see M1 acceptance above). M1 is closed.
 
-### 2026-08-27 — M2 implementation and validation
+### 2026-08-27 — M2 implementation and CI closure
 
-Implemented the initial diagnostic read projection extending the tenant-scoped Home/product read model. Verified HEAD `cb9e5aacaab8bc7e43d6886ac007b50682311056` on branch `agent/ep-028-operator-site-management`; working tree contained two M2 files: `backend/app/api/product.py` (modified) and `backend/tests/integration/test_product_initial_diagnostic_m2.py` (untracked). Full integration suite: 214 passed, exit 0, 127.17s. Scheduler `--once`: PASS, exit 0. Worker `--once`: PASS, exit 0. Post-validation working tree unchanged. M2 is closed.
+Implemented the initial diagnostic read projection extending the tenant-scoped Home/product read model. Verified HEAD `cb9e5aacaab8bc7e43d6886ac007b50682311056` on branch `agent/ep-028-operator-site-management`; working tree contained two M2 files: `backend/app/api/product.py` (modified) and `backend/tests/integration/test_product_initial_diagnostic_m2.py` (untracked). Full integration suite: 214 passed, exit 0, 127.17s. Scheduler `--once`: PASS, exit 0. Worker `--once`: PASS, exit 0. Post-validation working tree unchanged. Committed as `d5310bf6de8fa2d69350ff2766411e1d388fa264`; GitHub Actions run `33109458048` (same HEAD) green across backend / frontend / repository-safety, covering ruff format/check, mypy, unit tests, `alembic upgrade head`, integration tests, `scheduler --once`, `worker --once`, frontend lint/typecheck/test/build, secret scan, compose config and `git diff --check`. Pre-existing warnings only; no failures. M2 is closed.
 
 **M3 NOT STARTED.** Gate O NOT STARTED. Gate P HUMAN GATE. Limited Pilot NOT AUTHORIZED.
 
