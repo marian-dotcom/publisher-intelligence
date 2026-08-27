@@ -365,7 +365,8 @@ behind an adapter boundary (ADR-129): Inspect is the eval engine, EVALS.md remai
 handling, and ranked explanations over stored evidence (no LLM, no causal overclaiming). EP-024 adds
 connector onboarding foundations: first-party/cloud-agnostic OAuth architecture and contracts, a
 SecretStore abstraction, EnvironmentSecretStore and InMemorySecretStore for dev/test, and OCI
-SecretManagement as the concrete production SecretStore provider (Gate N PASS). Option C
+SecretManagement as the concrete SecretStore implementation for staging/production
+(staging Gate N PASS). Option C
 operator-assisted secret-reference fallback for Limited Pilot under explicit revisit triggers.
 Home/Timeline UI exists (EP-025b). EP-025a adds the authenticated product
 backend: operator sessions with tenant-scoped authorization, Home/status, source health, timeline,

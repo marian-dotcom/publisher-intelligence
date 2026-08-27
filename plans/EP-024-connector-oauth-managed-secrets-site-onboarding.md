@@ -13,8 +13,8 @@
 - [x] M1a — Privacy-preserving monetization capability semantics (non-gated)
 - [x] M1b — Documented non-deceptive User-Agent identity + publisher allowlisting runbook
       (vendor-neutral; no egress architecture chosen)
-- [x] M2 — OCI SecretStore provider: implementation COMPLETE; deployment validation PENDING
-      (see §M2 IMPLEMENTATION below)
+- [x] M2 — OCI SecretStore provider: implementation COMPLETE; Gate N deployment/live validation
+      PASS (see §M2 IMPLEMENTATION below)
 
 ## 1. Purpose and User Outcome
 
@@ -44,12 +44,18 @@ relative/indexed metrics are available.
   (`docs/runbooks/publisher-allowlisting.md`);
 - tests: DB constraint coverage via integration suite extension point + contracts unit test.
 
-## 4. HUMAN GATE — decision required before M2+
+## 4. Provider decision — HUMAN GATE (RESOLVED 2026-08-23; Gate N PASS 2026-08-27)
 
-Decision required: OAuth provider architecture + managed-secret storage + production egress
-architecture for GA4/GSC/GAM onboarding.
+**Status: RESOLVED.** The provider/OAuth-secret-storage decision below was made 2026-08-23 and
+the concrete OCI Secret Store implementation was live-validated on staging (Gate N) on 2026-08-27.
+This section is retained as historical record of the options and resolution.
 
-Alternatives:
+The decision resolved: OAuth provider architecture + managed-secret storage + production egress
+architecture for GA4/GSC/GAM onboarding. Two cloud-agnostic decisions were made (see §5a), and the
+concrete secret-storage provider was selected as OCI Secret Management (ADR-132, implemented in the
+M2 slice, Gate N PASS on staging).
+
+Alternatives considered:
 
 A. Google-idiomatic OAuth web flow + cloud-provider managed secrets (e.g., provider-native
    secret manager) with NAT-gateway style stable egress.
@@ -58,15 +64,13 @@ B. Cloud-agnostic approach: OAuth web flow + external secret manager service + v
 C. Defer OAuth entirely; pilot uses operator-supplied refresh tokens injected via a managed
    secret reference only (no UI consent flow) — fastest to pilot, weakest UX.
 
-Implications: credential-blast-radius, auditability, cost, lock-in, and deployment complexity
+Implications (credential-blast-radius, auditability, cost, lock-in, and deployment complexity)
 differ per option. All preserve read-only scopes and ADR-091's boundary (DB stores references
 only).
 
-Recommendation: Option B (cloud-agnostic contract now; concrete provider chosen at deployment),
-with Option C acceptable as a Limited-Pilot stopgap if no cloud account exists yet.
-
-What can proceed without the decision: everything already merged in this PR (capability modes,
-identity documentation/runbook); token-lifecycle implementation itself cannot proceed.
+Resolution: egress architecture and concrete network provider remain a deployment-time human
+gate (§5a item 4); OAuth stays cloud-agnostic first-party (§5a item 1); the concrete managed-secret
+provider is OCI Secret Management (ADR-132, Gate N PASS on staging).
 
 ## 4a. OPTION C REVISIT TRIGGER (operator-assisted secret-reference path)
 
@@ -104,7 +108,10 @@ documented egress identity requirement stands regardless of vendor choice.
    behind the boundary; no provider leakage into domain logic.
 2. Secrets: cloud-agnostic SecretStore abstraction — PostgreSQL stores references only, never
    tokens. Implemented: InMemorySecretStore (tests), EnvironmentSecretStore (local/dev,
-   read-only resolver). Production provider remains a deployment-time human gate.
+   read-only resolver). OCI Secret Management is the selected concrete staging/production
+   SecretStore implementation (ADR-132; `OciSecretStore`, Instance Principal auth, read-only,
+   strict Base64 decode, 3-field credential bundle). Staging live validation / Gate N is PASS.
+   Production rollout has NOT occurred.
 3. Option C authorized as Limited-Pilot fallback only (§4a triggers binding).
 4. Egress: vendor-neutral stable-identity contract documented in the runbook; concrete network
    provider deferred to EP-026/deployment (human gate).
@@ -248,6 +255,13 @@ Refreshed access tokens exist only in process memory. Never persisted.
 
 - **M2 implementation:** COMPLETE
 - **Gate N deployment validation:** PASS (2026-08-27)
+
+### Gate status
+
+- **GATE N:** PASS (OCI SecretStore live staging validation, 2026-08-27)
+- **GATE O:** NOT STARTED
+- **GATE P:** HUMAN GATE
+- **LIMITED PILOT:** NOT AUTHORIZED
 
 ## Gate N — Live validation evidence (2026-08-27)
 
