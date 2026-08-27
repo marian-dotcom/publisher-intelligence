@@ -1,6 +1,8 @@
 import {
   BACKEND_PREFIXES,
   isBackendPath,
+  isSharedBackendPath,
+  requestsApiJson,
   resolveBackendInternalUrl,
 } from "../lib/backend-routing";
 import { describe, expect, it } from "vitest";
@@ -29,6 +31,27 @@ describe("backend routing helpers", () => {
     expect(isBackendPath("/login")).toBe(false);
     expect(isBackendPath("/")).toBe(false);
     expect(isBackendPath("/authorize")).toBe(false);
+  });
+
+  it("identifies shared prefixes (frontend page + backend API coexisting)", () => {
+    expect(isSharedBackendPath("/timeline")).toBe(true);
+    expect(isSharedBackendPath("/incidents")).toBe(true);
+    expect(isSharedBackendPath("/incidents/abc-123")).toBe(true);
+    expect(isSharedBackendPath("/evidence/packs/abc-123")).toBe(true);
+    expect(isSharedBackendPath("/evidence/abc-123")).toBe(true);
+    // Backend-exclusive prefixes are NOT shared with a frontend page.
+    expect(isSharedBackendPath("/auth/login")).toBe(false);
+    expect(isSharedBackendPath("/product/home/status")).toBe(false);
+    expect(isSharedBackendPath("/investigations")).toBe(false);
+    expect(isSharedBackendPath("/health/live")).toBe(false);
+  });
+
+  it("routes by content negotiation: only explicit JSON requests are API calls", () => {
+    expect(requestsApiJson("application/json")).toBe(true);
+    expect(requestsApiJson("text/html,application/xhtml+xml")).toBe(false);
+    expect(requestsApiJson("text/html")).toBe(false);
+    expect(requestsApiJson(null)).toBe(false);
+    expect(requestsApiJson(undefined)).toBe(false);
   });
 
   it("resolves BACKEND_INTERNAL_URL at request time from the environment", () => {
