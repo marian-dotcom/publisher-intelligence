@@ -495,11 +495,11 @@ describe("Diagnostic polling", () => {
     render(<HomePage />);
     await screen.findByText("Diagnostic: running");
 
-    await act(async () => { vi.advanceTimersByTime(4000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
     await waitFor(() => expect(mockedFetch).toHaveBeenCalledTimes(3));
     await screen.findByText("Diagnostic: running");
 
-    await act(async () => { vi.advanceTimersByTime(4000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
     await waitFor(() => expect(mockedFetch).toHaveBeenCalledTimes(4));
     await screen.findByText(/Diagnostic: complete/);
 
@@ -604,17 +604,17 @@ describe("Diagnostic polling", () => {
     await screen.findByText("Diagnostic: queued");
 
     // Fire the first poll.
-    await act(async () => { vi.advanceTimersByTime(4000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
     expect(mockedFetch).toHaveBeenCalledTimes(3);
 
     // Advance through many intervals — second poll must not start.
-    await act(async () => { vi.advanceTimersByTime(20000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(20000); });
     expect(mockedFetch).toHaveBeenCalledTimes(3);
 
     // Resolve the first poll, then the next can start.
     mockedFetch.mockResolvedValueOnce(homePending); // 4: second poll
     await act(async () => { resolvePoll!(homePending); });
-    await act(async () => { vi.advanceTimersByTime(4000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
     expect(mockedFetch).toHaveBeenCalledTimes(4);
   });
 
@@ -675,7 +675,7 @@ describe("Diagnostic polling", () => {
     render(<HomePage />);
     await screen.findByText("Diagnostic: queued");
 
-    await act(async () => { vi.advanceTimersByTime(4000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
     await waitFor(() => expect(mockedFetch).toHaveBeenCalledTimes(3));
 
     // No further polls after failure.
@@ -694,13 +694,13 @@ describe("Diagnostic polling", () => {
 
     // 1 initial home + 1 source-health = 2 calls, then up to 15 polls.
     for (let i = 0; i < 15; i++) {
-      await act(async () => { vi.advanceTimersByTime(4000); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
     }
     // 2 initial + 15 polls = 17 total.
     expect(mockedFetch).toHaveBeenCalledTimes(17);
 
     // One more interval — no additional request.
-    await act(async () => { vi.advanceTimersByTime(4000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
     expect(mockedFetch).toHaveBeenCalledTimes(17);
   });
 });
