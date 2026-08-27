@@ -13,10 +13,7 @@ down_revision: str | None = "0027_checkpoint_run_budget_kind"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-OLD_CHECK = (
-    "trigger_source IS NULL OR "
-    "trigger_source IN ('OPERATOR_CLI','LEGACY_CLI','INCIDENT')"
-)
+OLD_CHECK = "trigger_source IS NULL OR trigger_source IN ('OPERATOR_CLI','LEGACY_CLI','INCIDENT')"
 NEW_CHECK = (
     "trigger_source IS NULL OR "
     "trigger_source IN ('OPERATOR_CLI','LEGACY_CLI','OPERATOR_UI','INCIDENT')"
