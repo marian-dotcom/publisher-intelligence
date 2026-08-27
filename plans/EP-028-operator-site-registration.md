@@ -319,16 +319,21 @@ Prefer a small dedicated service/repository helper if putting write semantics di
 
 **Acceptance:**
 
-- [ ] authenticated valid-CSRF request creates exactly one tenant-owned site configuration and one `DIAGNOSTIC` run;
-- [ ] run provenance is `OPERATOR_UI` with a fresh persistent correlation UUID;
-- [ ] no client tenant identifier is accepted or trusted;
-- [ ] unauthenticated request is 401;
-- [ ] missing/invalid CSRF is 403;
-- [ ] forbidden/private/internal URL is rejected before site/job persistence;
-- [ ] duplicate same-tenant canonical domain is a deterministic conflict and creates no second run/job;
-- [ ] same canonical domain in a different tenant cannot leak or collide across tenants;
-- [ ] CLI registration regression remains `OPERATOR_CLI`;
-- [ ] migration upgrade/downgrade/re-upgrade passes.
+- [x] authenticated valid-CSRF request creates exactly one tenant-owned site configuration and one `DIAGNOSTIC` run;
+- [x] run provenance is `OPERATOR_UI` with a fresh persistent correlation UUID;
+- [x] no client tenant identifier is accepted or trusted;
+- [x] unauthenticated request is 401;
+- [x] missing/invalid CSRF is 403;
+- [x] forbidden/private/internal URL is rejected before site/job persistence;
+- [x] duplicate same-tenant canonical domain is a deterministic conflict and creates no second run/job;
+- [x] same canonical domain in a different tenant cannot leak or collide across tenants;
+- [x] CLI registration regression remains `OPERATOR_CLI`;
+- [x] migration upgrade/downgrade/re-upgrade passes.
+
+**M1 COMPLETE** at implementation checkpoint `d09aadc737e01b585f9dfa58081794a98ddb87a2`.
+CI evidence: GitHub Actions run `33096657603` (HEAD `d09aadc737e01b585f9dfa58081794a98ddb87a2`) — backend / frontend / repository-safety all SUCCESS, including `ruff format --check`, `ruff check`, `mypy`, `pytest tests/unit`, `alembic upgrade head`, `RUN_INTEGRATION=1 pytest tests/integration`, `python -m app.scheduler --once`, `python -m app.worker --once`, frontend lint/typecheck/test/build, secret scan + `docker compose config` + `git diff --check`. M1 code covered by `backend/tests/integration/test_product_site_registration.py` (tenant-bound atomic registration, auth/CSRF 401/403, ADMIN-only 403, no client tenant id, blocked-target rejection, deterministic same-tenant duplicate conflict, cross-tenant isolation, concurrent duplicate → one site/run/job, CLI `OPERATOR_CLI` regression) and `backend/tests/integration/test_migrations.py` (upgrade/downgrade/re-upgrade + guarded downgrade).
+
+**M2 NOT STARTED.** Gate O NOT STARTED. Gate P HUMAN GATE. Limited Pilot NOT AUTHORIZED.
 
 ### M2 — Initial diagnostic read projection
 
@@ -582,6 +587,14 @@ Discoveries:
 
 M0 complete. Plan status: READY. No production code has been changed in this planning step.
 
+### 2026-08-27 — M1 implementation and closure
+
+Implemented the tenant-bound backend registration command, `OPERATOR_UI` provenance and migration. Verified HEAD `d09aadc737e01b585f9dfa58081794a98ddb87a2` on branch `agent/ep-028-operator-site-management`; working tree clean; GitHub Actions run `33096657603` (same HEAD) green across backend / frontend / repository-safety, covering ruff format/check, mypy, unit tests, `alembic upgrade head`, integration tests, `scheduler --once`, `worker --once`, frontend regression checks, secret scan, compose config and `git diff --check`.
+
+Independently reconciled the implementation and CI evidence against every M1 acceptance criterion; all pass (see M1 acceptance above). M1 is closed.
+
+**M2 NOT STARTED.** Gate O NOT STARTED. Gate P HUMAN GATE. Limited Pilot NOT AUTHORIZED.
+
 ## 18. Decision Log
 
 ### 2026-08-27 — Internal operator surface, not self-service onboarding
@@ -634,4 +647,4 @@ Not yet applicable. Fill only after implementation, canonical validation, CI and
 
 ## 22. Next Step
 
-**Authorized next milestone after this READY plan is accepted:** M1 only — implement the tenant-bound backend registration command and `OPERATOR_UI` provenance migration, with focused backend tests. Do not start frontend M3, GAM work, real-site onboarding, Gate O, or Limited Pilot in the same step.
+**M1 is COMPLETE** (implemented + validated above). **M2 (initial diagnostic read projection) NOT STARTED** — requires a new explicit authorization before implementation begins. Do not start M2 in the same step; do not start M3, GAM work, real-site onboarding, Gate O, or Limited Pilot. Gate O NOT STARTED; Gate P HUMAN GATE; Limited Pilot NOT AUTHORIZED.
