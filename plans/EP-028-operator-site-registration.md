@@ -3,8 +3,9 @@
 **Status:** READY
 **Owner:** Codex / Engineering
 **Created:** 2026-08-27
-**Updated:** 2026-08-27
+**Updated:** 2026-08-28
 **M3 closed: 2026-08-27**
+**M4 closed: 2026-08-28**
 **Base commit:** `c2ba668e5e7deda78e4d7f6970fd45a5c904ecb0`
 **Target milestone:** Internal operator Add Site surface before Gate O
 **MVP scope impact:** NO — implements the existing MVP onboarding hierarchy for internal testing
@@ -388,14 +389,42 @@ Adversarial review closed the stale-site polling race, missing polling coverage,
 
 **Acceptance:**
 
-- [ ] backend static/type/unit checks pass;
-- [ ] clean-database migration to head passes;
-- [ ] focused and full relevant integration tests pass in the canonical single-process form;
-- [ ] frontend lint/typecheck/tests/build pass;
-- [ ] secret scan and diff hygiene pass;
-- [ ] no real publisher/site was contacted by automated tests;
-- [ ] plan records exact CI evidence before COMPLETE;
-- [ ] Gate O and Limited Pilot remain unauthorized by this implementation alone.
+- [x] backend static/type/unit checks pass;
+- [x] clean-database migration to head passes;
+- [x] focused and full relevant integration tests pass in the canonical single-process form;
+- [x] frontend lint/typecheck/tests/build pass;
+- [x] secret scan and diff hygiene pass;
+- [x] no real publisher/site was contacted by automated tests;
+- [x] plan records exact CI evidence before COMPLETE;
+- [x] Gate O and Limited Pilot remain unauthorized by this implementation alone.
+
+**M4 COMPLETE** at validation checkpoint `59720d4a7dec95aeb2cdbde3642add15be2a4c3a`.
+
+The accepted canonical retry used the complete GitHub Actions backend environment with an isolated database, `publisher_intelligence_ep028_m4_retry1`. Before migration it had zero public tables, no `alembic_version` relation and zero other client sessions. `uv --directory backend run alembic upgrade head` applied the full chain from base through `0028_operator_ui_trigger_source`. The original `publisher_intelligence` database remained at `0027_checkpoint_run_budget_kind`; all persistent API/worker/scheduler/browser-worker database targets and the five observed background sessions remained confined to that original database.
+
+Local validation evidence from one coherent retry sequence:
+
+- `uv --directory backend sync --all-groups --locked`: PASS, 121 packages resolved / 119 checked;
+- `uv --directory backend run ruff format --check .`: PASS, 306 files already formatted; check-only, no files modified;
+- `uv --directory backend run ruff check .`: PASS;
+- `uv --directory backend run mypy app tests scripts migrations/env.py`: PASS, 271 source files;
+- `uv --directory backend run pytest tests/unit`: 434 passed, one pre-existing deprecation warning;
+- `docker compose config` and `docker compose up -d postgres minio minio-init`: PASS; PostgreSQL and MinIO healthy, `minio-init` exit 0;
+- focused single-process integration command `RUN_INTEGRATION=1 uv --directory backend run pytest tests/integration/test_migrations.py tests/integration/test_product_site_registration.py tests/integration/test_product_initial_diagnostic_m2.py`: 37 passed, 36 warnings;
+- full single-process integration command `RUN_INTEGRATION=1 uv --directory backend run pytest tests/integration`: 214 passed, 121 pre-existing deprecation/connection-GC warnings;
+- `uv --directory backend run python -m app.scheduler --once`: PASS;
+- `uv --directory backend run python -m app.worker --once`: PASS;
+- `pnpm --dir frontend install --frozen-lockfile`: PASS; lockfile already current;
+- `pnpm --dir frontend lint`: PASS, 0 errors and one pre-existing warning;
+- `pnpm --dir frontend typecheck`: PASS;
+- `pnpm --dir frontend test`: 104 passed across 12 test files;
+- `pnpm --dir frontend build`: PASS;
+- `python3 scripts/check_secrets.py`: PASS, no known credential patterns. The local-only `python3` spelling executes the same repository script because this macOS environment lacks GitHub Actions' `python` alias; the initial `python scripts/check_secrets.py` attempt exited before script execution and was not a scan finding;
+- `git diff --check`: clean before documentation closure.
+
+The earlier full-integration attempt against `publisher_intelligence_ep028_m4` is rejected as M4 evidence because its shell omitted the canonical CI-only `BROWSER_ALLOW_PRIVATE_NETWORKS=true` fixture opt-in. The successful retry set every backend-job variable from `.github/workflows/ci.yml`; private-network access was enabled only for controlled ephemeral `127.0.0.1` fixture servers. External-looking example domains were stored fixture data or used behind test doubles. No automated test contacted a real publisher or site.
+
+Accepted CI evidence at the same checkpoint: GitHub Actions pull-request run `33122379001` and push run `33122375461` both completed SUCCESS, with backend / frontend / repository-safety all SUCCESS. Together with the focused and full local retry, this validates the product flow, authentication/CSRF behavior, browser safety and provenance, duplicate/concurrency behavior, diagnostic cohort separation and cross-tenant boundaries required by M4.
 
 ## 10. Acceptance Criteria
 
@@ -612,6 +641,14 @@ Implemented the Home Add Site UX at commit `74712ed183bac4039d62574742f803715433
 
 Targeted M3 validation via `pnpm --dir frontend test -- tests/add-site-dialog.test.tsx tests/home-timeline.test.tsx`: 42 passed. Full frontend validation via `pnpm --dir frontend test`: 104 passed across 12 test files. `pnpm --dir frontend lint`: 0 errors and one pre-existing warning. `pnpm --dir frontend typecheck`: PASS. `pnpm --dir frontend build`: PASS. `git diff --check`: clean. GitHub Actions run `33115221174` at the same HEAD completed backend / frontend / repository-safety with SUCCESS. M3 is closed; M4 and all release gates remain unstarted and unauthorized as stated below.
 
+### 2026-08-28 — M4 isolated canonical validation and closure
+
+Restarted M4 from the accepted checkpoint `59720d4a7dec95aeb2cdbde3642add15be2a4c3a` using a new empty database, `publisher_intelligence_ep028_m4_retry1`, and the complete backend-job environment from `.github/workflows/ci.yml`. The retry database was proven empty and session-isolated before migration, upgraded through the complete Alembic chain to `0028_operator_ui_trigger_source`, and remained isolated from persistent application containers. The original database remained unchanged at `0027_checkpoint_run_budget_kind`.
+
+The first isolated attempt is rejected because it omitted `BROWSER_ALLOW_PRIVATE_NETWORKS=true`, causing controlled loopback browser fixtures to fail before the suite completed. The canonical retry included the variable and passed the focused integration scope (37 tests) and full integration suite (214 tests), each in one pytest process. Backend format/lint/type/unit, scheduler/worker one-shots, frontend lint/typecheck/test/build, Compose validation, secret scan and diff hygiene all passed as detailed under M4. The secret scan used the local `python3` interpreter solely because this host lacks the CI runner's `python` alias; the same repository script passed.
+
+Automated browser traffic was limited to controlled ephemeral loopback fixture servers; provider and example-domain behavior used fixtures/test doubles. No real publisher or site was contacted. Accepted GitHub Actions runs `33122379001` (pull request) and `33122375461` (push) are SUCCESS across backend / frontend / repository-safety at the same checkpoint. M4 is closed. Gate O NOT STARTED. Gate P HUMAN GATE. Limited Pilot NOT AUTHORIZED.
+
 ## 18. Decision Log
 
 ### 2026-08-27 — Internal operator surface, not self-service onboarding
@@ -664,4 +701,4 @@ Not yet applicable. Fill only after implementation, canonical validation, CI and
 
 ## 22. Next Step
 
-**M3 COMPLETE.** **M4 NOT STARTED** and requires separate explicit authorization. Gate O NOT STARTED. Gate P HUMAN GATE. Limited Pilot NOT AUTHORIZED. Do not begin M4 or any gate; do not perform GAM work, connector work, real-site onboarding or live publisher contact.
+**M4 COMPLETE.** Gate O NOT STARTED. Gate P HUMAN GATE. Limited Pilot NOT AUTHORIZED. M4 completion does not authorize any release/readiness gate, GAM or connector work, real-site onboarding, live publisher contact or pilot activity; each requires separate explicit authorization.
