@@ -4,6 +4,7 @@
 **Owner:** Codex / Engineering
 **Created:** 2026-08-27
 **Updated:** 2026-08-27
+**M3 closed: 2026-08-27**
 **Base commit:** `c2ba668e5e7deda78e4d7f6970fd45a5c904ecb0`
 **Target milestone:** Internal operator Add Site surface before Gate O
 **MVP scope impact:** NO — implements the existing MVP onboarding hierarchy for internal testing
@@ -369,12 +370,17 @@ CI evidence: GitHub Actions run `33109458048` (HEAD `d5310bf6de8fa2d69350ff27664
 
 **Acceptance:**
 
-- [ ] operator can add a site without terminal/CLI/manual DB operations;
-- [ ] no tenant/security/internal fields are present in the form;
-- [ ] success visibly shows the site and queued/running diagnostic state;
-- [ ] duplicate submit cannot create duplicate site/run/job;
-- [ ] UI errors reveal no tenant-existence or internal-network detail;
-- [ ] existing Home/Timeline/Incidents/Investigate behavior remains intact.
+- [x] operator can add a site without terminal/CLI/manual DB operations;
+- [x] no tenant/security/internal fields are present in the form;
+- [x] success visibly shows the site and queued/running diagnostic state;
+- [x] duplicate submit cannot create duplicate site/run/job;
+- [x] UI errors reveal no tenant-existence or internal-network detail;
+- [x] existing Home/Timeline/Incidents/Investigate behavior remains intact.
+
+**M3 COMPLETE** at implementation commit `74712ed183bac4039d62574742f803715433c2bc`.
+CI evidence: GitHub Actions run `33115221174` (HEAD `74712ed183bac4039d62574742f803715433c2bc`) — backend / frontend / repository-safety all SUCCESS. Frontend validation recorded `pnpm --dir frontend test -- tests/add-site-dialog.test.tsx tests/home-timeline.test.tsx` at 42 passed, `pnpm --dir frontend test` at 104 passed across 12 test files, `pnpm --dir frontend lint` at 0 errors with one pre-existing warning, `pnpm --dir frontend typecheck` PASS and `pnpm --dir frontend build` PASS. Repository `git diff --check` was clean.
+
+Adversarial review closed the stale-site polling race, missing polling coverage, duplicate-submit test weakness and stale-site guard finding. The remediated implementation uses a generation token to reject stale responses and recursive, non-overlapping polling only while the selected site's diagnostic is `PENDING` or `RUNNING`, at a four-second interval with a finite maximum of 15 attempts. Polling cancels on terminal or unknown state, request failure, site change and unmount; it does not poll source health. Deterministic tests cover polling behavior, stale-response protection and handler-level duplicate-submit suppression.
 
 ### M4 — End-to-end regression and release readiness
 
@@ -600,6 +606,12 @@ Implemented the initial diagnostic read projection extending the tenant-scoped H
 
 **M3 NOT STARTED.** Gate O NOT STARTED. Gate P HUMAN GATE. Limited Pilot NOT AUTHORIZED.
 
+### 2026-08-27 — M3 implementation and CI closure
+
+Implemented the Home Add Site UX at commit `74712ed183bac4039d62574742f803715433c2bc`, including the compact operator form, sanitized failure states, selection of the newly registered site and bounded initial-diagnostic status. Adversarial review found and closed the stale-site polling race, missing polling coverage, duplicate-submit test weakness and stale-site guard finding. The final polling design uses generation-token stale-response protection, recursive non-overlapping requests only for `PENDING`/`RUNNING`, a four-second interval and a finite 15-attempt maximum; it cancels on terminal/unknown state, failure, site change and unmount, and never polls source health. Deterministic polling and duplicate-submit tests cover these remediations.
+
+Targeted M3 validation via `pnpm --dir frontend test -- tests/add-site-dialog.test.tsx tests/home-timeline.test.tsx`: 42 passed. Full frontend validation via `pnpm --dir frontend test`: 104 passed across 12 test files. `pnpm --dir frontend lint`: 0 errors and one pre-existing warning. `pnpm --dir frontend typecheck`: PASS. `pnpm --dir frontend build`: PASS. `git diff --check`: clean. GitHub Actions run `33115221174` at the same HEAD completed backend / frontend / repository-safety with SUCCESS. M3 is closed; M4 and all release gates remain unstarted and unauthorized as stated below.
+
 ## 18. Decision Log
 
 ### 2026-08-27 — Internal operator surface, not self-service onboarding
@@ -652,4 +664,4 @@ Not yet applicable. Fill only after implementation, canonical validation, CI and
 
 ## 22. Next Step
 
-**M2 is COMPLETE** (implemented + validated above). **M3 (Home Add Site UX) NOT STARTED** — requires a new explicit authorization before implementation begins. Do not start M3 in the same step; do not start M4, GAM work, real-site onboarding, Gate O, or Limited Pilot. Gate O NOT STARTED; Gate P HUMAN GATE; Limited Pilot NOT AUTHORIZED.
+**M3 COMPLETE.** **M4 NOT STARTED** and requires separate explicit authorization. Gate O NOT STARTED. Gate P HUMAN GATE. Limited Pilot NOT AUTHORIZED. Do not begin M4 or any gate; do not perform GAM work, connector work, real-site onboarding or live publisher contact.
