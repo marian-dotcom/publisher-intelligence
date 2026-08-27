@@ -2924,6 +2924,12 @@ Need simple:
 - object storage;
 - secret manager.
 
+**Partial resolution (2026-08-27):** OCI is the current staging/deployment environment. ADR-132
+selects OCI Secret Management as the concrete SecretStore provider (Instance Principal
+authentication). This resolves the secret-manager question for Limited Pilot but does not close
+the broader cloud-provider decision: container hosting, PostgreSQL, and object-storage provider
+choice remain open until deployment architecture is finalized.
+
 ## OPEN-005 — Object storage provider
 
 Need S3-compatible/private storage.

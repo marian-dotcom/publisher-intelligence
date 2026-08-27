@@ -1,6 +1,6 @@
 # EP-024 — Connector OAuth, Managed Secrets & Site Onboarding
 
-**Status:** M2 implementation COMPLETE; deployment/live validation PENDING
+**Status:** COMPLETE (Gate N PASS)
 **Owner:** Codex / Engineering
 **Created:** 2026-08-23
 **Updated:** 2026-08-27
@@ -247,11 +247,54 @@ Refreshed access tokens exist only in process memory. Never persisted.
 ### M2 status vs Gate N status
 
 - **M2 implementation:** COMPLETE
-- **Gate N deployment validation:** PENDING (requires staging deployment + live OCI verification)
+- **Gate N deployment validation:** PASS (2026-08-27)
 
-### What was NOT done
+## Gate N — Live validation evidence (2026-08-27)
 
-- No OCI infrastructure created (Vault/key/secret/dynamic group/policy) — requires OCI Console
-- No staging deployment — existing release 52b5201 must remain running
+### Deployed release
+
+- OCI staging deployment: commit `810db9ee5c679f9d15c3eebb54767a3d758d94a2` (EP-024 merge to main)
+- Previous staging release: `52b5201` (replaced by EP-024 merge)
+
+### OCI staging infrastructure
+
+- Vault: standard vault created in eu-frankfurt-1
+- Key: AES-256 software key created
+- Secret: synthetic 3-field credential bundle created (client_id, client_secret, refresh_token)
+- Dynamic Group: exact-instance membership rule for the staging compute instance
+- IAM Policy: least-privilege policy granting Dynamic Group SECRET_BUNDLE_READ only
+
+### Host Instance Principal proof
+
+- Instance Principal from host: PASS
+- SECRET_BUNDLE_READ: PASS
+- CONTENT_TYPE: BASE64 (strict Base64 decode validated)
+- CONTENT_PRESENT: True
+
+### Container-level OciSecretStore proof
+
+- INSTANCE_PRINCIPAL_FROM_CONTAINER: PASS
+- OCI_SECRETSTORE_RESOLVE: PASS
+- BASE64_UTF8_DECODE: PASS
+- CREDENTIAL_BUNDLE_JSON_PARSE: PASS
+- Fields exactly client_id, client_secret, refresh_token; no Google token request made
+
+### Runtime config
+
+- SECRET_BACKEND=oci for api, scheduler, worker, browser-worker
+- OCI_REGION=eu-frankfurt-1
+- BROWSER_ALLOW_PRIVATE_NETWORKS=false
+
+### Regression gates
+
+- HTTPS/auth regression: PASS (login 200, cookies Secure/HttpOnly/SameSite correct, CSRF logout 200, post-logout 401)
+- Rate limiting: PASS (6th bad login → 429, spoofed IPs blocked)
+- Network/egress: egress 92.5.61.217, raw ports bound to 127.0.0.1 only, externally CLOSED
+- Operations endpoint: PASS
+- Credential/log leak: NOT PRESENT, PASS
+
+### What was NOT done (still out of scope)
+
 - No real publisher credential handling
 - No Limited Pilot authorization
+- No full self-service OAuth onboarding UI

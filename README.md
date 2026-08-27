@@ -364,9 +364,10 @@ deterministic content-hashed evidence packs. EP-022 adds a replaceable Inspect A
 behind an adapter boundary (ADR-129): Inspect is the eval engine, EVALS.md remains the contract. EP-023 adds deterministic hypothesis lifecycle, contradiction
 handling, and ranked explanations over stored evidence (no LLM, no causal overclaiming). EP-024 adds
 connector onboarding foundations: first-party/cloud-agnostic OAuth architecture and contracts, a
-SecretStore abstraction, EnvironmentSecretStore and InMemorySecretStore where actually implemented,
-and Option C operator-assisted secret-reference fallback for Limited Pilot under its explicit
-revisit triggers. Home/Timeline UI exists (EP-025b). EP-025a adds the authenticated product
+SecretStore abstraction, EnvironmentSecretStore and InMemorySecretStore for dev/test, and OCI
+SecretManagement as the concrete production SecretStore provider (Gate N PASS). Option C
+operator-assisted secret-reference fallback for Limited Pilot under explicit revisit triggers.
+Home/Timeline UI exists (EP-025b). EP-025a adds the authenticated product
 backend: operator sessions with tenant-scoped authorization, Home/status, source health, timeline,
 incident, evidence, and monetization-capability read APIs. EP-025b adds the product frontend
 rendering those APIs with source-health badges whose states never assert publisher/site health.
@@ -384,10 +385,8 @@ coverage, and a Caddy → Next.js → FastAPI client-IP trust boundary with vali
 header stripping. No path delivers alerts or makes indexing,
 authorization, revenue, or causal claims.
 
-The repository still excludes a concrete production SecretStore provider, full
-self-service OAuth onboarding where not implemented, deployment-specific provider
-choice, production rollout, provider write access, alert delivery,
-automated incident conclusions, and LLM synthesis. Refresh this summary after no
-more than three completed EPs, and earlier whenever an EP materially changes the
-implemented product or security boundary. Always state the latest fully covered
-EP and distinguish partial work from completed capability.
+The repository still excludes full self-service OAuth onboarding UI, production rollout,
+provider write access, alert delivery, automated incident conclusions, and LLM synthesis.
+Refresh this summary after no more than three completed EPs, and earlier whenever an EP
+materially changes the implemented product or security boundary. Always state the latest fully
+covered EP and distinguish partial work from completed capability.
