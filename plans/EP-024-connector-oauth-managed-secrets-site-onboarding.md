@@ -50,10 +50,12 @@ relative/indexed metrics are available.
 the concrete OCI Secret Store implementation was live-validated on staging (Gate N) on 2026-08-27.
 This section is retained as historical record of the options and resolution.
 
-The decision resolved: OAuth provider architecture + managed-secret storage + production egress
-architecture for GA4/GSC/GAM onboarding. Two cloud-agnostic decisions were made (see §5a), and the
-concrete secret-storage provider was selected as OCI Secret Management (ADR-132, implemented in the
-M2 slice, Gate N PASS on staging).
+The decision resolved: OAuth provider architecture + managed-secret storage architecture (with the
+concrete OCI SecretStore selection) for GA4/GSC/GAM onboarding. Two cloud-agnostic decisions were
+made (see §5a), and the concrete secret-storage provider was selected as OCI Secret Management
+(ADR-132, implemented in the M2 slice, Gate N PASS on staging). The concrete egress/network
+provider selection is NOT part of this resolution; it remains a separate deployment-time human gate
+(§5a item 4) and the approved egress contract is unchanged.
 
 Alternatives considered:
 

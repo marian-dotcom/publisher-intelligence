@@ -324,6 +324,12 @@ Detail:
   (5 attempts / 60s, process-local, no environment bypass), logout clears both
   cookies, timing-safe CSRF comparison, SameSite regression test, Caddy trust
   boundary with validated X-Forwarded-For → stripped → X-Real-IP.
+- Gate N: PASS. EP-024 OCI SecretStore live staging validation completed at deployed commit
+  `810db9ee`, including Instance Principal/container proof, Base64 decode + 3-field bundle parse,
+  and auth/rate-limit/network/egress/operations/leak regressions. Detailed evidence in
+  Part B matrix and `plans/EP-024-...md` §Gate N.
+- Gate O: NOT STARTED
+- Gate P: HUMAN GATE
 - LIMITED PILOT AUTHORIZATION: NOT GRANTED (independent human decision; completing
   the adversarial review does not by itself authorize Limited Pilot).
 
