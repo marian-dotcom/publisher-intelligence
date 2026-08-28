@@ -649,6 +649,12 @@ The first isolated attempt is rejected because it omitted `BROWSER_ALLOW_PRIVATE
 
 Automated browser traffic was limited to controlled ephemeral loopback fixture servers; provider and example-domain behavior used fixtures/test doubles. No real publisher or site was contacted. Accepted GitHub Actions runs `33122379001` (pull request) and `33122375461` (push) are SUCCESS across backend / frontend / repository-safety at the same checkpoint. M4 is closed. Gate O NOT STARTED. Gate P HUMAN GATE. Limited Pilot NOT AUTHORIZED.
 
+### 2026-08-28 — M4 polling-test CI inconsistency and accepted remediation
+
+After M4 closure commit `5c4d590bad01d37d6ec26ce83bfb3997f62a2856`, pull-request run `33126432621` passed while push run `33126425169` failed frontend test A (expected 3 fetches, received 2). Test-only remediation `b50b741cdda63c792aa16b3600e7dda1119aa6a8` awaited asynchronous timer advancement in A; local repetition passed, but replacement push run `33127286168` passed while pull-request run `33127289540` exposed the same synchronization defect in test G (expected 17 fetches, received 16). The root cause was synchronous fake-timer advancement not reliably flushing asynchronous polling continuations; execution-order timing masked it in complete-suite runs. No production polling defect was found.
+
+Bounded test-only remediation `db3512cf242947b6ddb9447b0d02f90006e34929` converted asynchronous polling drivers in tests B, E, F and G to awaited `advanceTimersByTimeAsync`, preserving all behavioral, fetch-count, cancellation, terminal, stale-site, unmount and maximum-attempt assertions; production code was unchanged. Final replacement push run `33127996831` and pull-request run `33128000172` both passed: `add-site-dialog.test.tsx` 42/42, polling tests A–G passed, full frontend 104/104 across 12 files, production build SUCCESS, and backend/repository-safety SUCCESS in both workflows. Warnings remain pre-existing: the unused-variable ESLint warning, non-failing React `act(...)` output in D/F, and GitHub Actions Node/dependency deprecations; none was introduced by the remediation. M4 remains complete. Gate O, Gate P and Limited Pilot remain unstarted and unauthorized.
+
 ## 18. Decision Log
 
 ### 2026-08-27 — Internal operator surface, not self-service onboarding
