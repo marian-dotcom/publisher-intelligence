@@ -37,6 +37,37 @@ class JobQueue:
         max_attempts: int = 3,
         scheduled_at: datetime | None = None,
     ) -> uuid.UUID:
+        async with self._session_factory() as session, session.begin():
+            return await self.enqueue_in_session(
+                session,
+                job_type=job_type,
+                payload=payload,
+                tenant_id=tenant_id,
+                idempotency_key=idempotency_key,
+                priority=priority,
+                max_attempts=max_attempts,
+                scheduled_at=scheduled_at,
+            )
+
+    async def enqueue_in_session(
+        self,
+        session: AsyncSession,
+        *,
+        job_type: str,
+        payload: dict[str, Any] | None = None,
+        tenant_id: uuid.UUID | None = None,
+        idempotency_key: str | None = None,
+        priority: int = 0,
+        max_attempts: int = 3,
+        scheduled_at: datetime | None = None,
+    ) -> uuid.UUID:
+        """Insert a job using the caller's transaction.
+
+        This preserves the queue's existing idempotency semantics while allowing
+        a use case to commit its domain rows and the matching job atomically.
+        The caller owns commit/rollback and must not pass a session outside an
+        active transaction.
+        """
         job_id = uuid.uuid4()
         scheduled = scheduled_at or datetime.now(UTC)
         statement = (
@@ -56,22 +87,20 @@ class JobQueue:
             .on_conflict_do_nothing()
             .returning(Job.id)
         )
-
-        async with self._session_factory() as session, session.begin():
-            inserted = (await session.execute(statement)).scalar_one_or_none()
-            if inserted is not None:
-                return inserted
-            if idempotency_key is None:
-                raise RuntimeError("job insert conflicted without an idempotency key")
-            existing = await session.scalar(
-                select(Job.id).where(
-                    Job.tenant_id == tenant_id,
-                    Job.idempotency_key == idempotency_key,
-                )
+        inserted = (await session.execute(statement)).scalar_one_or_none()
+        if inserted is not None:
+            return inserted
+        if idempotency_key is None:
+            raise RuntimeError("job insert conflicted without an idempotency key")
+        existing = await session.scalar(
+            select(Job.id).where(
+                Job.tenant_id == tenant_id,
+                Job.idempotency_key == idempotency_key,
             )
-            if existing is None:
-                raise RuntimeError("idempotent job conflict could not be resolved")
-            return existing
+        )
+        if existing is None:
+            raise RuntimeError("idempotent job conflict could not be resolved")
+        return existing
 
     async def claim(
         self,

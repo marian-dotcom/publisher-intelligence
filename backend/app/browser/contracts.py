@@ -26,10 +26,10 @@ InteractionStepType = Literal["WAIT", "SCROLL_PERCENT", "INSPECT"]
 # every non-scheduled run records both a controlled trigger source and the
 # concrete correlation identity of the invocation that produced it.
 ObservationKind = Literal["SCHEDULED", "DIAGNOSTIC", "INCIDENT_DIAGNOSTIC"]
-TriggerSource = Literal["OPERATOR_CLI", "LEGACY_CLI"]
+TriggerSource = Literal["OPERATOR_CLI", "LEGACY_CLI", "OPERATOR_UI", "INCIDENT"]
 
 OBSERVATION_KINDS = frozenset({"SCHEDULED", "DIAGNOSTIC", "INCIDENT_DIAGNOSTIC"})
-TRIGGER_SOURCES = frozenset({"OPERATOR_CLI", "LEGACY_CLI", "INCIDENT"})
+TRIGGER_SOURCES = frozenset({"OPERATOR_CLI", "LEGACY_CLI", "OPERATOR_UI", "INCIDENT"})
 
 
 @dataclass(frozen=True, slots=True)

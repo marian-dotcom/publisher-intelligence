@@ -3,10 +3,13 @@
  */
 
 import type {
+  BrowserAccessClassification,
   Confidence,
+  DiagnosticStatus,
   EvidenceRelation,
   EvidenceSourceKind,
   HypothesisStatus,
+  InitialDiagnostic,
   LastKnownGoodReference,
   MonetizationCapability,
   Severity,
@@ -180,4 +183,55 @@ export function LastKnownGoodCard({ reference: lkg }: { reference: LastKnownGood
 
 export function StatusChip({ status }: { status: string }) {
   return <span className={`status-chip status-${status.toLowerCase()}`}>{status}</span>;
+}
+
+// ---------- EP-028 M3 — initial diagnostic projection ----------
+
+const DIAGNOSTIC_STATUS_LABELS: Record<DiagnosticStatus, string> = {
+  PENDING: "Diagnostic: queued",
+  RUNNING: "Diagnostic: running",
+  COMPLETE: "Diagnostic: complete",
+  PARTIAL: "Diagnostic: partial",
+  SITE_ERROR: "Diagnostic: site error",
+  BROWSER_ERROR: "Diagnostic: browser error",
+  TIMEOUT: "Diagnostic: timed out",
+  BLOCKED: "Diagnostic: blocked",
+};
+
+const CLASSIFICATION_LABELS: Record<BrowserAccessClassification, string> = {
+  ok: "Access: normal",
+  degraded: "Access: degraded",
+  challenge_suspected: "Access: challenge suspected",
+};
+
+function isDiagnosticStatus(value: string): value is DiagnosticStatus {
+  return value in DIAGNOSTIC_STATUS_LABELS;
+}
+
+function isBrowserAccessClassification(value: string): value is BrowserAccessClassification {
+  return value in CLASSIFICATION_LABELS;
+}
+
+export function InitialDiagnosticBadge({ diagnostic }: { diagnostic: InitialDiagnostic | null }) {
+  if (!diagnostic) {
+    return (
+      <span className="badge badge-diagnostic-unknown" title="Diagnostic: not available">
+        Diagnostic: not available
+      </span>
+    );
+  }
+  const statusLabel = isDiagnosticStatus(diagnostic.status)
+    ? DIAGNOSTIC_STATUS_LABELS[diagnostic.status]
+    : "Diagnostic: unknown";
+  const classLabel =
+    diagnostic.browser_access_classification !== null &&
+    isBrowserAccessClassification(diagnostic.browser_access_classification)
+      ? CLASSIFICATION_LABELS[diagnostic.browser_access_classification]
+      : null;
+  return (
+    <span className="badge badge-diagnostic" title={statusLabel}>
+      {statusLabel}
+      {classLabel ? ` · ${classLabel}` : ""}
+    </span>
+  );
 }

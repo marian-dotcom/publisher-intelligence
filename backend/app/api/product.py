@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import ActorContext, get_current_actor
+from app.browser.access_reliability import classification_from_storage
 from app.browser.cost import breaker_open_for_usage, latest_site_window_usage
 from app.browser.models import CheckpointRun, Publisher, Site
 from app.connectors.freshness import SOURCE_FRESHNESS_THRESHOLDS, freshness_state
@@ -203,6 +204,51 @@ async def _source_health_rows(
     return health
 
 
+# EP-028 M2: a bounded initial-diagnostic projection for the operator's first
+# controlled observation. Qualifying runs are limited to DIAGNOSTIC /
+# OPERATOR_UI checkpoints owned by the authenticated actor's tenant and the
+# selected site. This projection is deliberately separate from six-hour
+# SCHEDULED source health and is never an LKG/comparison candidate.
+_BROWSER_ACCESS_CLASSIFICATION_STATES = frozenset(("ok", "degraded", "challenge_suspected"))
+
+
+async def _initial_diagnostic_projection(
+    session: AsyncSession, *, tenant_id: uuid.UUID, site_id: uuid.UUID
+) -> dict[str, object] | None:
+    """Return a bounded {run_id, status, completed_at, classification} view of
+    the latest qualifying OPERATOR_UI diagnostic, or None when absent.
+
+    Deterministic latest selection uses the immutable creation timestamp plus
+    the run id as a stable tie-breaker; a bare LIMIT 1 without ordering would be
+    nondeterministic. Only canonical scalar fields are exposed.
+    """
+    run = await session.scalar(
+        select(CheckpointRun)
+        .where(
+            CheckpointRun.tenant_id == tenant_id,
+            CheckpointRun.site_id == site_id,
+            CheckpointRun.observation_kind == "DIAGNOSTIC",
+            CheckpointRun.trigger_source == "OPERATOR_UI",
+        )
+        .order_by(CheckpointRun.created_at.desc(), CheckpointRun.id.desc())
+        .limit(1)
+    )
+    if run is None:
+        return None
+    classification = classification_from_storage(run.browser_access_classification)
+    classification_state = classification.state if classification is not None else None
+    if classification_state is not None and (
+        classification_state not in _BROWSER_ACCESS_CLASSIFICATION_STATES
+    ):
+        classification_state = None
+    return {
+        "run_id": str(run.id),
+        "status": run.status,
+        "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+        "browser_access_classification": classification_state,
+    }
+
+
 @router.get("/home/status")
 async def home_status(
     actor: ActorContext = Depends(get_current_actor),  # noqa: B008
@@ -223,8 +269,14 @@ async def home_status(
             else (sites[0] if sites else None)
         )
         sources: dict[str, str] = {}
+        initial_diagnostic: dict[str, object] | None = None
         if selected is not None:
             sources = await _source_health_rows(
+                session,
+                tenant_id=actor.tenant_id,
+                site_id=selected.id,
+            )
+            initial_diagnostic = await _initial_diagnostic_projection(
                 session,
                 tenant_id=actor.tenant_id,
                 site_id=selected.id,
@@ -257,6 +309,7 @@ async def home_status(
             "UNKNOWN" if selected is None else getattr(selected, "status", "UNKNOWN")
         ),
         "source_health": sources,
+        "initial_diagnostic": initial_diagnostic,
         "open_incident_count": len(open_incidents),
         "monetization_capability": monetization_capability,
     }
