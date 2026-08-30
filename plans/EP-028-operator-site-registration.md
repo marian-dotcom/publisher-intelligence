@@ -430,20 +430,20 @@ Accepted CI evidence at the same checkpoint: GitHub Actions pull-request run `33
 
 EP-028 is complete only when all are true:
 
-- [ ] `Add site` exists on authenticated Home for the current internal operator surface;
-- [ ] backend derives tenant identity exclusively from authenticated actor context;
-- [ ] write requires valid CSRF;
-- [ ] URL is validated by the canonical public-network browser guard before persistence;
-- [ ] one successful registration creates/reuses the required publisher hierarchy but creates exactly one new site configuration for a new canonical domain;
-- [ ] exactly one immediate `DIAGNOSTIC` checkpoint is created/enqueued for a successful new site;
-- [ ] diagnostic provenance is truthfully stored as `OPERATOR_UI`;
-- [ ] duplicate site registration is idempotency-safe and does not enqueue duplicate diagnostics;
-- [ ] diagnostic remains excluded from scheduled comparison/event/LKG cohorts per ADR-130;
-- [ ] existing scheduler can subsequently generate normal six-hour `SCHEDULED` runs without a new enable action;
-- [ ] Home exposes a bounded initial-diagnostic state separately from normal source health;
-- [ ] no generic site CRUD, external onboarding, OAuth, connector, or secret-write capability is introduced;
-- [ ] cross-tenant negative tests pass;
-- [ ] full relevant CI is green.
+- [x] `Add site` exists on authenticated Home for the current internal operator surface;
+- [x] backend derives tenant identity exclusively from authenticated actor context;
+- [x] write requires valid CSRF;
+- [x] URL is validated by the canonical public-network browser guard before persistence;
+- [x] one successful registration creates/reuses the required publisher hierarchy but creates exactly one new site configuration for a new canonical domain;
+- [x] exactly one immediate `DIAGNOSTIC` checkpoint is created/enqueued for a successful new site;
+- [x] diagnostic provenance is truthfully stored as `OPERATOR_UI`;
+- [x] duplicate site registration is idempotency-safe and does not enqueue duplicate diagnostics;
+- [x] diagnostic remains excluded from scheduled comparison/event/LKG cohorts per ADR-130;
+- [x] existing scheduler can subsequently generate normal six-hour `SCHEDULED` runs without a new enable action;
+- [x] Home exposes a bounded initial-diagnostic state separately from normal source health;
+- [x] no generic site CRUD, external onboarding, OAuth, connector, or secret-write capability is introduced;
+- [x] cross-tenant negative tests pass;
+- [x] full relevant CI is green.
 
 ## 11. Validation Commands
 
@@ -654,6 +654,10 @@ Automated browser traffic was limited to controlled ephemeral loopback fixture s
 After M4 closure commit `5c4d590bad01d37d6ec26ce83bfb3997f62a2856`, pull-request run `33126432621` passed while push run `33126425169` failed frontend test A (expected 3 fetches, received 2). Test-only remediation `b50b741cdda63c792aa16b3600e7dda1119aa6a8` awaited asynchronous timer advancement in A; local repetition passed, but replacement push run `33127286168` passed while pull-request run `33127289540` exposed the same synchronization defect in test G (expected 17 fetches, received 16). The root cause was synchronous fake-timer advancement not reliably flushing asynchronous polling continuations; execution-order timing masked it in complete-suite runs. No production polling defect was found.
 
 Bounded test-only remediation `db3512cf242947b6ddb9447b0d02f90006e34929` converted asynchronous polling drivers in tests B, E, F and G to awaited `advanceTimersByTimeAsync`, preserving all behavioral, fetch-count, cancellation, terminal, stale-site, unmount and maximum-attempt assertions; production code was unchanged. Final replacement push run `33127996831` and pull-request run `33128000172` both passed: `add-site-dialog.test.tsx` 42/42, polling tests A–G passed, full frontend 104/104 across 12 files, production build SUCCESS, and backend/repository-safety SUCCESS in both workflows. Warnings remain pre-existing: the unused-variable ESLint warning, non-failing React `act(...)` output in D/F, and GitHub Actions Node/dependency deprecations; none was introduced by the remediation. M4 remains complete. Gate O, Gate P and Limited Pilot remain unstarted and unauthorized.
+
+### 2026-08-30 — Final pre-merge documentation consistency closure (documentation only)
+
+Final pre-merge review completed against HEAD `e65bf5c58ac2cb8b7131da4fdfc9847ffe205c82` on branch `agent/ep-028-operator-site-management`; working tree clean. After `git fetch origin`, `origin/main` is `c2ba668` and is an ancestor of the EP-028 branch. The earlier routing-scope finding (same-origin shared-prefix files appearing in the PR #34 diff) was caused by comparing against a **stale local `main`** (`57f03e0`); current `origin/main` already contains PR #33 (`c2ba668`, which includes the routing fix `6e039a7`). Recomputing `git diff origin/main...HEAD` confirms the effective PR #34 diff is exactly the expected **18-file EP-028 scope** (+3275/−23) and **excludes** the six same-origin routing files (`frontend/lib/api.ts`, `backend-routing.ts`, `middleware.ts`, and their three tests). All §10 final acceptance criteria were reconciled to accepted implementation, test, migration and CI evidence and are now checked; no live publisher, deployment, Gate O, Gate P, or Limited Pilot activity is authorized or marked complete. This entry is documentation consistency only; no implementation, test, or runtime change was made.
 
 ## 18. Decision Log
 
