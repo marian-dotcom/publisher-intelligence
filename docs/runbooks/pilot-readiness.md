@@ -328,8 +328,19 @@ Detail:
   `810db9ee`, including Instance Principal/container proof, Base64 decode + 3-field bundle parse,
   and auth/rate-limit/network/egress/operations/leak regressions. Detailed evidence in
   Part B matrix and `plans/EP-024-...md` §Gate N.
-- Gate O: NOT STARTED
-- Gate P: HUMAN GATE
+- Gate O: EXECUTED / PARTIAL / CONTAINED on 2026-08-30 at staging commit
+  `84593fb`, one publisher (evz.ro). Platform pipeline execution PASS; operational containment
+  PASS; useful first-site measurement NOT YET PROVEN; evz.ro compatibility CHALLENGED. One
+  DIAGNOSTIC / OPERATOR_UI run + one authorized scheduled window (two scenario runs), all terminal
+  SITE_ERROR HTTP 429, `challenge_suspected`/`captcha`, `attempt_count=1` no retry, full
+  artifacts/event/evidence linkage, tenant isolation, no connector/secret path, scheduler stopped
+  before the next boundary, no spillover. NOT a final PASS.
+- Gate O follow-up: EP-029 validates the authorized zero-resistance pilot candidate through the
+  existing pipeline (exactly one bounded DIAGNOSTIC, scheduler stopped, useful results verified,
+  evidence documented and contained). EVZ allowlisting and EVZ re-diagnostic are DEFERRED (not
+  milestones). No live contact until the candidate's exact domain + explicit authorization are
+  provided; no scheduled cycle or scheduler restart while evz.ro remains ACTIVE.
+- Gate P: HUMAN GATE (separate human decision)
 - LIMITED PILOT AUTHORIZATION: NOT GRANTED (independent human decision; completing
   the adversarial review does not by itself authorize Limited Pilot).
 
