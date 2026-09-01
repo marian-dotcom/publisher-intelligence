@@ -1,16 +1,26 @@
-import { render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiFetch } from "@/lib/api";
 import HomePage from "../app/(protected)/page";
 import TimelinePage from "../app/(protected)/timeline/page";
 
+const routerMocks = vi.hoisted(() => ({
+  push: vi.fn(),
+  searchParams: { current: new URLSearchParams() },
+}));
+
 vi.mock("@/lib/api");
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: routerMocks.push }),
+  useSearchParams: () => routerMocks.searchParams.current,
+}));
 
 const mockedFetch = vi.mocked(apiFetch);
 
 afterEach(() => {
   mockedFetch.mockReset();
+  routerMocks.push.mockClear();
 });
 
 const HOME_BODY = {
@@ -38,6 +48,13 @@ const SOURCE_BODY = {
   },
 };
 
+function homeBodyWithDiagnostic(status: string) {
+  return {
+    ...HOME_BODY,
+    initial_diagnostic: { status, browser_access_classification: null },
+  };
+}
+
 describe("HomePage", () => {
   it("renders site condition and source health as independent sections", async () => {
     mockedFetch.mockResolvedValueOnce(HOME_BODY).mockResolvedValueOnce(SOURCE_BODY);
@@ -51,9 +68,82 @@ describe("HomePage", () => {
     expect(screen.getByText(/relative metrics only/i)).toBeInTheDocument();
     expect(screen.getByText(/Open incidents: 2/)).toBeInTheDocument();
   });
+
+  it("shows an enabled View diagnostic results action for a COMPLETE diagnostic", async () => {
+    mockedFetch.mockResolvedValueOnce(homeBodyWithDiagnostic("COMPLETE")).mockResolvedValueOnce(SOURCE_BODY);
+
+    render(<HomePage />);
+
+    const button = await screen.findByRole("button", { name: "View diagnostic results" });
+    expect(button).toBeEnabled();
+  });
+
+  it("shows an enabled View diagnostic results action for a SITE_ERROR diagnostic", async () => {
+    mockedFetch.mockResolvedValueOnce(homeBodyWithDiagnostic("SITE_ERROR")).mockResolvedValueOnce(SOURCE_BODY);
+
+    render(<HomePage />);
+
+    const button = await screen.findByRole("button", { name: "View diagnostic results" });
+    expect(button).toBeEnabled();
+  });
+
+  it("shows an enabled View diagnostic results action for a PARTIAL diagnostic", async () => {
+    mockedFetch.mockResolvedValueOnce(homeBodyWithDiagnostic("PARTIAL")).mockResolvedValueOnce(SOURCE_BODY);
+
+    render(<HomePage />);
+
+    const button = await screen.findByRole("button", { name: "View diagnostic results" });
+    expect(button).toBeEnabled();
+  });
+
+  it("disables the View diagnostic results action while the diagnostic is PENDING", async () => {
+    mockedFetch.mockResolvedValueOnce(homeBodyWithDiagnostic("PENDING")).mockResolvedValueOnce(SOURCE_BODY);
+
+    render(<HomePage />);
+
+    const button = await screen.findByRole("button", { name: "View diagnostic results" });
+    expect(button).toBeDisabled();
+  });
+
+  it("disables the View diagnostic results action while the diagnostic is RUNNING", async () => {
+    mockedFetch.mockResolvedValueOnce(homeBodyWithDiagnostic("RUNNING")).mockResolvedValueOnce(SOURCE_BODY);
+
+    render(<HomePage />);
+
+    const button = await screen.findByRole("button", { name: "View diagnostic results" });
+    expect(button).toBeDisabled();
+  });
+
+  it("shows no diagnostic navigation action when no initial diagnostic exists", async () => {
+    mockedFetch.mockResolvedValueOnce(HOME_BODY).mockResolvedValueOnce(SOURCE_BODY);
+
+    render(<HomePage />);
+
+    await screen.findByText("Publisher/site: ACTIVE");
+    expect(screen.queryByRole("button", { name: "View diagnostic results" })).not.toBeInTheDocument();
+  });
+
+  it("pushes the exact encoded diagnostic-results URL on click", async () => {
+    mockedFetch.mockResolvedValueOnce(homeBodyWithDiagnostic("COMPLETE")).mockResolvedValueOnce(SOURCE_BODY);
+
+    render(<HomePage />);
+
+    const button = await screen.findByRole("button", { name: "View diagnostic results" });
+    await act(async () => {
+      fireEvent.click(button);
+    });
+    expect(routerMocks.push).toHaveBeenCalledWith(
+      `/diagnostic-results?site_id=${encodeURIComponent("s1")}`,
+    );
+  });
 });
 
 describe("TimelinePage", () => {
+  beforeEach(() => {
+    // TimelinePage now fetches /product/home/status first for site list
+    mockedFetch.mockResolvedValueOnce(HOME_BODY);
+  });
+
   it("renders exact, bounded and unknown occurrence semantics distinctly", async () => {
     mockedFetch.mockResolvedValue({
       entries: [
@@ -64,7 +154,7 @@ describe("TimelinePage", () => {
           source: "BROWSER_CHECKPOINT",
           provenance: "machine_observed",
           severity: "HIGH",
-          status: "RECORDED",
+          status: "RECORD",
           time_precision: "EXACT",
           observed_at: "2026-08-20T10:00:00+00:00",
           occurred_at: "2026-08-20T09:30:00+00:00",
@@ -79,7 +169,7 @@ describe("TimelinePage", () => {
           source: "BROWSER_CHECKPOINT",
           provenance: "machine_observed",
           severity: null,
-          status: "RECORDED",
+          status: "RECORD",
           time_precision: "WINDOW",
           observed_at: "2026-08-20T12:00:00+00:00",
           occurred_at: null,
@@ -129,7 +219,7 @@ describe("TimelinePage", () => {
           source: "BROWSER_CHECKPOINT",
           provenance: "machine_observed",
           severity: null,
-          status: "RECORDED",
+          status: "RECORD",
           time_precision: "UNKNOWN",
           observed_at: "2026-08-22T09:00:00+00:00",
           occurred_at: null,

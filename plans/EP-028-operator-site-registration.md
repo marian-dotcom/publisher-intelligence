@@ -6,6 +6,7 @@
 **Updated:** 2026-08-28
 **M3 closed: 2026-08-27**
 **M4 closed: 2026-08-28**
+**Gate O (live validation) EXECUTED / PARTIAL / CONTAINED: 2026-08-30**
 **Base commit:** `c2ba668e5e7deda78e4d7f6970fd45a5c904ecb0`
 **Target milestone:** Internal operator Add Site surface before Gate O
 **MVP scope impact:** NO — implements the existing MVP onboarding hierarchy for internal testing
@@ -659,6 +660,49 @@ Bounded test-only remediation `db3512cf242947b6ddb9447b0d02f90006e34929` convert
 
 Final pre-merge review completed against HEAD `e65bf5c58ac2cb8b7131da4fdfc9847ffe205c82` on branch `agent/ep-028-operator-site-management`; working tree clean. After `git fetch origin`, `origin/main` is `c2ba668` and is an ancestor of the EP-028 branch. The earlier routing-scope finding (same-origin shared-prefix files appearing in the PR #34 diff) was caused by comparing against a **stale local `main`** (`57f03e0`); current `origin/main` already contains PR #33 (`c2ba668`, which includes the routing fix `6e039a7`). Recomputing `git diff origin/main...HEAD` confirms the effective PR #34 diff is exactly the expected **18-file EP-028 scope** (+3275/−23) and **excludes** the six same-origin routing files (`frontend/lib/api.ts`, `backend-routing.ts`, `middleware.ts`, and their three tests). All §10 final acceptance criteria were reconciled to accepted implementation, test, migration and CI evidence and are now checked; no live publisher, deployment, Gate O, Gate P, or Limited Pilot activity is authorized or marked complete. This entry is documentation consistency only; no implementation, test, or runtime change was made.
 
+### 2026-08-30 — Gate O live validation executed and contained (one publisher, evz.ro)
+
+Authorized and executed on the deployed staging commit `84593fb7547a9d92d8245622fbb9b03c2b875e0b`
+(`origin/main`; DB revision `0028_operator_ui_trigger_source`). One manual UI registration through
+the deployed Add Site UI; the operator confirmed a single submission; no resubmit/retry/reconstruct
+was performed by the tooling. Contact scope was exactly: one top-level navigation to `https://evz.ro`
+plus normal render resources (no crawl, no WAF/CAPTCHA/access-control bypass).
+
+Accepted live evidence (authoritative DB + object-storage rows, read-only):
+
+- exactly one `DIAGNOSTIC` / `OPERATOR_UI` run (`33615983-003c-4cba-98ae-97b3ec77a1df`);
+- exactly one authorized scheduled window (`5f77ecd7…`, 12:00–18:00 UTC) with two desktop/mobile
+  `SCHEDULED` scenario runs (`0effe18a…`, `4b0e7f20…`);
+- all three runs terminal `SITE_ERROR`, HTTP `429`, `final_url=https://evz.ro/`, `attempt_count=1`
+  (no retry);
+- diagnostic `browser_access_classification` = `{"state":"challenge_suspected",
+  "reason":"deterministic challenge markers observed: captcha"}`;
+- full artifacts/event/evidence linkage persisted: 5 artifacts per run (manifest, normalized/raw DOM,
+  viewport/full-page screenshots) with object keys + sha256 under the tenant/site/checkpoint path;
+  exactly one event `ce0f7560…` (`BROWSER_ACCESS_CHALLENGE_SUSPECTED`) with a `TRIGGER_AFTER`
+  `CHECKPOINT_RUN` evidence ref `0d37cbfe…`;
+- tenant isolation preserved (only the operator tenant `d6cd36b7…` holds site/run/event/artifact data;
+  0 rows outside its scope);
+- no connector/GAM/OAuth/secret path (`data_connections=0`; no OAuth/secret/token rows; no secrets
+  stored/logged);
+- scheduler stopped before the next boundary; no run/window/job materialized at or after
+  `2026-08-30 18:00:00Z`; no spillover.
+
+Gate O closure classification (corrected): platform pipeline execution **PASS**; operational
+containment **PASS**; useful first-site measurement **NOT YET PROVEN** (no non-challenged page
+evidence obtained); evz.ro publisher/WAF compatibility **CHALLENGED**; overall Gate O
+**EXECUTED / PARTIAL / CONTAINED** (not a final PASS). Gate P **HUMAN GATE**; Limited Pilot
+**NOT GRANTED**. The compatibility finding is not a platform defect; it is the publisher's
+monitoring tolerance, and the platform's own challenge detection worked as designed. Recorded in
+`docs/runbooks/pilot-readiness.md` Part E. The follow-up path is `plans/EP-029-publisher-compatibility.md`
+(zero-resistance pilot-candidate validation; EVZ allowlisting and EVZ re-diagnostic are DEFERRED).
+The scheduler remains stopped and
+must remain stopped; a restart would immediately materialize/backfill another scheduled window and
+contact evz.ro again and is therefore not authorized.
+
+This entry is documentation/closure only; no production code, test, staging, or live-contact change
+was made.
+
 ## 18. Decision Log
 
 ### 2026-08-27 — Internal operator surface, not self-service onboarding
@@ -711,4 +755,13 @@ Not yet applicable. Fill only after implementation, canonical validation, CI and
 
 ## 22. Next Step
 
-**M4 COMPLETE.** Gate O NOT STARTED. Gate P HUMAN GATE. Limited Pilot NOT AUTHORIZED. M4 completion does not authorize any release/readiness gate, GAM or connector work, real-site onboarding, live publisher contact or pilot activity; each requires separate explicit authorization.
+**M4 COMPLETE. Gate O EXECUTED / PARTIAL / CONTAINED (2026-08-30).** See the Progress Log entry below and the canonical Gate O status in `docs/runbooks/pilot-readiness.md` Part E:
+
+- Gate O platform pipeline execution: **PASS** (one `DIAGNOSTIC` / `OPERATOR_UI` run + exactly one authorized scheduled window with two scenario runs; all terminal `SITE_ERROR` HTTP 429; `challenge_suspected`/`captcha`; `attempt_count=1`, no retry; full artifacts/event/evidence linkage persisted; tenant isolation preserved; no connector/GAM/OAuth/secret path).
+- Operational containment: **PASS** (scheduler stopped before the 18:00 UTC boundary; container preserved; no run/window/job at or after 18:00 UTC; no spillover).
+- Useful first-site measurement: **NOT YET PROVEN** (no non-challenged page evidence obtained to date).
+- evz.ro publisher/WAF compatibility: **CHALLENGED** (HTTP 429 + `challenge_suspected`/`captcha`; monitoring-source finding, not a platform defect).
+- Overall Gate O: **EXECUTED / PARTIAL / CONTAINED** — not a final PASS.
+- Gate P: **HUMAN GATE**. Limited Pilot: **NOT GRANTED**.
+
+M4/Gate O completion does not authorize any release/readiness gate, scheduler restart, GAM or connector work, new live publisher contact, or pilot activity. The next authorized step is the zero-resistance pilot-candidate validation defined in `plans/EP-029-publisher-compatibility.md` (exactly one bounded DIAGNOSTIC, scheduler stopped); EVZ allowlisting and EVZ re-diagnostic are DEFERRED. No live contact until the candidate's exact domain + explicit authorization are provided.

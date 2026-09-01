@@ -1,8 +1,10 @@
 "use client";
 
-/** EP-028 M3 — Home: site selector, add site, site condition, initial diagnostic, source health. */
+/** EP-028 M3 — Home: site selector, add site, site condition, initial diagnostic, source health.
+ * EP-029 M2a — adds View diagnostic results action for DIAGNOSTIC/OPERATOR_UI runs. */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { AddSiteDialog } from "@/components/add-site-dialog";
 import {
@@ -32,6 +34,7 @@ const DIAGNOSTIC_POLL_INTERVAL_MS = 4000;
 const MAX_POLL_ATTEMPTS = 15;
 
 export default function HomePage() {
+  const router = useRouter();
   const [home, setHome] = useState<HomeStatus | null>(null);
   const [detailHealth, setDetailHealth] = useState<SourceHealthResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -158,6 +161,10 @@ export default function HomePage() {
     setLoading(true);
   }
 
+  function onViewDiagnosticResults(siteId: string) {
+    router.push(`/diagnostic-results?site_id=${encodeURIComponent(siteId)}`);
+  }
+
   const sources: Record<SourceKey, SourceHealth> =
     detailHealth?.sources ?? home?.source_health ?? ({} as Record<SourceKey, SourceHealth>);
 
@@ -168,6 +175,11 @@ export default function HomePage() {
     ) : (
       <EmptyState message="No sites are connected yet. Connect a site to see operational status." />
     );
+
+  const selectedSite = home.sites?.find((s) => s.site_id === home.selected_site_id);
+  const hasDiagnostic = home.initial_diagnostic !== null;
+  const diagnosticStatus = hasDiagnostic ? home.initial_diagnostic!.status : null;
+  const isTerminal = diagnosticStatus !== null && diagnosticStatus !== "PENDING" && diagnosticStatus !== "RUNNING";
 
   return (
     <>
@@ -191,6 +203,16 @@ export default function HomePage() {
         <Button variant="secondary" onClick={() => setAddSiteOpen(true)}>
           Add site
         </Button>
+        {selectedSite && hasDiagnostic && (
+          <Button
+            variant={isTerminal ? "primary" : "secondary"}
+            onClick={() => onViewDiagnosticResults(selectedSite.site_id)}
+            disabled={!isTerminal}
+            title={isTerminal ? "View full diagnostic results" : "Diagnostic not yet complete"}
+          >
+            View diagnostic results
+          </Button>
+        )}
       </div>
 
       <section aria-label="Publisher and site condition">

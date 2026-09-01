@@ -383,11 +383,39 @@ rate limiting on POST /auth/login (5 attempts per 60 seconds per trusted client 
 in-memory store), logout clearing both pi_session and pi_csrf cookies with matching attributes,
 timing-safe CSRF hash comparison via hmac.compare_digest, automated SameSite=lax regression
 coverage, and a Caddy → Next.js → FastAPI client-IP trust boundary with validated X-Forwarded-For
-header stripping. No path delivers alerts or makes indexing,
+header stripping. EP-028 adds the internal operator Add Site surface: tenant-bound registration
+through the authenticated Home UI, `OPERATOR_UI` diagnostic provenance (migration `0028`), one
+immediate `DIAGNOSTIC` checkpoint per new site, an initial diagnostic projection, and automatic
+entry into six-hour `SCHEDULED` monitoring for active sites. Gate O live validation was executed and
+contained on 2026-08-30 (one publisher, evz.ro): platform pipeline execution PASS, operational
+containment PASS, useful first-site measurement NOT YET PROVEN, evz.ro compatibility CHALLENGED;
+overall Gate O EXECUTED / PARTIAL / CONTAINED (not final PASS). evz.ro compatibility is preserved as an
+immutable monitoring-source finding (HTTP 429, `challenge_suspected`/`captcha`, no retry, fully
+contained); it is not a platform defect. EVZ allowlisting and EVZ re-diagnostic are DEFERRED. EP-029
+validates the authorized **zero-resistance pilot candidate**: an explicitly permissioned
+second site, exactly one bounded DIAGNOSTIC with the scheduler stopped, verifying useful
+DOM/screenshot/artifact/event results in the existing platform, then documenting and containing, with
+Gate P as a separate HUMAN GATE; no scheduled cycle or scheduler restart is authorized while evz.ro
+remains ACTIVE. EP-029 M2a (baseline diagnostic-results UI) is **implemented and locally validated on
+the EP-029 branch** and remains pending PR review, merge, and deployment: an authenticated API proxy
+surfaces diagnostic results/artifacts, Home gains a 「View diagnostic results」 action, and the Timeline
+gains site filtering with an explicit 「All sites」 mode. Staging/live UI verification has not occurred;
+no scheduler restart or live site contact is included; Gate P remains a separate human gate. See
+`plans/EP-029-publisher-compatibility.md`.
+Caddy is the native
+systemd TLS/ingress service in front of the loopback-bound Next.js frontend/API; it is not a Compose
+service. No path delivers alerts or makes indexing,
 authorization, revenue, or causal claims.
 
 The repository still excludes full self-service OAuth onboarding UI, production rollout,
 provider write access, alert delivery, automated incident conclusions, and LLM synthesis.
 Refresh this summary after no more than three completed EPs, and earlier whenever an EP
 materially changes the implemented product or security boundary. Always state the latest fully
-covered EP and distinguish partial work from completed capability.
+covered EP and distinguish partial work from completed capability. Latest fully covered EP: **EP-028**
+(implemented, merged, Gate O live validation executed and contained — PARTIAL). **EP-029 M2a** is
+implemented and locally validated on the EP-029 branch; it remains pending PR review, merge, and
+deployment, and staging/live UI verification has not occurred. The wider EP-029 pilot steps (M3
+containment, M4 hand-off, Gate P, Limited Pilot) are **NOT authorized/completed**: no live publisher
+contact, scheduler restart, or pilot authorization is included; Gate P remains a separate human gate
+and Limited Pilot remains NOT GRANTED. EP-028 remains the latest fully merged/deployed/covered EP until
+EP-029 is merged and deployed.

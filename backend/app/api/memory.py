@@ -54,11 +54,14 @@ async def timeline(
                 )
             ).all()
         )
+        note_conditions: list[Any] = [ManualNote.tenant_id == actor.tenant_id]
+        if site_id is not None:
+            note_conditions.append(ManualNote.site_id == site_id)
         notes = list(
             (
                 await session.scalars(
                     select(ManualNote)
-                    .where(ManualNote.tenant_id == actor.tenant_id)
+                    .where(*note_conditions)
                     .order_by(ManualNote.created_at.desc())
                     .limit(min(max(limit, 1), 200))
                 )

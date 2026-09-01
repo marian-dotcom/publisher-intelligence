@@ -4,6 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiFetch, ApiError } from "@/lib/api";
 
 vi.mock("@/lib/api");
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+  useParams: () => ({ site_id: "s1" }),
+}));
 
 const mockedFetch = vi.mocked(apiFetch);
 
