@@ -244,8 +244,9 @@ plan-level evidence summary, run id (`4fd24e2e-…`), terminal classification
 (DIAGNOSTIC/OPERATOR_UI/COMPLETE/HTTP 200/attempt_count=1/Access normal) and the six persisted artifact
 references are recorded below in §16/§19. Read-only checks confirmed the scheduler **stopped**
 (`Exited(0)`) and **no run/window/job materialized** after the diagnostic (all collection/evidence
-counts identical to the deployment baseline; zero new messages in scheduler/worker/browser-worker; no
-new publisher contact). One **separate manual authenticated operator incident** (`ed528705-…`) was
+counts identical to the deployment baseline; zero new messages in scheduler/worker/browser-worker; idle
+worker/browser-worker consumers remained running but received no work; no tunnel was used; no new
+publisher contact). One **separate manual authenticated operator incident** (`ed528705-…`) was
 created after deployment/UI verification — an operator write, not a system/derived climatologie.ro
 finding; preserved unchanged and does **not** invalidate the M2a results UI or Timeline site-filter
 verification (see §16). The three reconciliation
@@ -282,7 +283,10 @@ are non-blocking (see §20).
 - [x] valid candidate site's exact domain + explicit authorization on record before contact;
 - [x] one run, no raw SQL, no retry, no crawl, no second site, restricted to the candidate URL;
 - [x] useful DOM/screenshot/artifact/event results verified in the existing platform;
-- [x] contained afterward (worker/tunnels stopped, scheduler stopped, no spillover);
+- [x] browser execution remained contained after the authorized diagnostic: scheduler stopped; queue
+      drained; zero active/non-terminal jobs and runs; no new scheduled window; idle
+      worker/browser-worker consumers remained running but received no work; no tunnel was used; no
+      spillover or publisher contact occurred;
 - [ ] evidence documented and handed to human Gate P (M4, NOT STARTED);
 - [x] EVZ allowlisting / EVZ re-diagnostic recorded as DEFERRED (not milestones);
 - [x] no scheduled-cycle restart; no UA/egress/WAF change without a separate ADR + SECURITY review.
@@ -337,8 +341,10 @@ zero-resistance candidate), escalate through the human gate rather than attempti
 - If an unauthorized scheduled cycle must be halted, stop the scheduler immediately (container
   preserved); verify no run/job/window materialized; preserve any spillover as evidence without
   deleting/cancelling/retrying.
-- Stop any local transient worker/tunnels after the single diagnostic; restore the OCI browser-worker
-  only upon explicit instruction.
+- Effective containment is enforced at the job-production boundary: scheduler stopped; no manual
+  enqueue; queue drained; no active run. Idle worker/browser-worker consumers remain running but cannot
+  initiate publisher contact without a queued authorized job. No tunnel was used. Do not restart the
+  scheduler or enqueue work.
 - Never downgrade migration `0028` where `OPERATOR_UI`/`DIAGNOSTIC` rows exist.
 
 ## 16. Progress Log
@@ -475,7 +481,8 @@ Post-deploy read-only reconciliation (2026-09-01) confirmed:
   monitored_urls 2, checkpoint_runs 4, jobs 15 all COMPLETE, events 1, artifacts 21,
   checkpoint_windows 3, collector_runs 44, operators 3; runs_active 0; queue non-terminal 0).
 - **Zero new messages** in scheduler / worker / browser-worker / migrate / minio-init since deployment —
-  no scheduled cycle, no live site contact.
+  no scheduled cycle, no live site contact; idle worker/browser-worker consumers remained running but
+  received no work; no tunnel was used.
 - Authenticated operator verification reads in the api log: `diagnostic-results` 200; all **six**
   climatologie.ro artifacts delivered 200 — `MANIFEST` `9d251598-…`, `NORMALIZED_DOM` `ab6fbebd-…`,
   `RAW_DOM` `e1232708-…`, `SCREENSHOT_FULL_PAGE` `8d46d50f-…`, `SCREENSHOT_VIEWPORT` `221e3686-…`,
@@ -483,7 +490,7 @@ Post-deploy read-only reconciliation (2026-09-01) confirmed:
   `/timeline` 200 and `/timeline?site_id=…` 200. The only two 401s were the deployment prober's
   deliberately unauthenticated requests. No cookies or credentials appeared in logs.
 
-**Operator-created manual incident (preserved unchanged, read-only):** one **separate** manual
+**Manual authenticated operator-created incident (preserved unchanged, read-only):** one **separate** manual
 `incidents` row `ed528705-d063-4804-990f-cba0d7eccc64` exists — site climatologie.ro
 (`636ce2ac-…`), title "not sure", symptom_family OTHER, status OPEN, severity null, created at
 2026-09-01T18:48:08.430026Z (`created_at` == `updated_at` — never modified since creation),
@@ -494,10 +501,11 @@ logs). Not created by scheduler, worker, browser-worker, diagnostic pipeline, ev
 deployment; no associated new site contact; no new run/job/event/artifact/collector run/window;
 scheduler stayed stopped; queue stayed drained. A read-only scan of every UUID column in the schema
 found **no persisted link** from this row to any event, checkpoint run, artifact, evidence reference,
-manual note, hypothesis, symptom segment, or other causal record — it is an isolated, manually inserted
-row. Its presence does **not** invalidate the M2a results UI or the Timeline site-filter verification,
+manual note, hypothesis, symptom segment, or other causal record — it is an isolated incident row
+with no persisted causal/evidence links. Its presence does **not** invalidate the M2a results UI or the
+Timeline site-filter verification,
 and it is **not** a derived climatologie.ro finding. This task preserves it unchanged (no delete /
-edit / close / resolve / relabel) and makes no inference about why the operator created it.
+edit / close / resolve / relabel); purpose/motivation unknown and not inferred.
 Reconciliation is an explicit M4 follow-up (see §20). **Current authoritative count: incidents = 1,
 OPEN = 1, manually created by the staging ADMIN operator.**
 
@@ -509,7 +517,8 @@ private proxy with sizes + hashes matching the stored manifest; normalized DOM s
 truncated); Timeline with climatologie.ro
 selected hides the evz.ro event and shows the site-empty state; 「All sites」 restores the event with
 evz.ro attribution; no system-fabricated event/incident; no new diagnostic or site contact. (The
-separate operator-created manual incident above is a manual ADMIN write — not a system/pipeline output
+separate manual authenticated operator-created incident above is a manual ADMIN write — not a
+system/pipeline output
 and not a derived climatologie.ro finding.)
 
 **Useful first baseline (stored manifest `4fd24e2e-…`, read-only):** normal HTTP/browser access; 34
@@ -537,8 +546,8 @@ api/frontend images were garbage-collected after deployment; rollback to `84593f
 rebuild (documented, low risk, not exercised).
 
 M2a: IMPLEMENTED / MERGED / DEPLOYED — STAGING UI VERIFIED. M3: COMPLETE (documentation + read-only;
-no code/test/DB/site change; scheduler remains stopped; one operator-created manual incident preserved
-unchanged — not modified by this task). M4: NOT STARTED. Gate P: HUMAN GATE / UNAUTHORIZED by this
+no code/test/DB/site change; scheduler remains stopped; one manual authenticated operator-created
+incident preserved unchanged — not modified by this task). M4: NOT STARTED. Gate P: HUMAN GATE / UNAUTHORIZED by this
 plan. Limited Pilot: NOT GRANTED.
 
 ## 17. Decision Log
@@ -678,6 +687,24 @@ row is **climatologie.ro** (slug `climatologie-ro`, ACTIVE), replacing the draft
 value. "Zero events" is correctly scoped to climatologie.ro itself; the evz.ro event now appears only
 under 「All sites」.
 
+### 2026-09-01 — Containment model clarification (documentation)
+
+**Decision:** record precisely how containment was enforced on staging; this clarifies any wording that
+could imply worker/browser-worker consumers were stopped.
+**Reason:** for this staging topology, effective containment was enforced at the **job-production
+boundary**:
+- scheduler stopped;
+- no manual enqueue;
+- queue drained;
+- no active run;
+- idle worker/browser-worker consumers cannot initiate publisher contact without a queued authorized
+  job.
+
+This records the observed containment model and does **not** authorize restarting the scheduler or
+enqueuing work. No tunnel was involved. Historical dated entries that described stopping the
+browser-worker for the single diagnostic window (M0, 2026-08-30) remain accurate for that point in
+time; current/containment statements use the model above.
+
 ## 18. Known Risks
 
 1. Candidate also challenges → terminal finding, escalate through human gate; no evasion.
@@ -723,7 +750,8 @@ The M2a integration test file additionally carries the mypy typing remediation (
 HTTP 200/attempt_count=1/Access normal, six persisted artifacts) is recorded in §16/§19/§20; read-only
 reconciliation confirmed the scheduler still stopped (`Exited(0)`) with no run/window/job materialized
 (after the deploy baseline, all collection/evidence counts identical and zero new
-scheduler/worker/browser-worker messages; no new publisher contact). **Current authoritative incident
+scheduler/worker/browser-worker messages; idle worker/browser-worker consumers remained running but
+received no work; no tunnel was used; no new publisher contact). **Current authoritative incident
 count: incidents = 1 / OPEN = 1**, manually created by the staging ADMIN operator after
 deployment/UI verification — a separate operator write, not a system/derived climatologie.ro finding,
 preserved unchanged (see §16).
@@ -814,16 +842,17 @@ Completed:
 Next:
 - **M4 — Release-readiness hand-off:** Hand the candidate evidence + Gate O evidence to the human Gate P
   evaluation (NOT STARTED).
-- **M4 — Reconcile the manual test incident (`ed528705-…`) before Gate P:** use a supported, auditable
+- **M4 — Reconcile the manual authenticated operator-created incident (`ed528705-…`) before Gate P:**
+  use a supported, auditable
   status transition if closure is authorized; never delete or rewrite it; the transition is NOT
   performed by this task.
 
 **Operational constraints remain:**
 
 - **The scheduler remains STOPPED.** No scheduled cycle may begin without separate authorization.
-- **The manual operator-created test incident (`ed528705-…`) is preserved unchanged** — not deleted,
-  edited, closed, resolved, or relabeled by this task; reconciliation is deferred to the M4/Gate P
-  follow-up.
+- **The manual authenticated operator-created incident (`ed528705-…`) is preserved unchanged** — not
+  deleted, edited, closed, resolved, or relabeled by this task; purpose/motivation unknown and not
+  inferred; reconciliation is deferred to the M4/Gate P follow-up.
 - **No further site contact** (climatologie.ro, evz.ro, or any other) is authorized by this plan.
 - **No Gate P or Limited Pilot activity** is authorized by this plan; both remain separate human
   decisions.

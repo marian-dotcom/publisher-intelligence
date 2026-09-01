@@ -415,8 +415,8 @@ provider write access, alert delivery, automated incident conclusions, and LLM s
 Refresh this summary after no more than three completed EPs, and earlier whenever an EP
 materially changes the implemented product or security boundary. **EP-029 is the latest merged and
 deployed implementation boundary**: M2a is **staging-verified** and M3 is **COMPLETE** (evidence
-documented, activity contained; one separate manual operator-created test incident exists in staging —
-it is not system-derived, and its reconciliation is deferred to M4). EP-029 **release-readiness closure
+documented, activity contained; one separate manual authenticated operator-created incident exists in
+staging — not system-derived, purpose/motivation unknown, reconciliation deferred to M4). EP-029 **release-readiness closure
 remains pending M4 (NOT
 STARTED)**; Gate P remains a separate HUMAN GATE (UNAUTHORIZED by the EP-029 plan) and Limited Pilot
 remains **NOT GRANTED**. The staging scheduler stays STOPPED and **no scheduled monitoring is currently
