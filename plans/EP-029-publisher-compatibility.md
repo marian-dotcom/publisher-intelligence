@@ -1,10 +1,11 @@
 # EP-029 — Zero-Resistance Pilot Candidate Validation (pre-pilot)
 
-**Status:** M0–M1 COMPLETE; M2 collection PASS / original UI presentation gap CONFIRMED; M2a UI remediation IMPLEMENTED / MERGED / DEPLOYED — STAGING UI VERIFIED (2026-09-01); M3 COMPLETE; M4 NOT STARTED; Gate P HUMAN GATE / UNAUTHORIZED; Limited Pilot NOT GRANTED
+**Status:** M0 COMPLETE; M1 COMPLETE; M2 collection PASS / original UI presentation gap CONFIRMED; M2a UI remediation IMPLEMENTED / MERGED / DEPLOYED — STAGING UI VERIFIED (2026-09-01); M3 COMPLETE; M4 COMPLETE — RELEASE-READINESS HAND-OFF; Gate P HUMAN GATE / UNAUTHORIZED; Limited Pilot NOT GRANTED; scheduler STOPPED; scheduled monitoring NOT AUTHORIZED
 **Owner:** Codex / Engineering
 **Created:** 2026-08-30 (revised 2026-08-30 per final product decision)
 **Base commit:** `84593fb7547a9d92d8245622fbb9b03c2b875e0b` (`origin/main` at EP-029 creation; EP-029
-merged into `origin/main` at `b61494bb…` on 2026-09-01)
+merged into `origin/main` at `b61494bb…` on 2026-09-01; `origin/main` later advanced to `8e40a4e…` via
+the documentation-only PR #36 merge, 2026-09-01 — no application redeploy; see §5)
 **Business objective:** Validate the authorized **zero-resistance pilot candidate** — a second
 publisher site that does not challenge our standard monitor — to prove the existing browser /
 DOM / screenshot / artifact / event pipeline yields genuinely useful results in the platform.
@@ -84,6 +85,11 @@ or EVZ re-diagnostic milestones (deferred).
 - As of 2026-09-01 (M3 closure): `origin/main` = `b61494bb…`; staging deployed at that commit; DB
   revision `0028_operator_ui_trigger_source`. (Plan base was `84593fb…` at creation; the M2a change
   merged via PR #35 at `b61494bb…`.)
+- **SUPERSEDED on 2026-09-01 (M4 closure):** `origin/main` advanced to `8e40a4e…` **only** through the
+  documentation-only PR #36 merge (M3 closure record; no application code changed). The **deployed
+  application commit remains `b61494bb…`** (M2a code) and remains current and accepted at staging; **no
+  application deployment is required for `8e40a4e…`**. The historical `b61494bb…` statement above is
+  preserved.
 - evz.ro remains `ACTIVE` (site `d6d7f097-…`), publisher `1294d0c7-…`.
 - Scheduler stopped (container preserved) and MUST remain stopped.
 - **Immutable evz.ro compatibility finding:** every diagnostic/scheduled attempt returned terminal
@@ -260,11 +266,20 @@ id-bearing table — recorded honestly as non-persisted / observed only in the o
 Timeline / currently unreproduced; non-blocking, no fabricated event. Remaining lower-value follow-ups
 are non-blocking (see §20).
 
-### M4 — Release-readiness hand-off — NOT STARTED
+### M4 — Release-readiness hand-off — COMPLETE (2026-09-01, documentation only)
 
-- Hand the candidate evidence + Gate O evidence to the human Gate P evaluation.
-- Gate P stays a separate HUMAN GATE; Limited Pilot remains NOT GRANTED by this plan.
-- No scheduled cycle may begin without a separate authorization.
+Hands the accepted EP-029 evidence and **unresolved boundaries** (manual incident reconciliation,
+`77a64afd-…`, ORM `trigger_source` drift, EVZ compatibility) to the future **human Gate P evaluation**.
+This closure **reviewed and reconciled M0–M3** (findings-only review verdict: READY WITH NON-BLOCKING
+NOTES; see §16), **confirmed the M2a deployment and staging UI verification**, and performed **no
+deployment, scheduler action, site contact, incident mutation, Gate P activity, or Limited Pilot
+activity**.
+
+- Gate P stays a separate HUMAN GATE (UNAUTHORIZED by this plan); Limited Pilot remains NOT GRANTED.
+- No scheduled cycle may begin without a separate authorization; scheduled monitoring remains NOT
+  AUTHORIZED.
+- M4 is closed strictly as a **release-readiness hand-off** — it is not a pilot authorization or a
+  recurring-monitoring authorization.
 
 **EVZ allowlisting and EVZ re-diagnostic are DEFERRED** — not milestones here.
 
@@ -287,7 +302,8 @@ are non-blocking (see §20).
       drained; zero active/non-terminal jobs and runs; no new scheduled window; idle
       worker/browser-worker consumers remained running but received no work; no tunnel was used; no
       spillover or publisher contact occurred;
-- [ ] evidence documented and handed to human Gate P (M4, NOT STARTED);
+- [x] evidence documented and handed to the future human Gate P (M4 — release-readiness hand-off:
+      COMPLETE as a documentation-only hand-off, 2026-09-01; Gate P itself remains UNAUTHORIZED);
 - [x] EVZ allowlisting / EVZ re-diagnostic recorded as DEFERRED (not milestones);
 - [x] no scheduled-cycle restart; no UA/egress/WAF change without a separate ADR + SECURITY review.
 
@@ -506,7 +522,8 @@ with no persisted causal/evidence links. Its presence does **not** invalidate th
 Timeline site-filter verification,
 and it is **not** a derived climatologie.ro finding. This task preserves it unchanged (no delete /
 edit / close / resolve / relabel); purpose/motivation unknown and not inferred.
-Reconciliation is an explicit M4 follow-up (see §20). **Current authoritative count: incidents = 1,
+Reconciliation is an explicit M4 follow-up (see §20) and remains outstanding after the M4
+release-readiness hand-off closure (a separately authorized pre-Gate-P step). **Current authoritative count: incidents = 1,
 OPEN = 1, manually created by the staging ADMIN operator.**
 
 **Operator-confirmed staging UI evidence:** Home → 「View diagnostic results」 renders; terminal summary
@@ -547,8 +564,21 @@ rebuild (documented, low risk, not exercised).
 
 M2a: IMPLEMENTED / MERGED / DEPLOYED — STAGING UI VERIFIED. M3: COMPLETE (documentation + read-only;
 no code/test/DB/site change; scheduler remains stopped; one manual authenticated operator-created
-incident preserved unchanged — not modified by this task). M4: NOT STARTED. Gate P: HUMAN GATE / UNAUTHORIZED by this
+incident preserved unchanged — not modified by this task). M4: NOT STARTED (superseded later on
+2026-09-01 by the M4 release-readiness hand-off closure). Gate P: HUMAN GATE / UNAUTHORIZED by this
 plan. Limited Pilot: NOT GRANTED.
+
+### 2026-09-01 — M4 release-readiness hand-off closed (documentation only)
+
+Findings-only M4 review verdict: **READY WITH NON-BLOCKING NOTES** (carried-forward items in §20).
+PR #36 (documentation-only; scope exactly `README.md` + `plans/EP-029-publisher-compatibility.md`) was
+merged at `8e40a4e…` (parents `b61494bb…` + `7100d959…`). Accepted CI: push `33552726537` SUCCESS and
+pull_request `33552738041` SUCCESS — backend/frontend/repository-safety green in both. **No deployment
+is needed because PR #36 was documentation-only**; the deployed application commit remains `b61494bb…`
+(M2a code), staging-verified and accepted. M4 is closed **strictly as a release-readiness hand-off**:
+Gate P remains a HUMAN GATE (UNAUTHORIZED); Limited Pilot remains NOT GRANTED; scheduler stays STOPPED;
+scheduled monitoring remains NOT AUTHORIZED. Documentation-only closure: no code/test/DB/site/incident/
+scheduler/Gate-P/runtime change.
 
 ## 17. Decision Log
 
@@ -721,7 +751,7 @@ time; current/containment statements use the model above.
 **M2 — Verify useful results in the existing platform: collection PASS / UI presentation FAIL (NOT IMPLEMENTED)**
 **M2a — Baseline diagnostic-results UI (remediation): IMPLEMENTED / MERGED / DEPLOYED — STAGING UI VERIFIED (2026-09-01)**
 **M3 — Document evidence and contain activity: COMPLETE (2026-09-01)**
-**M4 — Release-readiness hand-off: NOT STARTED**
+**M4 — Release-readiness hand-off: COMPLETE (2026-09-01, documentation only)**
 **Gate P: HUMAN GATE / UNAUTHORIZED by this plan**
 **Limited Pilot: NOT GRANTED**
 
@@ -765,6 +795,18 @@ table — recorded honestly as non-persisted/observed-only-in-operator-capture/u
 The baseline remains a single synthetic first measurement: not recurring monitoring, not a consent-aware
 ad measurement, not complete advertising truth.
 
+**M4 COMPLETE (2026-09-01, documentation-only release-readiness hand-off)**: the zero-resistance
+candidate path (climatologie.ro) proved collection and useful UI delivery; M2a is merged, deployed, and
+staging-verified; M3 and M4 are complete. EP-029 does **not** authorize recurring monitoring or a
+pilot. **Gate P remains the independent next human decision** (HUMAN GATE / UNAUTHORIZED by this plan;
+Limited Pilot NOT GRANTED). Preserved unchanged: climatologie.ro accepted evidence (`4fd24e2e-…`); the
+evz.ro challenge/containment evidence (immutable finding); the `77a64afd-…` classification
+(non-persisted/unreproduced/non-blocking); the manual authenticated operator-created incident
+(`ed528705-…`, OPEN, unchanged, isolated row without persisted causal/evidence links). Commit
+distinction preserved: the deployed application commit remains `b61494bb…` (M2a code); `origin/main`
+advanced to `8e40a4e…` **only** via the documentation-only PR #36 merge — no application redeploy
+occurred or is required. The complete validation record is not duplicated here (see §20 and §16).
+
 Implementation files, tests, validation evidence and implementation details are recorded in §7.
 The single authoritative final zero-failure validation record is maintained in §20.
 
@@ -774,8 +816,9 @@ The M2a UI remediation is **implemented, merged (`b61494bb…`), deployed to sta
 verified (2026-09-01)** via the final canonical ladder (673 backend tests: 434 unit + 239 integration,
 0 failures; 133 frontend tests; full static/type/lint/build checks) and green GitHub CI on push and
 pull-request (see §16 Progress Log, 2026-09-01 "M2a implementation committed; exact-head CI executes
-green" and "M2a merged, deployed to staging, and staging UI verified (M3 closure)"). **M3 is COMPLETE;
-M4 — Release-readiness hand-off — is the next authorized step and is NOT STARTED.** Acceptance evidence
+green" and "M2a merged, deployed to staging, and staging UI verified (M3 closure)"). **M3 and M4 are
+COMPLETE (2026-09-01); M4 is a documentation-only release-readiness hand-off (verdict READY WITH
+NON-BLOCKING NOTES; see §16/§19).** Acceptance evidence
 is limited to the zero-failure canonical ladder recorded below and in §16; all earlier rejected runs are
 recorded there but are not evidence.
 
@@ -838,21 +881,38 @@ Completed:
   2026-09-01 (See §16 "M2a merged, deployed to staging, and staging UI verified (M3 closure)").
 - **M3 — Document evidence and contain activity** — COMPLETE (2026-09-01, documentation + read-only
   reconciliation; see §16/§17/§19).
+- **M4 — Release-readiness hand-off** — COMPLETE (2026-09-01, documentation only; findings-only review
+  verdict READY WITH NON-BLOCKING NOTES; PR #36 merged at `8e40a4e…`; see §16/§19/§20).
 
 Next:
-- **M4 — Release-readiness hand-off:** Hand the candidate evidence + Gate O evidence to the human Gate P
-  evaluation (NOT STARTED).
-- **M4 — Reconcile the manual authenticated operator-created incident (`ed528705-…`) before Gate P:**
-  use a supported, auditable
-  status transition if closure is authorized; never delete or rewrite it; the transition is NOT
-  performed by this task.
+- **Gate P remains a separate HUMAN GATE and is not authorized by this plan** — it is the immediate
+  next canonical boundary and an independent human decision; Limited Pilot remains NOT GRANTED and
+  scheduled monitoring remains NOT AUTHORIZED.
+- **M4 follow-up (not performed here) — Reconcile the manual authenticated operator-created incident
+  (`ed528705-…`) before Gate P:** use a supported, auditable status transition only if separately
+  authorized; never delete or rewrite it.
+
+**Proposed future product sequence — PROPOSED / NOT AUTHORIZED / NOT YET COVERED BY EXECPLANS:**
+
+1. EP-030 — per-site monitoring controls (per-site monitoring ON/OFF; frequency/next-run visibility;
+   "Run diagnostic now").
+2. EP-031 — polished operator UI and Site Overview (retain Next.js/React/TypeScript; gradual shadcn/ui;
+   Recharts).
+3. EP-032 — minimal CrUX History integration (origin-level, PHONE/mobile only, LCP/INP/CLS, weekly).
+4. Separately authorized Gate P / Limited Pilot.
+5. Post-pilot LLM Site Intelligence Briefing.
+
+No detailed EP-030/031/032 ExecPlans are created by this task; none of those EPs is active, started,
+accepted, or authorized.
 
 **Operational constraints remain:**
 
 - **The scheduler remains STOPPED.** No scheduled cycle may begin without separate authorization.
+- **Scheduled monitoring remains NOT AUTHORIZED.**
 - **The manual authenticated operator-created incident (`ed528705-…`) is preserved unchanged** — not
   deleted, edited, closed, resolved, or relabeled by this task; purpose/motivation unknown and not
-  inferred; reconciliation is deferred to the M4/Gate P follow-up.
+  inferred; reconciliation remains a separately authorized, auditable pre-Gate-P follow-up (not
+  performed here).
 - **No further site contact** (climatologie.ro, evz.ro, or any other) is authorized by this plan.
 - **No Gate P or Limited Pilot activity** is authorized by this plan; both remain separate human
   decisions.
