@@ -400,7 +400,8 @@ remains ACTIVE. EP-029 M2a (baseline diagnostic-results UI) is **implemented, me
 staging, and staging-UI verified (2026-09-01)**: an authenticated API proxy
 surfaces diagnostic results/artifacts, Home gains a 「View diagnostic results」 action, and the Timeline
 gains site filtering with an explicit 「All sites」 mode. EP-029 M3 (document evidence + contain
-activity) is **COMPLETE (2026-09-01)**; M4 release-readiness hand-off is NOT STARTED and Gate P remains
+activity) is **COMPLETE (2026-09-01)** and the EP-029 M4 **release-readiness hand-off is COMPLETE
+(2026-09-01, documentation only)**; Gate P remains
 UNAUTHORIZED, so the staging scheduler stays STOPPED: no scheduler restart, no recurring monitoring,
 and no further live site contact are included beyond the one candidate diagnostic. Gate P remains a
 separate human gate. See
@@ -414,11 +415,15 @@ The repository still excludes full self-service OAuth onboarding UI, production 
 provider write access, alert delivery, automated incident conclusions, and LLM synthesis.
 Refresh this summary after no more than three completed EPs, and earlier whenever an EP
 materially changes the implemented product or security boundary. **EP-029 is the latest merged and
-deployed implementation boundary**: M2a is **staging-verified** and M3 is **COMPLETE** (evidence
-documented, activity contained; one separate manual authenticated operator-created incident exists in
-staging — not system-derived, purpose/motivation unknown, reconciliation deferred to M4). EP-029 **release-readiness closure
-remains pending M4 (NOT
-STARTED)**; Gate P remains a separate HUMAN GATE (UNAUTHORIZED by the EP-029 plan) and Limited Pilot
-remains **NOT GRANTED**. The staging scheduler stays STOPPED and **no scheduled monitoring is currently
-authorized**; no further live publisher contact, recurring monitoring, or pilot authorization is
-included beyond the single candidate diagnostic.
+deployed implementation boundary**: M2a is **staging-verified** and remains the deployed application
+commit (`b61494bb…`); M3 is **COMPLETE** and the EP-029 M4 **release-readiness hand-off is COMPLETE
+(2026-09-01, documentation only)** — evidence documented, activity contained; one separate manual
+authenticated operator-created incident exists in staging — not system-derived, purpose/motivation
+unknown, reconciliation deferred until Gate P preparation). **Gate P remains a separate HUMAN GATE
+(UNAUTHORIZED by the EP-029 plan) and Limited Pilot remains NOT GRANTED**. The staging scheduler stays
+STOPPED and **no scheduled monitoring is authorized**. The future product sequence EP-030 (per-site
+monitoring controls) → EP-031 (polished operator UI / Site Overview) → EP-032 (minimal CrUX History) →
+separately authorized Gate P / Limited Pilot → post-pilot LLM Site Intelligence Briefing remains
+**proposed only — not authorized and not yet covered by active ExecPlans**; no further live publisher
+contact, recurring monitoring, or pilot authorization is included beyond the single candidate
+diagnostic.
