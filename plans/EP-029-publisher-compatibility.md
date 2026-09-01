@@ -1,9 +1,10 @@
 # EP-029 — Zero-Resistance Pilot Candidate Validation (pre-pilot)
 
-**Status:** M0–M1 COMPLETE; M2 collection PASS / original UI presentation gap CONFIRMED; M2a UI remediation IMPLEMENTED / VALIDATED — final canonical ladder GREEN (2026-09-01); M3 BLOCKED / NOT STARTED; M4 NOT STARTED; Gate P HUMAN GATE / UNAUTHORIZED; Limited Pilot NOT GRANTED
+**Status:** M0–M1 COMPLETE; M2 collection PASS / original UI presentation gap CONFIRMED; M2a UI remediation IMPLEMENTED / MERGED / DEPLOYED — STAGING UI VERIFIED (2026-09-01); M3 COMPLETE; M4 NOT STARTED; Gate P HUMAN GATE / UNAUTHORIZED; Limited Pilot NOT GRANTED
 **Owner:** Codex / Engineering
 **Created:** 2026-08-30 (revised 2026-08-30 per final product decision)
-**Base commit:** `84593fb7547a9d92d8245622fbb9b03c2b875e0b` (`origin/main`)
+**Base commit:** `84593fb7547a9d92d8245622fbb9b03c2b875e0b` (`origin/main` at EP-029 creation; EP-029
+merged into `origin/main` at `b61494bb…` on 2026-09-01)
 **Business objective:** Validate the authorized **zero-resistance pilot candidate** — a second
 publisher site that does not challenge our standard monitor — to prove the existing browser /
 DOM / screenshot / artifact / event pipeline yields genuinely useful results in the platform.
@@ -80,7 +81,9 @@ or EVZ re-diagnostic milestones (deferred).
 
 ## 5. Current State
 
-- `origin/main` = `84593fb…`; staging deployed at that commit; DB revision `0028_operator_ui_trigger_source`.
+- As of 2026-09-01 (M3 closure): `origin/main` = `b61494bb…`; staging deployed at that commit; DB
+  revision `0028_operator_ui_trigger_source`. (Plan base was `84593fb…` at creation; the M2a change
+  merged via PR #35 at `b61494bb…`.)
 - evz.ro remains `ACTIVE` (site `d6d7f097-…`), publisher `1294d0c7-…`.
 - Scheduler stopped (container preserved) and MUST remain stopped.
 - **Immutable evz.ro compatibility finding:** every diagnostic/scheduled attempt returned terminal
@@ -98,15 +101,16 @@ or EVZ re-diagnostic milestones (deferred).
   `d6cd36b7-…`) reached terminal **COMPLETE, HTTP 200, attempt_count=1, no retry**, producing a full
   set of persisted raw/normalized DOM, pre-consent + viewport + full-page screenshots, and manifest
   with successful browser/script/SEO/performance/CMP/network observation (see §7 M2 collection
-  evidence). **Reconciliation is PENDING and the following draft claims are NOT yet verified and must
-  not be relied on:** (a) "zero events (quiet baseline)" — the UI shows a MEDIUM / RECORDED machine
-  observation in Timeline while climatologie.ro is selected (see §7 M2 / §17 reconciliation), so the
-  evidence cannot be described as presenting without an incident projection until reconciled; (b) the
-  candidate **publisher identity/name** — the draft previously recorded publisher `staging`, but the
-  operator submitted **Publisher = Climatologie** in the Add Site dialog (that free-text value becomes
-  `publisher.name`); the persisted `publishers` row must be verified read-only; (c) that evidence
-  renders normally in the existing platform. This is not yet a claimed useful measurement and is not
-  recurring monitoring or complete advertising coverage.
+  evidence). **Reconciliation is CLOSED (2026-09-01, read-only + authorized M2a staging UI
+  verification):** (a) "zero events" is verified and now correctly scoped — climatologie.ro produced
+  **zero persisted events**; the only tenant event is evz.ro, which the M2a site-filtered Timeline
+  hides while climatologie.ro is selected and shows under 「All sites」 with evz.ro attribution; (b) the
+  candidate **publisher identity/name** is verified read-only: the persisted `publishers` row is
+  **climatologie.ro** (slug `climatologie-ro`, ACTIVE; site `climatologie.ro`, ACTIVE) — the earlier
+  draft "publisher `staging`" value was wrong and is replaced; (c) evidence now **renders normally** in
+  the deployed platform via the M2a diagnostic-results surface (operator-verified at staging). This
+  remains a single useful baseline measurement, not recurring monitoring and not complete
+  advertising/consent coverage.
 
 ## 6. Feasibility findings (read-only, from prior inspection; no live contact)
 
@@ -153,11 +157,13 @@ or EVZ re-diagnostic milestones (deferred).
   `site_id` while the API supports it.
 - Confirm tenant isolation applies to the candidate's evidence.
 
-### M2a — Baseline diagnostic-results UI (remediation) — IMPLEMENTED / VALIDATED — FINAL CANONICAL LADDER GREEN (2026-09-01)
+### M2a — Baseline diagnostic-results UI (remediation) — IMPLEMENTED / MERGED / DEPLOYED — STAGING UI VERIFIED (2026-09-01)
 
 Authorized bounded remediation to make the successful initial diagnostic genuinely useful in the
-operator UI. **Implementation and local validation complete; revalidated after the NOT READY
-adversarial review (B1/M1/M2/M3/m5/m6 remediation, 2026-09-01).** No site contact; scheduler stays
+operator UI. **Implementation, local validation, merge (`b61494bb…`), staging deployment and staging UI
+verification complete** (revalidated after the NOT READY adversarial review B1/M1/M2/M3/m5/m6
+remediation, merged via PR #35, deployed to `publisher-intelligence-staging` at `b61494bb…`, and
+operator-verified 2026-09-01 — see §16). No site contact; scheduler stays
 stopped; no fabricated event/incident/alert.
 
 Delivery is via an **authenticated API proxy** — NOT public or presigned object-storage URLs. MinIO
@@ -224,7 +230,7 @@ Implementation details:
 - Timeline site filter with server-side filtering, visible site/domain attribution, explicit "All sites" mode
 - No database migration required
 
-### M3 — Document evidence and contain activity — NOT STARTED (BLOCKED ON RECONCILIATION)
+### M3 — Document evidence and contain activity — COMPLETE (2026-09-01)
 
 - Persist the evidence summary; record run id, classification, artifact references.
 - Verify scheduler still stopped and no run/window/job materialized after the diagnostic.
@@ -232,6 +238,27 @@ Implementation details:
   non-persisted ID `77a64afd-…` versus the verified collection evidence and the authoritative
   publisher association). Do not close M3 while unverified "zero events" / "normal presentation" /
   publisher-name claims remain.
+
+**Closed 2026-09-01 (documentation + read-only reconciliation; no code/test/DB/site change):** the
+plan-level evidence summary, run id (`4fd24e2e-…`), terminal classification
+(DIAGNOSTIC/OPERATOR_UI/COMPLETE/HTTP 200/attempt_count=1/Access normal) and the six persisted artifact
+references are recorded below in §16/§19. Read-only checks confirmed the scheduler **stopped**
+(`Exited(0)`) and **no run/window/job materialized** after the diagnostic (all collection/evidence
+counts identical to the deployment baseline; zero new messages in scheduler/worker/browser-worker; idle
+worker/browser-worker consumers remained running but received no work; no tunnel was used; no new
+publisher contact). One **separate manual authenticated operator incident** (`ed528705-…`) was
+created after deployment/UI verification — an operator write, not a system/derived climatologie.ro
+finding; preserved unchanged and does **not** invalidate the M2a results UI or Timeline site-filter
+verification (see §16). The three reconciliation
+claims are closed: "zero events" is verified and correctly scoped to climatologie.ro (the sole tenant
+event is evz.ro, shown only under 「All sites」 with evz.ro attribution); "normal presentation" is
+verified in the deployed M2a UI (screenshots/DOM/manifest render or download with sizes + hashes
+matching the stored manifest; normalized DOM = 675 nodes, not truncated); the authoritative publisher
+row is **climatologie.ro** (slug `climatologie-ro`, ACTIVE). The non-persisted identifier
+`77a64afd-b29e-5cb3-a6d8-f7aa1e564293` was re-checked read-only and remains absent from every
+id-bearing table — recorded honestly as non-persisted / observed only in the operator's captured
+Timeline / currently unreproduced; non-blocking, no fabricated event. Remaining lower-value follow-ups
+are non-blocking (see §20).
 
 ### M4 — Release-readiness hand-off — NOT STARTED
 
@@ -253,13 +280,16 @@ Implementation details:
 
 ## 9. Acceptance Criteria (plan-level)
 
-- [ ] valid candidate site's exact domain + explicit authorization on record before contact;
-- [ ] one run, no raw SQL, no retry, no crawl, no second site, restricted to the candidate URL;
-- [ ] useful DOM/screenshot/artifact/event results verified in the existing platform;
-- [ ] contained afterward (worker/tunnels stopped, scheduler stopped, no spillover);
-- [ ] evidence documented and handed to human Gate P;
-- [ ] EVZ allowlisting / EVZ re-diagnostic recorded as DEFERRED (not milestones);
-- [ ] no scheduled-cycle restart; no UA/egress/WAF change without a separate ADR + SECURITY review.
+- [x] valid candidate site's exact domain + explicit authorization on record before contact;
+- [x] one run, no raw SQL, no retry, no crawl, no second site, restricted to the candidate URL;
+- [x] useful DOM/screenshot/artifact/event results verified in the existing platform;
+- [x] browser execution remained contained after the authorized diagnostic: scheduler stopped; queue
+      drained; zero active/non-terminal jobs and runs; no new scheduled window; idle
+      worker/browser-worker consumers remained running but received no work; no tunnel was used; no
+      spillover or publisher contact occurred;
+- [ ] evidence documented and handed to human Gate P (M4, NOT STARTED);
+- [x] EVZ allowlisting / EVZ re-diagnostic recorded as DEFERRED (not milestones);
+- [x] no scheduled-cycle restart; no UA/egress/WAF change without a separate ADR + SECURITY review.
 
 ## 10. Validation / Evidence Boundary
 
@@ -311,8 +341,10 @@ zero-resistance candidate), escalate through the human gate rather than attempti
 - If an unauthorized scheduled cycle must be halted, stop the scheduler immediately (container
   preserved); verify no run/job/window materialized; preserve any spillover as evidence without
   deleting/cancelling/retrying.
-- Stop any local transient worker/tunnels after the single diagnostic; restore the OCI browser-worker
-  only upon explicit instruction.
+- Effective containment is enforced at the job-production boundary: scheduler stopped; no manual
+  enqueue; queue drained; no active run. Idle worker/browser-worker consumers remain running but cannot
+  initiate publisher contact without a queued authorized job. No tunnel was used. Do not restart the
+  scheduler or enqueue work.
 - Never downgrade migration `0028` where `OPERATOR_UI`/`DIAGNOSTIC` rows exist.
 
 ## 16. Progress Log
@@ -431,6 +463,92 @@ checks. The CI evidence above appends to that record and is not a competing evid
 No deployment and no staging/live UI verification was performed. The staging scheduler remains
 stopped; Gate P remains **UNAUTHORIZED** by this plan and Limited Pilot remains **NOT GRANTED**. PR #35
 unchanged (OPEN, DRAFT, MERGEABLE, head `cf833544…`); body refresh and Ready-for-review remain pending.
+
+### 2026-09-01 — M2a merged, deployed to staging, and staging UI verified (M3 closure)
+
+PR #35 (M2a) was refreshed, marked Ready, and **merged** to `origin/main` at commit
+`b61494bb445836d18a7b5e0e469348bd789aa551` (normal merge; `84593fb` + PR commits ancestry verified;
+all six CI checks green at `f3388e9`). The M2a build was **deployed** to the
+`publisher-intelligence-staging` Oracle Cloud ARM64 host at that exact commit, bounded to the api and
+frontend compose services (pre-deployment PostgreSQL dump + MinIO baseline recorded and backed up).
+Post-deploy read-only reconciliation (2026-09-01) confirmed:
+
+- Deployed checkout = `b61494bb…`, clean; DB revision `0028_operator_ui_trigger_source`; scheduler
+  `Exited(0)` (zero restarts); health live + ready both 200 (db + object true).
+- **No new automatic diagnostic/scheduler/worker/browser activity; no new site / run / job / event /
+  artifact / collector run / scheduled window** materialized, and **no new publisher contact** occurred:
+  all collection/evidence counts identical to the pre-deploy baseline (publishers 2, sites 2,
+  monitored_urls 2, checkpoint_runs 4, jobs 15 all COMPLETE, events 1, artifacts 21,
+  checkpoint_windows 3, collector_runs 44, operators 3; runs_active 0; queue non-terminal 0).
+- **Zero new messages** in scheduler / worker / browser-worker / migrate / minio-init since deployment —
+  no scheduled cycle, no live site contact; idle worker/browser-worker consumers remained running but
+  received no work; no tunnel was used.
+- Authenticated operator verification reads in the api log: `diagnostic-results` 200; all **six**
+  climatologie.ro artifacts delivered 200 — `MANIFEST` `9d251598-…`, `NORMALIZED_DOM` `ab6fbebd-…`,
+  `RAW_DOM` `e1232708-…`, `SCREENSHOT_FULL_PAGE` `8d46d50f-…`, `SCREENSHOT_VIEWPORT` `221e3686-…`,
+  `SCREENSHOT_VIEWPORT_PRECONSENT` `31d7b252-…` (matched to stored artifact rows read-only);
+  `/timeline` 200 and `/timeline?site_id=…` 200. The only two 401s were the deployment prober's
+  deliberately unauthenticated requests. No cookies or credentials appeared in logs.
+
+**Manual authenticated operator-created incident (preserved unchanged, read-only):** one **separate** manual
+`incidents` row `ed528705-d063-4804-990f-cba0d7eccc64` exists — site climatologie.ro
+(`636ce2ac-…`), title "not sure", symptom_family OTHER, status OPEN, severity null, created at
+2026-09-01T18:48:08.430026Z (`created_at` == `updated_at` — never modified since creation),
+created_by actor_subject `bab3a2a2-…` = the **staging ADMIN operator** (`e2fa3bea-…`). Provenance:
+manually created through an authenticated ADMIN operator action — the api log retains
+`POST /investigations` 200 followed by `GET /incidents/ed528705-…` 200 (no cookies/credentials in
+logs). Not created by scheduler, worker, browser-worker, diagnostic pipeline, event derivation, or
+deployment; no associated new site contact; no new run/job/event/artifact/collector run/window;
+scheduler stayed stopped; queue stayed drained. A read-only scan of every UUID column in the schema
+found **no persisted link** from this row to any event, checkpoint run, artifact, evidence reference,
+manual note, hypothesis, symptom segment, or other causal record — it is an isolated incident row
+with no persisted causal/evidence links. Its presence does **not** invalidate the M2a results UI or the
+Timeline site-filter verification,
+and it is **not** a derived climatologie.ro finding. This task preserves it unchanged (no delete /
+edit / close / resolve / relabel); purpose/motivation unknown and not inferred.
+Reconciliation is an explicit M4 follow-up (see §20). **Current authoritative count: incidents = 1,
+OPEN = 1, manually created by the staging ADMIN operator.**
+
+**Operator-confirmed staging UI evidence:** Home → 「View diagnostic results」 renders; terminal summary
+DIAGNOSTIC / OPERATOR_UI / COMPLETE / HTTP 200 / attempt_count=1 / Access normal (stored access
+classification `ok`, "no access anomalies in bounded signal set"); viewport, pre-consent and full-page
+screenshots render inline; RAW_DOM / NORMALIZED_DOM / MANIFEST downloaded through the authenticated
+private proxy with sizes + hashes matching the stored manifest; normalized DOM shows 675 nodes (not
+truncated); Timeline with climatologie.ro
+selected hides the evz.ro event and shows the site-empty state; 「All sites」 restores the event with
+evz.ro attribution; no system-fabricated event/incident; no new diagnostic or site contact. (The
+separate manual authenticated operator-created incident above is a manual ADMIN write — not a
+system/pipeline output
+and not a derived climatologie.ro finding.)
+
+**Useful first baseline (stored manifest `4fd24e2e-…`, read-only):** normal HTTP/browser access; 34
+requests across 8 hosts; AdSense, GTM, Google Analytics, OneSignal and Google Funding Choices observed;
+CMP/TCF detected (cmp id 300, tcf api + gdpr applies); consent action status NOT_REQUESTED (no action
+taken); SEO canonical `https://climatologie.ro/` + `index,follow`; synthetic LCP 788 ms / TTFB ~294 ms
+/ CLS ~0.00019; normalized DOM (`normalized_state.dom`): node_count 675, truncated false (normalizer
+`dom-b3-v1`); resource-timing: entry_count 33, truncated false. Limitations
+preserved: synthetic observation ≠ real-user truth; no consent action taken; first baseline only, not
+recurring monitoring; not complete advertising/consent truth. Prebid / GPT / video: present false.
+
+**M3 blocking items reconciled (read-only):** (1) the identifier
+`77a64afd-b29e-5cb3-a6d8-f7aa1e564293` still appears in **no id-bearing table** (rechecked 2026-09-01)
+— retained honestly as non-persisted / observed only in the operator's captured Timeline / currently
+unreproduced; non-blocking; no fabricated event. (2) The authoritative `publishers` row for the
+candidate is **climatologie.ro** (slug `climatologie-ro`, ACTIVE; site `climatologie.ro`, ACTIVE) — the
+draft "publisher `staging`" value was wrong and is replaced. The M2a site filter resolves the UX/scope
+concern (tenant-wide Timeline ignoring the Home site selection) by hiding the evz.ro event under the
+climatologie.ro filter and showing it under 「All sites」.
+
+Non-blocking follow-ups retained (not implemented): simplify the redundant publisher/site/domain
+heading in the diagnostic-results UI; surface manifest conclusions as UI cards; ORM `trigger_source`
+declaration drift vs migration `0028` (existing §20 follow-up). Staging rollback note: the pre-M2a
+api/frontend images were garbage-collected after deployment; rollback to `84593fb` would be a compose
+rebuild (documented, low risk, not exercised).
+
+M2a: IMPLEMENTED / MERGED / DEPLOYED — STAGING UI VERIFIED. M3: COMPLETE (documentation + read-only;
+no code/test/DB/site change; scheduler remains stopped; one manual authenticated operator-created
+incident preserved unchanged — not modified by this task). M4: NOT STARTED. Gate P: HUMAN GATE / UNAUTHORIZED by this
+plan. Limited Pilot: NOT GRANTED.
 
 ## 17. Decision Log
 
@@ -552,6 +670,41 @@ gap). Preserve as **unresolved, not defects**: the exact live `publishers` row f
 (unexplained; not found in inspected tables or repository code). M2a code/test implementation is not
 authorized by this plan and remains a separate authorization step.
 
+### 2026-09-01 — M2a merged / deployed / staging-verified; M3 closed (documentation + read-only)
+
+**Decision:** accept M2a as merged and deployed, record the operator-verified staging UI as M3 closure
+evidence, and terminate the M3 blocking conditions established 2026-08-31.
+**Reason:** PR #35 merged at `b61494bb…`; the operator confirmed the full diagnostic-results journey at
+staging (screenshots inline, RAW_DOM/NORMALIZED_DOM/MANIFEST downloads with sizes/hashes matching the
+stored manifest, 675-node normalized DOM not truncated, site-filtered Timeline, 「All sites」 with evz.ro
+attribution, no fabricated event/incident); read-only reconciliation confirmed the scheduler stopped, no
+site/run/job/event/artifact/window automatically materialized after deployment, and **one separate
+manual authenticated operator incident** (`ed528705-…`) created after UI verification, preserved
+unchanged (see §16). The non-persisted ID
+`77a64afd-b29e-5cb3-a6d8-f7aa1e564293` remains absent from every id-bearing table — preserved honestly
+as non-persisted/observed-in-operator-capture/unreproduced/non-blocking. The authoritative `publishers`
+row is **climatologie.ro** (slug `climatologie-ro`, ACTIVE), replacing the draft "publisher `staging`"
+value. "Zero events" is correctly scoped to climatologie.ro itself; the evz.ro event now appears only
+under 「All sites」.
+
+### 2026-09-01 — Containment model clarification (documentation)
+
+**Decision:** record precisely how containment was enforced on staging; this clarifies any wording that
+could imply worker/browser-worker consumers were stopped.
+**Reason:** for this staging topology, effective containment was enforced at the **job-production
+boundary**:
+- scheduler stopped;
+- no manual enqueue;
+- queue drained;
+- no active run;
+- idle worker/browser-worker consumers cannot initiate publisher contact without a queued authorized
+  job.
+
+This records the observed containment model and does **not** authorize restarting the scheduler or
+enqueuing work. No tunnel was involved. Historical dated entries that described stopping the
+browser-worker for the single diagnostic window (M0, 2026-08-30) remain accurate for that point in
+time; current/containment statements use the model above.
+
 ## 18. Known Risks
 
 1. Candidate also challenges → terminal finding, escalate through human gate; no evasion.
@@ -566,8 +719,8 @@ authorized by this plan and remains a separate authorization step.
 **M0 — Authorization and containment verification: COMPLETE**
 **M1 — One permissioned initial DIAGNOSTIC: COMPLETE**
 **M2 — Verify useful results in the existing platform: collection PASS / UI presentation FAIL (NOT IMPLEMENTED)**
-**M2a — Baseline diagnostic-results UI (remediation): IMPLEMENTED / VALIDATED — FINAL CANONICAL LADDER GREEN (2026-09-01)**
-**M3 — Document evidence and contain activity: BLOCKED / NOT STARTED**
+**M2a — Baseline diagnostic-results UI (remediation): IMPLEMENTED / MERGED / DEPLOYED — STAGING UI VERIFIED (2026-09-01)**
+**M3 — Document evidence and contain activity: COMPLETE (2026-09-01)**
 **M4 — Release-readiness hand-off: NOT STARTED**
 **Gate P: HUMAN GATE / UNAUTHORIZED by this plan**
 **Limited Pilot: NOT GRANTED**
@@ -577,31 +730,54 @@ with full browser evidence (raw/normalized DOM, pre-consent/viewport/full-page s
 script/SEO/CMP/performance/network observation) — **collection PASS**. The existing platform had **no
 authenticated tenant-scoped operator surface** to project initial-diagnostic artifacts (Timeline was
 tenant-wide and showed the pre-existing evz.ro `BROWSER_ACCESS_CHALLENGE_SUSPECTED` event while the
-Home selector showed climatologie.ro; Home "Open incidents = 0" is correct as no incidents exist) — **UI
+Home selector showed climatologie.ro; Home "Open incidents = 0" was correct as no incidents existed at
+the time of that finding) — **UI
 presentation FAIL / NOT IMPLEMENTED**.
 
-**M2a IMPLEMENTED / VALIDATED**: The bounded M2a remediation (authenticated API proxy for diagnostic
-artifacts, Home "View diagnostic results", baseline-results page with screenshots inline and downloadable
-artifacts, Timeline site filter with visible site/domain and explicit "All sites" mode, explicit state
-labels, no fabricated event/incident) has been **implemented and validated**. An adversarial
+**M2a IMPLEMENTED / MERGED / DEPLOYED — STAGING UI VERIFIED**: The bounded M2a remediation (authenticated API
+proxy for diagnostic artifacts, Home "View diagnostic results", baseline-results page with screenshots
+inline and downloadable artifacts, Timeline site filter with visible site/domain and explicit "All
+sites" mode, explicit state labels, no fabricated event/incident) has been **implemented, merged via PR
+#35 (`b61494bb…`), deployed to staging, and verified by the operator in the staging UI (2026-09-01)**.
+An adversarial
 review returned **NOT READY** and identified one blocker and three majors; the authorized remediation
 below was applied and the **final canonical ladder re-executed from scratch to zero failures**
 (434 unit + 239 integration + 133 frontend tests green; mypy 272 source files, 0 errors — see §16
 Progress Log, 2026-09-01 "Bounded mypy typing remediation and final canonical validation (GREEN)").
 The M2a integration test file additionally carries the mypy typing remediation (test-file only).
 
+**M3 COMPLETE (2026-09-01)**: The evidence summary (run `4fd24e2e-…`, DIAGNOSTIC/OPERATOR_UI/COMPLETE/
+HTTP 200/attempt_count=1/Access normal, six persisted artifacts) is recorded in §16/§19/§20; read-only
+reconciliation confirmed the scheduler still stopped (`Exited(0)`) with no run/window/job materialized
+(after the deploy baseline, all collection/evidence counts identical and zero new
+scheduler/worker/browser-worker messages; idle worker/browser-worker consumers remained running but
+received no work; no tunnel was used; no new publisher contact). **Current authoritative incident
+count: incidents = 1 / OPEN = 1**, manually created by the staging ADMIN operator after
+deployment/UI verification — a separate operator write, not a system/derived climatologie.ro finding,
+preserved unchanged (see §16).
+The three blocked claims are closed and qualified: climatologie.ro produced **zero** events (the sole
+tenant event is evz.ro, shown only under 「All sites」 with evz.ro attribution); evidence **renders
+normally** in the deployed M2a UI (operator-verified screenshots/DOM/manifest, sizes + hashes matching
+the stored manifest, 675-node normalized DOM not truncated); the authoritative publisher row is
+**climatologie.ro** (slug `climatologie-ro`, ACTIVE). The non-persisted identifier
+`77a64afd-b29e-5cb3-a6d8-f7aa1e564293` was rechecked read-only and remains absent from every id-bearing
+table — recorded honestly as non-persisted/observed-only-in-operator-capture/unreproduced/non-blocking.
+The baseline remains a single synthetic first measurement: not recurring monitoring, not a consent-aware
+ad measurement, not complete advertising truth.
+
 Implementation files, tests, validation evidence and implementation details are recorded in §7.
 The single authoritative final zero-failure validation record is maintained in §20.
 
 ## 20. Next Step
 
-The M2a UI remediation is **implemented, committed, and CI-validated at exact HEAD
-(`cf83354…`)** via the final canonical ladder (673 backend tests: 434 unit + 239 integration,
+The M2a UI remediation is **implemented, merged (`b61494bb…`), deployed to staging, and staging-UI
+verified (2026-09-01)** via the final canonical ladder (673 backend tests: 434 unit + 239 integration,
 0 failures; 133 frontend tests; full static/type/lint/build checks) and green GitHub CI on push and
 pull-request (see §16 Progress Log, 2026-09-01 "M2a implementation committed; exact-head CI executes
-green"). Acceptance evidence is limited to the zero-failure canonical ladder
-recorded below and in §16; all earlier rejected runs are recorded there but are not evidence. The
-implementation is not yet merged or deployed.
+green" and "M2a merged, deployed to staging, and staging UI verified (M3 closure)"). **M3 is COMPLETE;
+M4 — Release-readiness hand-off — is the next authorized step and is NOT STARTED.** Acceptance evidence
+is limited to the zero-failure canonical ladder recorded below and in §16; all earlier rejected runs are
+recorded there but are not evidence.
 
 **Accepted canonical validation record (2026-09-01 FINAL — zero failures):**
 
@@ -641,8 +817,8 @@ findings from the adversarial review.
 the other rejected invocations are recorded in §16. None of these competes with the final accepted
 record above. Artifact delivery details recorded then remain valid: response capped at 20 MB before
 read and checked after read; not streaming; 20 MB aligned with SECURITY.md §75; climatologie.ro
-full-page screenshot ~4.6 MB. Deployment, live UI verification, Gate P, and Limited Pilot remain
-unstarted/unauthorized.
+full-page screenshot ~4.6 MB. Gate P and Limited Pilot remain unstarted/unauthorized; deployment and
+staging UI verification are complete (M2a, 2026-09-01).
 
 **Lifecycle state:**
 
@@ -653,24 +829,30 @@ Completed:
   `agent/ep-029-publisher-compatibility`.
 - **Exact-head CI** — push run `33539907395` SUCCESS and pull-request run `33539912074` SUCCESS
   (backend/frontend/repository-safety passed in both); recorded in §16.
+- **PR #35 body refresh + Ready + review and merge** — refreshed body, marked Ready, reviewed and
+  merged via normal merge into `origin/main` at `b61494bb445836d18a7b5e0e469348bd789aa551`;
+  exact-head CI at `f3388e9`: push `33541155946` SUCCESS, pull-request `33541161039` SUCCESS.
+- **Deploy M2a to staging** — bounded api + frontend deploy at `b61494bb…`; pre-deployment PostgreSQL
+  backup + MinIO baseline recorded; post-deploy health green.
+- **Staging UI verification** of the operator-facing diagnostic-results projection — operator-confirmed
+  2026-09-01 (See §16 "M2a merged, deployed to staging, and staging UI verified (M3 closure)").
+- **M3 — Document evidence and contain activity** — COMPLETE (2026-09-01, documentation + read-only
+  reconciliation; see §16/§17/§19).
 
 Next:
-- **Refresh PR #35 body** (currently stale), then **mark Ready for review**.
-- **PR review and merge** of the M2a change (PR #35 head `cf833544…`, OPEN / DRAFT / MERGEABLE).
-- **Deploy M2a** to the staging environment.
-- **Staging UI verification** of the operator-facing diagnostic-results projection (not yet performed).
-- **M3 — Document evidence and contain activity:** Requires resolving the unresolved data-linkage
-  discrepancy (the non-persisted ID `77a64afd-b29e-5cb3-a6d8-f7aa1e564293` observed in the operator's
-  Timeline view, not reproducible from any table or repository code) and verifying the authoritative
-  `publishers` row for climatologie.ro (the operator submitted Publisher = Climatologie in the Add Site
-  dialog; the draft "publisher `staging`" is not verified).
-
 - **M4 — Release-readiness hand-off:** Hand the candidate evidence + Gate O evidence to the human Gate P
-  evaluation.
+  evaluation (NOT STARTED).
+- **M4 — Reconcile the manual authenticated operator-created incident (`ed528705-…`) before Gate P:**
+  use a supported, auditable
+  status transition if closure is authorized; never delete or rewrite it; the transition is NOT
+  performed by this task.
 
 **Operational constraints remain:**
 
 - **The scheduler remains STOPPED.** No scheduled cycle may begin without separate authorization.
+- **The manual authenticated operator-created incident (`ed528705-…`) is preserved unchanged** — not
+  deleted, edited, closed, resolved, or relabeled by this task; purpose/motivation unknown and not
+  inferred; reconciliation is deferred to the M4/Gate P follow-up.
 - **No further site contact** (climatologie.ro, evz.ro, or any other) is authorized by this plan.
 - **No Gate P or Limited Pilot activity** is authorized by this plan; both remain separate human
   decisions.

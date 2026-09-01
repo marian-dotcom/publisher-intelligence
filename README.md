@@ -396,11 +396,14 @@ validates the authorized **zero-resistance pilot candidate**: an explicitly perm
 second site, exactly one bounded DIAGNOSTIC with the scheduler stopped, verifying useful
 DOM/screenshot/artifact/event results in the existing platform, then documenting and containing, with
 Gate P as a separate HUMAN GATE; no scheduled cycle or scheduler restart is authorized while evz.ro
-remains ACTIVE. EP-029 M2a (baseline diagnostic-results UI) is **implemented and locally validated on
-the EP-029 branch** and remains pending PR review, merge, and deployment: an authenticated API proxy
+remains ACTIVE. EP-029 M2a (baseline diagnostic-results UI) is **implemented, merged, deployed to
+staging, and staging-UI verified (2026-09-01)**: an authenticated API proxy
 surfaces diagnostic results/artifacts, Home gains a 「View diagnostic results」 action, and the Timeline
-gains site filtering with an explicit 「All sites」 mode. Staging/live UI verification has not occurred;
-no scheduler restart or live site contact is included; Gate P remains a separate human gate. See
+gains site filtering with an explicit 「All sites」 mode. EP-029 M3 (document evidence + contain
+activity) is **COMPLETE (2026-09-01)**; M4 release-readiness hand-off is NOT STARTED and Gate P remains
+UNAUTHORIZED, so the staging scheduler stays STOPPED: no scheduler restart, no recurring monitoring,
+and no further live site contact are included beyond the one candidate diagnostic. Gate P remains a
+separate human gate. See
 `plans/EP-029-publisher-compatibility.md`.
 Caddy is the native
 systemd TLS/ingress service in front of the loopback-bound Next.js frontend/API; it is not a Compose
@@ -410,12 +413,12 @@ authorization, revenue, or causal claims.
 The repository still excludes full self-service OAuth onboarding UI, production rollout,
 provider write access, alert delivery, automated incident conclusions, and LLM synthesis.
 Refresh this summary after no more than three completed EPs, and earlier whenever an EP
-materially changes the implemented product or security boundary. Always state the latest fully
-covered EP and distinguish partial work from completed capability. Latest fully covered EP: **EP-028**
-(implemented, merged, Gate O live validation executed and contained — PARTIAL). **EP-029 M2a** is
-implemented and locally validated on the EP-029 branch; it remains pending PR review, merge, and
-deployment, and staging/live UI verification has not occurred. The wider EP-029 pilot steps (M3
-containment, M4 hand-off, Gate P, Limited Pilot) are **NOT authorized/completed**: no live publisher
-contact, scheduler restart, or pilot authorization is included; Gate P remains a separate human gate
-and Limited Pilot remains NOT GRANTED. EP-028 remains the latest fully merged/deployed/covered EP until
-EP-029 is merged and deployed.
+materially changes the implemented product or security boundary. **EP-029 is the latest merged and
+deployed implementation boundary**: M2a is **staging-verified** and M3 is **COMPLETE** (evidence
+documented, activity contained; one separate manual authenticated operator-created incident exists in
+staging — not system-derived, purpose/motivation unknown, reconciliation deferred to M4). EP-029 **release-readiness closure
+remains pending M4 (NOT
+STARTED)**; Gate P remains a separate HUMAN GATE (UNAUTHORIZED by the EP-029 plan) and Limited Pilot
+remains **NOT GRANTED**. The staging scheduler stays STOPPED and **no scheduled monitoring is currently
+authorized**; no further live publisher contact, recurring monitoring, or pilot authorization is
+included beyond the single candidate diagnostic.
