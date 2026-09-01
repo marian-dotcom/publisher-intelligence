@@ -235,3 +235,41 @@ export function InitialDiagnosticBadge({ diagnostic }: { diagnostic: InitialDiag
     </span>
   );
 }
+
+// ---------- EP-029 M2a — explicit state labels ----------
+
+/** Explicit state labels for diagnostic run outcomes.
+ * These distinguish between distinct factual conditions that must not be conflated.
+ * Internal helper for DiagnosticStateBadge (not exported). */
+function StateLabel({
+  state,
+}: {
+  state:
+    | "UNKNOWN"
+    | "DIAGNOSTIC_COMPLETE"
+    | "DIAGNOSTIC_PENDING"
+    | "DIAGNOSTIC_RUNNING"
+    | "DIAGNOSTIC_FAILED";
+}) {
+  const labels: Record<string, { text: string; tone: string }> = {
+    UNKNOWN: { text: "Unknown", tone: "unknown" },
+    DIAGNOSTIC_COMPLETE: { text: "Diagnostic complete", tone: "healthy" },
+    DIAGNOSTIC_PENDING: { text: "Diagnostic queued", tone: "info" },
+    DIAGNOSTIC_RUNNING: { text: "Diagnostic running", tone: "info" },
+    DIAGNOSTIC_FAILED: { text: "Diagnostic failed", tone: "failure" },
+  };
+  const { text, tone } = labels[state] ?? labels.UNKNOWN;
+  return <span className={`badge badge-state badge-${tone}`}>{text}</span>;
+}
+
+export function DiagnosticStateBadge({
+  diagnostic,
+}: { diagnostic: { status: string; browser_access_classification: string | null } | null }) {
+  if (!diagnostic) {
+    return <StateLabel state="UNKNOWN" />;
+  }
+  if (diagnostic.status === "PENDING") return <StateLabel state="DIAGNOSTIC_PENDING" />;
+  if (diagnostic.status === "RUNNING") return <StateLabel state="DIAGNOSTIC_RUNNING" />;
+  if (diagnostic.status === "COMPLETE") return <StateLabel state="DIAGNOSTIC_COMPLETE" />;
+  return <StateLabel state="DIAGNOSTIC_FAILED" />;
+}

@@ -1,6 +1,6 @@
 # EP-029 — Zero-Resistance Pilot Candidate Validation (pre-pilot)
 
-**Status:** BLOCKED (planning/documentation only) — M2 UI presentation FAIL / NOT IMPLEMENTED; M2a PLANNED (remediation, NOT STARTED); M3 NOT STARTED; M4 NOT STARTED
+**Status:** M0–M1 COMPLETE; M2 collection PASS / original UI presentation gap CONFIRMED; M2a UI remediation IMPLEMENTED / VALIDATED — final canonical ladder GREEN (2026-09-01); M3 BLOCKED / NOT STARTED; M4 NOT STARTED; Gate P HUMAN GATE / UNAUTHORIZED; Limited Pilot NOT GRANTED
 **Owner:** Codex / Engineering
 **Created:** 2026-08-30 (revised 2026-08-30 per final product decision)
 **Base commit:** `84593fb7547a9d92d8245622fbb9b03c2b875e0b` (`origin/main`)
@@ -153,24 +153,27 @@ or EVZ re-diagnostic milestones (deferred).
   `site_id` while the API supports it.
 - Confirm tenant isolation applies to the candidate's evidence.
 
-### M2a — Baseline diagnostic-results UI (remediation) — PLANNED / NOT STARTED
+### M2a — Baseline diagnostic-results UI (remediation) — IMPLEMENTED / VALIDATED — FINAL CANONICAL LADDER GREEN (2026-09-01)
 
 Authorized bounded remediation to make the successful initial diagnostic genuinely useful in the
-operator UI. **Documentation/planning only in this plan; code/test implementation requires a separate
-authorization step.** No site contact; scheduler stays stopped; no fabricated event/incident/alert.
+operator UI. **Implementation and local validation complete; revalidated after the NOT READY
+adversarial review (B1/M1/M2/M3/m5/m6 remediation, 2026-09-01).** No site contact; scheduler stays
+stopped; no fabricated event/incident/alert.
 
 Delivery is via an **authenticated API proxy** — NOT public or presigned object-storage URLs. MinIO
 stays private; artifacts are proxied read-only.
 
 - `GET /product/sites/{site_id}/diagnostic-results` — tenant-scoped summary of the latest
   `DIAGNOSTIC`/`OPERATOR_UI` run.
-- `GET /product/sites/{site_id}/diagnostic-artifacts/{artifact_id}` — tenant-scoped artifact stream.
+- `GET /product/sites/{site_id}/diagnostic-artifacts/{artifact_id}` — tenant-scoped artifact delivery.
 - Home 「View diagnostic results」 action and a baseline-results page (pre-consent / viewport /
   full-page screenshots; SEO; CMP; performance; script inventory; network hosts).
 - Timeline site filter: pass selected `site_id`, show site/domain on each tenant-wide event,
   「No events for this site yet」 on an empty site view, and an explicit 「All sites」 mode.
-- Explicit state labels: 「Scheduled monitoring not started」 / 「Not connected」 /
-  「Not detected」 / 「Unknown」.
+- Explicit state labels: 「Unknown」 plus the diagnostic lifecycle states (queued / running /
+  complete / failed). Dead or conflating members (`Scheduled monitoring not started`, `Not connected`,
+  `Not detected`, `No events yet`) were removed during review remediation; `StateLabel` is internal to
+  `domain.tsx` and `SourceStateBadge` was deleted.
 - No fabricated event, incident or alert.
 
 Per-request backend enforcement (404 on foreign/nonexistent): `actor.tenant_id` → requested site
@@ -182,8 +185,44 @@ never execute or inject collected HTML into the product UI; no `dangerouslySetIn
 expose MinIO keys or internal hostnames; `Cache-Control: private, no-store`; explicit MIME types;
 bounded artifact-size handling.
 
-Detailed scope, security boundaries, tests and estimate are recorded in §17 (accepted M2 findings
-report) and §19. No database migration is expected for M2a.
+Implementation files:
+- `backend/app/api/product.py` — new endpoints `/product/sites/{site_id}/diagnostic-results` and `/product/sites/{site_id}/diagnostic-artifacts/{artifact_id}`
+- `frontend/app/(protected)/diagnostic-results/page.tsx` — diagnostic results page with screenshots inline and downloadable artifacts
+- `frontend/app/(protected)/page.tsx` — added "View diagnostic results" button on Home
+- `frontend/app/(protected)/timeline/page.tsx` — added site filtering with visible site/domain, "All sites" mode, and "No events for this site yet" state
+- `frontend/components/domain.tsx` — added `StateLabel` (internal), `DiagnosticStateBadge`;
+  `SourceStateBadge` was added then removed during review remediation
+- `frontend/lib/api-types.ts` — added `DiagnosticArtifactType`, `DiagnosticResults`, `DiagnosticRun`, `DiagnosticArtifact` types
+
+Tests:
+- Backend: `tests/integration/test_product_diagnostic_results_m2a.py` (23 tests covering auth, tenant isolation, artifact kind allowlist, content-disposition, cache-control, no MinIO exposure)
+- Backend: `tests/integration/test_memory_p2b.py` (11 tests, incl. two new regression tests for the Timeline notes site filter and entire-timeline site filtering)
+- Frontend: `tests/diagnostic-results.test.tsx` (12 tests incl. routing/pending/missing-id contract), `tests/timeline-site-filter.test.tsx` (8 tests incl. initial `?site_id` and stale-entry replacement), `tests/home-timeline.test.tsx` (8 tests incl. diagnostic action state/URL contract)
+
+No database migration required to `head` (`0028_operator_ui_trigger_source`).
+
+Validation evidence:
+- Backend: format, lint, mypy, unit tests (434/434 passed), focused M2a integration tests (23/23 passed), complete integration suite (239/239 passed in one pytest process)
+- Frontend under Node 24.6.0 (pnpm 11.16.0): frozen-lockfile install, lint (warnings only), typecheck, tests (14 files / 133 tests passed), production build
+- Scheduler one-shot: passed against the isolated empty test DB
+- Worker one-shot: passed against the isolated test DB
+- Secret scan: passed
+- Docker Compose config: valid
+- git diff --check: clean
+
+Implementation details:
+- Backend endpoint `/product/sites/{site_id}/diagnostic-results` returns tenant-scoped run summary with artifacts
+- Backend endpoint `/product/sites/{site_id}/diagnostic-artifacts/{artifact_id}` delivers artifacts (buffered in memory, not streaming) with server-side MIME mapping, `nosniff`, `private/no-store` headers, safe filenames
+- Artifact response is capped at 20 MB before read and checked after read; oversized artifacts return 413
+- Artifact kind allowlist enforced server-side; unsupported kinds return 404
+- Cross-tenant/cross-site/cross-run access returns 404 (non-disclosing)
+- Artifact delivery: screenshots inline; RAW_DOM/NORMALIZED_DOM/MANIFEST as attachment download only
+- Security headers: `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff`, safe `Content-Disposition` filenames
+- 20 MB is aligned with SECURITY.md §75; climatologie.ro full-page screenshot observed at ~4.6 MB; cap at 20 MB to allow headroom
+- Frontend: Home "View diagnostic results" button enabled for all terminal states (COMPLETE, PARTIAL, SITE_ERROR, etc.)
+- Diagnostic results page uses `DiagnosticStateBadge` for explicit state labels
+- Timeline site filter with server-side filtering, visible site/domain attribution, explicit "All sites" mode
+- No database migration required
 
 ### M3 — Document evidence and contain activity — NOT STARTED (BLOCKED ON RECONCILIATION)
 
@@ -296,6 +335,70 @@ STARTED**; M3 **NOT STARTED (BLOCKED ON RECONCILIATION)**; M4 **NOT STARTED**. U
 events; normal Timeline/Evidence presentation; candidate publisher identity/name; complete useful UI
 projection) were removed/qualified in §5. Reconciliation findings are recorded in §17. Documentation-only;
 no code/data/container/site change; scheduler remains stopped.
+
+### 2026-09-01 — Adversarial review: NOT READY → authorized remediation applied and revalidated
+
+An adversarial review of the implemented M2a UI returned **NOT READY**: **B1 (BLOCKER)** — broken
+`/diagnostic-results` routing (the page read `useParams().site_id` which never exists on the static
+route, so result/error/loading states were unreachable); **M1 (MAJOR)** — Timeline notes were not
+site-filtered server-side while events were; **M2 (MAJOR)** — no Home tests for the diagnostic action
+(routing contract unprotected); **M3 (MAJOR)** — `StateLabel`/`SourceStateBadge` carried dead or
+conflating union members. Also MS minor findings (m5 timeline initial-query test, m6 URL-encoding
+consistency).
+
+The remediation was **explicitly authorized** (all changes left **unstaged/uncommitted**; base HEAD
+`2de22ca` unchanged): fixed the routing (**Suspense + `useSearchParams().get("site_id")` + encoded
+site ids + missing-id unavailable state**), added the notes site filter in the Timeline endpoint,
+added Home diagnostic-action tests, trimmed the dead state members and deleted `SourceStateBadge`,
+added the initial-`?site_id` and stale-entry replacement tests, and normalized URL encoding in the
+timeline API call. Recorded as a deliberately out-of-scope follow-up: ORM constraint drift in
+`backend/app/browser/models.py` (source checkpoints); unrelated MINOR/NOTE findings from the review
+were not remediated under this authorization.
+
+No migration was created (schema unchanged). Scheduler stays stopped; no real site contact; PR #35
+unchanged and NOT applied to staging. Gate P remains a human gate and Limited Pilot remains NOT
+GRANTED by this plan.
+
+### 2026-09-01 — Bounded mypy typing remediation and final canonical validation (GREEN)
+
+Canonical mypy (`uv --directory backend run mypy app tests scripts migrations/env.py`) exposed **nine
+typing errors, all in `backend/tests/integration/test_product_diagnostic_results_m2a.py`** (M2a
+integration test file). A bounded **test-file-only** typing remediation was authorized and applied:
+parameterized `_login_operator` to `-> dict[str, str]`; added explicit `assert … is not None`
+narrowing for the seeded `MonitoredUrl`/`Template`/`BrowserScenario` before `.id`; replaced the
+direct `app.api.product.get_session_factory` read/write with the canonical
+`monkeypatch.setattr(product_module, "get_session_factory", …)` typed pattern (typed
+`AsyncIterator[AsyncSession]` context manager; patched where production resolves it; no `product.py`
+export, no `Any`, no `type: ignore`). No production code changed; only type annotations/narrowing
+changed in that test file; no tenant/security/endpoint semantics changed.
+
+**Final canonical ladder (all steps green, zero failures):**
+1. `uv --directory backend sync --all-groups --locked` — passed.
+2. Playwright Chromium installed/verified (CI `--with-deps` is ubuntu-only; chromium already present).
+3. `ruff format --check .` — passed (307 files).
+4. `ruff check .` — passed.
+5. `mypy app tests scripts migrations/env.py` — **Success, 272 source files, 0 errors**.
+6. Unit suite only, exact CI/default env (`ENVIRONMENT=test`, default `DATABASE_URL`/`S3_BUCKET`, no
+   `RUN_INTEGRATION`) — **434 passed**.
+7. Clean migration on fresh isolated DB `publisher_intelligence_m2afinal_green` — **head
+   `0028_operator_ui_trigger_source`**.
+8. New isolated MinIO bucket `publisher-intelligence-m2afinal-green` — created.
+9. Focused Timeline/manual-note regression (`tests/integration/test_memory_p2b.py`) — **11 passed**.
+10. Focused M2a suite (`tests/integration/test_product_diagnostic_results_m2a.py`) — **23 passed**.
+11. Complete integration in one pytest process (`RUN_INTEGRATION=1 uv --directory backend run pytest
+    tests/integration`, isolated DB/bucket) — **239 passed, 0 failures**.
+12. Scheduler one-shot (`python -m app.scheduler --once`) — exit 0, no site jobs (isolated DB).
+13. Worker one-shot (`python -m app.worker --once`) — exit 0 (internal retention job, 0 rows).
+
+Repository checks: secret scan passed; `docker compose config` valid; `git diff --check` clean;
+`git status` unchanged (11 modified + 4 untracked); nothing staged.
+
+**Rejected as acceptance evidence (not green):** all earlier combined/order-sensitive runs
+(`pytest tests/unit tests/integration/test_memory_p2b.py`; `pytest -q` = 669 passed / 4 failed; any
+run without the isolated DB/bucket or without `RUN_INTEGRATION=1`; the `app`-only mypy run; the unit
+invocation that injected the unique integration `DATABASE_URL`, which conflicted with
+`tests/unit/test_config.py`'s local-default expectation). Only the final zero-failure canonical
+ladder above is acceptance evidence.
 
 ### 2026-09-01 — M2 UI-visibility findings accepted; M2a milestone authorized (documentation only)
 
@@ -444,7 +547,7 @@ authorized by this plan and remains a separate authorization step.
 **M0 — Authorization and containment verification: COMPLETE**
 **M1 — One permissioned initial DIAGNOSTIC: COMPLETE**
 **M2 — Verify useful results in the existing platform: collection PASS / UI presentation FAIL (NOT IMPLEMENTED)**
-**M2a — Baseline diagnostic-results UI (remediation): PLANNED / NOT STARTED**
+**M2a — Baseline diagnostic-results UI (remediation): IMPLEMENTED / VALIDATED — FINAL CANONICAL LADDER GREEN (2026-09-01)**
 **M3 — Document evidence and contain activity: BLOCKED / NOT STARTED**
 **M4 — Release-readiness hand-off: NOT STARTED**
 **Gate P: HUMAN GATE / UNAUTHORIZED by this plan**
@@ -452,40 +555,94 @@ authorized by this plan and remains a separate authorization step.
 
 The climatologie.ro `DIAGNOSTIC`/`OPERATOR_UI` run (`4fd24e2e-…`) produced terminal COMPLETE/HTTP 200
 with full browser evidence (raw/normalized DOM, pre-consent/viewport/full-page screenshots, manifest,
-script/SEO/CMP/performance/network observation) — **collection PASS**. The existing platform has **no
-authenticated tenant-scoped operator surface** to project initial-diagnostic artifacts (Timeline is
-tenant-wide and shows the pre-existing evz.ro `BROWSER_ACCESS_CHALLENGE_SUSPECTED` event while the
-Home selector shows climatologie.ro; Home "Open incidents = 0" is correct as no incidents exist) — **UI
-presentation FAIL / NOT IMPLEMENTED**. The bounded M2a remediation (authenticated API proxy for
-diagnostic artifacts, Home "View diagnostic results", baseline-results page, Timeline site filter with
-visible site/domain and explicit "All sites" mode, explicit state labels, no fabricated event/incident)
-is **PLANNED / NOT STARTED**; its code/test implementation requires separate explicit authorization and
-is not authorized by this plan. M3 is **BLOCKED** on the unresolved data-linkage discrepancy (the
-non-persisted ID `77a64afd-b29e-5cb3-a6d8-f7aa1e564293` observed in the operator's Timeline view, not
-reproducible from any table or repository code) and the unverified authoritative `publishers` row for
-climatologie.ro (the operator submitted Publisher = Climatologie in the Add Site dialog; the draft
-"publisher `staging`" is not verified). M4 remains **NOT STARTED**. Gate P remains a separate HUMAN
-GATE; Limited Pilot is NOT GRANTED. EVZ allowlisting and EVZ re-diagnostic are DEFERRED. The scheduler
-MUST remain STOPPED.
+script/SEO/CMP/performance/network observation) — **collection PASS**. The existing platform had **no
+authenticated tenant-scoped operator surface** to project initial-diagnostic artifacts (Timeline was
+tenant-wide and showed the pre-existing evz.ro `BROWSER_ACCESS_CHALLENGE_SUSPECTED` event while the
+Home selector showed climatologie.ro; Home "Open incidents = 0" is correct as no incidents exist) — **UI
+presentation FAIL / NOT IMPLEMENTED**.
+
+**M2a IMPLEMENTED / VALIDATED**: The bounded M2a remediation (authenticated API proxy for diagnostic
+artifacts, Home "View diagnostic results", baseline-results page with screenshots inline and downloadable
+artifacts, Timeline site filter with visible site/domain and explicit "All sites" mode, explicit state
+labels, no fabricated event/incident) has been **implemented and validated**. An adversarial
+review returned **NOT READY** and identified one blocker and three majors; the authorized remediation
+below was applied and the **final canonical ladder re-executed from scratch to zero failures**
+(434 unit + 239 integration + 133 frontend tests green; mypy 272 source files, 0 errors — see §16
+Progress Log, 2026-09-01 "Bounded mypy typing remediation and final canonical validation (GREEN)").
+The M2a integration test file additionally carries the mypy typing remediation (test-file only).
+
+Implementation files, tests, validation evidence and implementation details are recorded in §7.
+The single authoritative final zero-failure validation record is maintained in §20.
 
 ## 20. Next Step
 
-The only next authorized action is:
+The M2a UI remediation is **implemented and locally validated on the EP-029 branch** via the final
+canonical ladder (673 backend tests: 434 unit + 239 integration, 0 failures; 133 frontend tests; full
+static/type/lint/build checks). Acceptance evidence is limited to the zero-failure canonical ladder
+recorded below and in §16; all earlier rejected runs are recorded there but are not evidence. The
+implementation remains pending PR review, merge, and deployment; it is not yet merged or deployed.
 
-- **Review the completed M2a ExecPlan scope** recorded in §7, §17, and §19 (authenticated API proxy
-  `GET /product/sites/{site_id}/diagnostic-results` and `GET /product/sites/{site_id}/diagnostic-artifacts/{artifact_id}`,
-  tenant→site→run→artifact→kind allowlist enforcement, screenshots inline, normalized DOM text/download
-  only, raw DOM download only, collected HTML never executed or injected, `Cache-Control: private,
-  no-store`, no MinIO key/internal-host exposure, Timeline site filter with visible site/domain and
-  explicit "All sites" mode, explicit state labels, no fabricated event/incident/alert, no database
-  migration expected).
+**Accepted canonical validation record (2026-09-01 FINAL — zero failures):**
 
-**M2a code/test implementation requires a separate explicit authorization step.** It is not authorized
-by this plan.
+Only the final zero-failure canonical ladder is acceptance evidence. Full step-by-step record in §16
+(2026-09-01 "Bounded mypy typing remediation and final canonical validation (GREEN)").
 
-**The scheduler remains STOPPED.** No scheduled cycle may begin without separate authorization.
+- Static: `ruff format --check .` clean (307 files); `ruff check .` clean;
+  `mypy app tests scripts migrations/env.py` **Success, 272 source files, 0 errors**.
+- Unit suite only (exact CI/default env; no `RUN_INTEGRATION`; default `DATABASE_URL`/`S3_BUCKET`):
+  **434 passed**.
+- Clean migration on fresh isolated DB `publisher_intelligence_m2afinal_green`:
+  **head `0028_operator_ui_trigger_source`**; new isolated MinIO bucket
+  `publisher-intelligence-m2afinal-green` created.
+- Focused Timeline/manual-note regression: **11 passed**. Focused M2a suite: **23 passed**.
+- Complete integration in one pytest process (`RUN_INTEGRATION=1`, isolated DB/bucket):
+  **239 passed, 0 failures**.
+- Scheduler one-shot: exit 0, no site jobs; Worker one-shot: exit 0 (internal retention job, 0 rows).
+- Repository checks: secret scan passed; `docker compose config` valid; `git diff --check` clean;
+  nothing staged; base HEAD `2de22ca` unchanged; staging scheduler stopped; PR #35 unchanged.
+- Frontend (reused, untouched): Node 24.6.0 / pnpm 11.16.0; lint 0 errors / 1 pre-existing warning;
+  typecheck pass; full suite 14 files / 133 tests; production build pass (`/diagnostic-results` static).
 
-**No further site contact** (climatologie.ro, evz.ro, or any other) is authorized by this plan.
+**Rejected (not acceptance evidence):** every earlier combined/order-sensitive or otherwise
+noncanonical run — `pytest tests/unit tests/integration/test_memory_p2b.py`; `pytest -q` (669 passed /
+4 failed); any invocation without the isolated migrated DB/bucket or without `RUN_INTEGRATION=1`;
+the `app`-only mypy invocation; and the unit invocation that injected the unique integration
+`DATABASE_URL` (conflicting with `tests/unit/test_config.py`'s local-default expectation). None of
+these is green or acceptance evidence.
 
-**No Gate P or Limited Pilot activity** is authorized by this plan; both remain separate human
-decisions.
+**Follow-up recorded (not remediated under this authorization):** ORM constraint drift in
+`backend/app/browser/models.py` source-checkpoint constraints vs migration; unrelated MINOR/NOTE
+findings from the adversarial review.
+
+**Earlier validation attempts (historical, subsumed):** An earlier canonical current-diff run passed
+237/237 integration tests in one process, and earlier pre-remediation frontend runs passed 14 files /
+119 tests under Node 24.6.0 before the remediation tests were added; 669 passed / 4 failed runs and
+the other rejected invocations are recorded in §16. None of these competes with the final accepted
+record above. Artifact delivery details recorded then remain valid: response capped at 20 MB before
+read and checked after read; not streaming; 20 MB aligned with SECURITY.md §75; climatologie.ro
+full-page screenshot ~4.6 MB. Deployment, live UI verification, Gate P, and Limited Pilot remain
+unstarted/unauthorized.
+
+**Next authorized actions:**
+
+- **Final diff review** of the M2a implementation, typing remediation, and documentation updates.
+- **Commit and push** the EP-029 M2a change set.
+- **CI** on the branch (expected green per the accepted record).
+- **PR review and merge** of the M2a change (PR #35 is untouched by this work).
+- **Deploy M2a** to the staging environment.
+- **Staging UI verification** of the operator-facing diagnostic-results projection (not yet performed).
+- **M3 — Document evidence and contain activity:** Requires resolving the unresolved data-linkage
+  discrepancy (the non-persisted ID `77a64afd-b29e-5cb3-a6d8-f7aa1e564293` observed in the operator's
+  Timeline view, not reproducible from any table or repository code) and verifying the authoritative
+  `publishers` row for climatologie.ro (the operator submitted Publisher = Climatologie in the Add Site
+  dialog; the draft "publisher `staging`" is not verified).
+
+- **M4 — Release-readiness hand-off:** Hand the candidate evidence + Gate O evidence to the human Gate P
+  evaluation.
+
+**Operational constraints remain:**
+
+- **The scheduler remains STOPPED.** No scheduled cycle may begin without separate authorization.
+- **No further site contact** (climatologie.ro, evz.ro, or any other) is authorized by this plan.
+- **No Gate P or Limited Pilot activity** is authorized by this plan; both remain separate human
+  decisions.

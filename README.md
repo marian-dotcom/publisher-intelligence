@@ -392,11 +392,16 @@ containment PASS, useful first-site measurement NOT YET PROVEN, evz.ro compatibi
 overall Gate O EXECUTED / PARTIAL / CONTAINED (not final PASS). evz.ro compatibility is preserved as an
 immutable monitoring-source finding (HTTP 429, `challenge_suspected`/`captcha`, no retry, fully
 contained); it is not a platform defect. EVZ allowlisting and EVZ re-diagnostic are DEFERRED. EP-029
-(planning) validates the authorized **zero-resistance pilot candidate**: an explicitly permissioned
+validates the authorized **zero-resistance pilot candidate**: an explicitly permissioned
 second site, exactly one bounded DIAGNOSTIC with the scheduler stopped, verifying useful
 DOM/screenshot/artifact/event results in the existing platform, then documenting and containing, with
 Gate P as a separate HUMAN GATE; no scheduled cycle or scheduler restart is authorized while evz.ro
-remains ACTIVE. See `plans/EP-029-publisher-compatibility.md`.
+remains ACTIVE. EP-029 M2a (baseline diagnostic-results UI) is **implemented and locally validated on
+the EP-029 branch** and remains pending PR review, merge, and deployment: an authenticated API proxy
+surfaces diagnostic results/artifacts, Home gains a 「View diagnostic results」 action, and the Timeline
+gains site filtering with an explicit 「All sites」 mode. Staging/live UI verification has not occurred;
+no scheduler restart or live site contact is included; Gate P remains a separate human gate. See
+`plans/EP-029-publisher-compatibility.md`.
 Caddy is the native
 systemd TLS/ingress service in front of the loopback-bound Next.js frontend/API; it is not a Compose
 service. No path delivers alerts or makes indexing,
@@ -407,7 +412,10 @@ provider write access, alert delivery, automated incident conclusions, and LLM s
 Refresh this summary after no more than three completed EPs, and earlier whenever an EP
 materially changes the implemented product or security boundary. Always state the latest fully
 covered EP and distinguish partial work from completed capability. Latest fully covered EP: **EP-028**
-(implemented, merged, Gate O live validation executed and contained — PARTIAL). **EP-029** is
-authorized for planning/documentation only: no live publisher contact, scheduler restart, or pilot
-authorization is included; it plans the zero-resistance pilot-candidate validation pending the
-candidate's exact domain and explicit authorization.
+(implemented, merged, Gate O live validation executed and contained — PARTIAL). **EP-029 M2a** is
+implemented and locally validated on the EP-029 branch; it remains pending PR review, merge, and
+deployment, and staging/live UI verification has not occurred. The wider EP-029 pilot steps (M3
+containment, M4 hand-off, Gate P, Limited Pilot) are **NOT authorized/completed**: no live publisher
+contact, scheduler restart, or pilot authorization is included; Gate P remains a separate human gate
+and Limited Pilot remains NOT GRANTED. EP-028 remains the latest fully merged/deployed/covered EP until
+EP-029 is merged and deployed.

@@ -408,3 +408,69 @@ def test_t9_raw_internal_payload_not_exposed_in_timeline() -> None:
     serialized = str(entry)
     for forbidden in ("internal_debug", "session_storage_dump", "connector_api_response"):
         assert forbidden not in serialized, f"leaked: {forbidden}"
+
+
+def test_t10_site_filter_limits_events_and_notes_to_site() -> None:
+    """T10: /timeline?site_id=X returns only X's events AND manual notes;
+    All-sites mode still shows both sites. (EP-029 M2a filter completeness.)"""
+
+    async def setup() -> tuple[uuid.UUID, uuid.UUID, uuid.UUID, str]:
+        slug = f"t10-{uuid.uuid4().hex[:8]}"
+        tenant_id = await factories.create_tenant(slug)
+        _operator_id, email = await factories.create_operator(tenant_id, f"op-{slug}@example.com")
+        site_a = await factories.create_site(tenant_id)
+        site_b = await factories.create_site(tenant_id)
+        await factories.add_scheduled_event(tenant_id, site_a)
+        await factories.add_scheduled_event(tenant_id, site_b)
+        await factories.create_manual_note(tenant_id, site_a, "Operator note about site A.")
+        await factories.create_manual_note(tenant_id, site_b, "Operator note about site B.")
+        return tenant_id, site_a, site_b, email
+
+    tenant_id, site_a, site_b, email = asyncio.run(setup())
+    client, cookies = _login_and_get_cookies(tenant_id, email)
+
+    filtered = client.get(f"/timeline?site_id={site_a}", cookies=cookies)
+    assert filtered.status_code == 200
+    entries = filtered.json()["entries"]
+    # Site A event + Site A note only; site A note must not be lost by the filter.
+    assert len(entries) == 2
+    assert {e["provenance"] for e in entries} == {"machine_observed", "human_reported"}
+    assert {e["site_id"] for e in entries} == {str(site_a)}
+    note_texts = {e.get("text") for e in entries}
+    assert "Operator note about site A." in note_texts
+    assert "Operator note about site B." not in note_texts
+    assert str(site_b) not in filtered.text
+
+    all_sites = client.get("/timeline", cookies=cookies)
+    assert all_sites.status_code == 200
+    all_entries = all_sites.json()["entries"]
+    assert len(all_entries) == 4
+    assert {e["site_id"] for e in all_entries} == {str(site_a), str(site_b)}
+
+
+def test_t11_site_filter_never_exposes_foreign_tenant_items() -> None:
+    """T11: filtering by another tenant's site_id returns no rows and leaks no
+    foreign event/note content. (EP-029 M2a filter tenant boundary.)"""
+
+    async def setup_two_tenants() -> tuple[uuid.UUID, uuid.UUID, str]:
+        slug_a = f"t11a-{uuid.uuid4().hex[:8]}"
+        tenant_a = await factories.create_tenant(slug_a)
+        _operator_a, email_a = await factories.create_operator(tenant_a, f"op-{slug_a}@example.com")
+        await factories.create_site(tenant_a)
+
+        slug_b = f"t11b-{uuid.uuid4().hex[:8]}"
+        tenant_b = await factories.create_tenant(slug_b)
+        site_b = await factories.create_site(tenant_b)
+        await factories.add_scheduled_event(tenant_b, site_b)
+        await factories.create_manual_note(tenant_b, site_b, "Tenant B private note.")
+        return tenant_a, site_b, email_a
+
+    tenant_a, site_b, email_a = asyncio.run(setup_two_tenants())
+    client, cookies = _login_and_get_cookies(tenant_a, email_a)
+
+    response = client.get(f"/timeline?site_id={site_b}", cookies=cookies)
+    assert response.status_code == 200
+    entries = response.json()["entries"]
+    assert entries == []
+    assert str(site_b) not in response.text
+    assert "Tenant B private note." not in response.text

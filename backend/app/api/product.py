@@ -1,17 +1,20 @@
-"""Product read APIs: Home/status, source health, site health (EP-025a P2-A)."""
+"""Product read APIs: Home/status, source health, site health,
+diagnostic results (EP-025a P2-A, EP-029 M2a)."""
 
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from botocore.exceptions import ClientError
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import ActorContext, get_current_actor
 from app.browser.access_reliability import classification_from_storage
 from app.browser.cost import breaker_open_for_usage, latest_site_window_usage
-from app.browser.models import CheckpointRun, Publisher, Site
+from app.browser.models import Artifact, CheckpointRun, Publisher, Site
+from app.config.settings import Settings
 from app.connectors.freshness import SOURCE_FRESHNESS_THRESHOLDS, freshness_state
 from app.connectors.models import DataConnection
 from app.db.session import get_session_factory
@@ -19,6 +22,7 @@ from app.events.source_health import browser_source_health
 from app.incidents.models import Incident
 from app.operations import operations_snapshot
 from app.public_config.models import PublicConfigSnapshot
+from app.storage.s3 import S3Storage
 
 router = APIRouter(prefix="/product", tags=["product"])
 
@@ -361,3 +365,244 @@ async def source_health(
             ),
         }
     return response
+
+
+# EP-029 M2a: diagnostic-results read surface for initial DIAGNOSTIC/OPERATOR_UI runs.
+# These endpoints expose the collected evidence through an authenticated API proxy.
+# MinIO stays private; artifacts are proxied read-only with per-request
+# tenant->site->run->artifact->kind allowlist enforcement.
+# Allowed artifact kinds for diagnostic results:
+_DIAGNOSTIC_ARTIFACT_KINDS = frozenset(
+    {
+        "SCREENSHOT_VIEWPORT",
+        "SCREENSHOT_VIEWPORT_PRECONSENT",
+        "SCREENSHOT_VIEWPORT_POSTCONSENT",
+        "SCREENSHOT_FULL_PAGE",
+        "RAW_DOM",
+        "NORMALIZED_DOM",
+        "MANIFEST",
+    }
+)
+
+# Server-side MIME type and disposition mapping for allowed artifact kinds.
+# This is the authoritative source for Content-Type and disposition; never trust stored metadata.
+_ARTIFACT_KIND_META: dict[str, dict[str, str]] = {
+    "SCREENSHOT_VIEWPORT": {"media_type": "image/png", "disposition": "inline", "extension": "png"},
+    "SCREENSHOT_VIEWPORT_PRECONSENT": {
+        "media_type": "image/png",
+        "disposition": "inline",
+        "extension": "png",
+    },
+    "SCREENSHOT_VIEWPORT_POSTCONSENT": {
+        "media_type": "image/png",
+        "disposition": "inline",
+        "extension": "png",
+    },
+    "SCREENSHOT_FULL_PAGE": {
+        "media_type": "image/png",
+        "disposition": "inline",
+        "extension": "png",
+    },
+    "RAW_DOM": {"media_type": "text/html", "disposition": "attachment", "extension": "html"},
+    "NORMALIZED_DOM": {
+        "media_type": "application/json",
+        "disposition": "attachment",
+        "extension": "json",
+    },
+    "MANIFEST": {
+        "media_type": "application/json",
+        "disposition": "attachment",
+        "extension": "json",
+    },
+}
+
+
+async def _get_latest_operator_diagnostic(
+    session: AsyncSession, *, tenant_id: uuid.UUID, site_id: uuid.UUID
+) -> CheckpointRun | None:
+    """Return the latest DIAGNOSTIC/OPERATOR_UI checkpoint run for the site, or None."""
+    result = await session.scalar(
+        select(CheckpointRun)
+        .where(
+            CheckpointRun.tenant_id == tenant_id,
+            CheckpointRun.site_id == site_id,
+            CheckpointRun.observation_kind == "DIAGNOSTIC",
+            CheckpointRun.trigger_source == "OPERATOR_UI",
+        )
+        .order_by(CheckpointRun.created_at.desc(), CheckpointRun.id.desc())
+        .limit(1)
+    )
+    return result if isinstance(result, CheckpointRun) else None
+
+
+def _classification_state(run: CheckpointRun) -> str | None:
+    classification = classification_from_storage(run.browser_access_classification)
+    state = classification.state if classification is not None else None
+    if state is not None and state not in _BROWSER_ACCESS_CLASSIFICATION_STATES:
+        return None
+    return state
+
+
+@router.get("/sites/{site_id}/diagnostic-results")
+async def diagnostic_results(
+    site_id: uuid.UUID,
+    actor: ActorContext = Depends(get_current_actor),  # noqa: B008
+) -> dict[str, object]:
+    """Tenant-scoped summary of the latest DIAGNOSTIC/OPERATOR_UI run for the site."""
+    factory = get_session_factory()
+    async with factory() as session:
+        # Verify site belongs to actor tenant
+        site = await session.scalar(
+            select(Site).where(Site.id == site_id, Site.tenant_id == actor.tenant_id)
+        )
+        if site is None:
+            raise HTTPException(status_code=404, detail="resource not found")
+
+        run = await _get_latest_operator_diagnostic(
+            session, tenant_id=actor.tenant_id, site_id=site_id
+        )
+        if run is None:
+            raise HTTPException(status_code=404, detail="no diagnostic run found")
+
+        # Get artifacts for this run
+        artifacts = list(
+            (
+                await session.scalars(
+                    select(Artifact).where(
+                        Artifact.tenant_id == actor.tenant_id,
+                        Artifact.site_id == site_id,
+                        Artifact.checkpoint_run_id == run.id,
+                        Artifact.artifact_type.in_(_DIAGNOSTIC_ARTIFACT_KINDS),
+                    )
+                )
+            ).all()
+        )
+
+        publisher = await session.scalar(select(Publisher).where(Publisher.id == site.publisher_id))
+
+    # Build artifacts summary
+    artifact_summaries = [
+        {
+            "artifact_id": str(a.id),
+            "artifact_type": a.artifact_type,
+            "content_type": a.content_type,
+            "byte_size": a.byte_size,
+            "sha256": a.sha256,
+        }
+        for a in artifacts
+    ]
+
+    return {
+        "site_id": str(site.id),
+        "site_name": site.name,
+        "site_domain": site.canonical_domain,
+        "publisher_name": publisher.name if publisher else None,
+        "run": {
+            "run_id": str(run.id),
+            "observation_kind": run.observation_kind,
+            "trigger_source": run.trigger_source,
+            "trigger_correlation_id": str(run.trigger_correlation_id)
+            if run.trigger_correlation_id
+            else None,
+            "status": run.status,
+            "attempt_count": run.attempt_count,
+            "final_url": run.final_url,
+            "http_status": run.http_status,
+            "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+            "started_at": run.started_at.isoformat() if run.started_at else None,
+            "browser_access_classification": _classification_state(run),
+            "scenario_id": str(run.scenario_id),
+            "collector_bundle_version": run.collector_bundle_version,
+            "limitations": run.limitations,
+        },
+        "artifacts": artifact_summaries,
+    }
+
+
+@router.get("/sites/{site_id}/diagnostic-artifacts/{artifact_id}")
+async def diagnostic_artifact(
+    site_id: uuid.UUID,
+    artifact_id: uuid.UUID,
+    actor: ActorContext = Depends(get_current_actor),  # noqa: B008
+) -> Response:
+    """Stream a single artifact for a DIAGNOSTIC/OPERATOR_UI run.
+    Enforces tenant->site->run->artifact->kind allowlist (404 on foreign/nonexistent).
+    """
+    factory = get_session_factory()
+    async with factory() as session:
+        # Verify site belongs to actor tenant
+        site = await session.scalar(
+            select(Site).where(Site.id == site_id, Site.tenant_id == actor.tenant_id)
+        )
+        if site is None:
+            raise HTTPException(status_code=404, detail="resource not found")
+
+        artifact = await session.scalar(
+            select(Artifact).where(
+                Artifact.id == artifact_id,
+                Artifact.tenant_id == actor.tenant_id,
+                Artifact.site_id == site_id,
+                Artifact.artifact_type.in_(_DIAGNOSTIC_ARTIFACT_KINDS),
+            )
+        )
+        if artifact is None:
+            raise HTTPException(status_code=404, detail="resource not found")
+
+        # Verify artifact belongs to a DIAGNOSTIC/OPERATOR_UI run
+        run = await session.scalar(
+            select(CheckpointRun).where(
+                CheckpointRun.id == artifact.checkpoint_run_id,
+                CheckpointRun.tenant_id == actor.tenant_id,
+                CheckpointRun.site_id == site_id,
+                CheckpointRun.observation_kind == "DIAGNOSTIC",
+                CheckpointRun.trigger_source == "OPERATOR_UI",
+            )
+        )
+        if run is None:
+            raise HTTPException(status_code=404, detail="resource not found")
+
+        # Enforce per-artifact response size bound (SECURITY.md §75: 20 MB incident
+        # attachment limit; climatologie.ro screenshot ~4.6 MB; cap at 20 MB).
+        MAX_ARTIFACT_BYTES = 20 * 1024 * 1024
+        if artifact.byte_size > MAX_ARTIFACT_BYTES:
+            raise HTTPException(
+                status_code=413, detail="artifact exceeds maximum allowed size"
+            ) from None
+
+        # Stream from MinIO through authenticated proxy
+        settings = Settings()
+        storage = S3Storage(settings)
+        try:
+            content = storage.get_bytes(key=artifact.object_key)
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code")
+            if error_code == "NoSuchKey":
+                raise HTTPException(status_code=404, detail="resource not found") from None
+            raise HTTPException(status_code=500, detail="storage read failed") from None
+
+        # Enforce returned content length matches stored byte_size
+        # (defense against corrupted reads)
+        if len(content) != artifact.byte_size:
+            raise HTTPException(status_code=500, detail="artifact size mismatch") from None
+
+    # Server-side MIME and disposition from trusted artifact kind (never trust stored metadata)
+    meta = _ARTIFACT_KIND_META[artifact.artifact_type]
+    media_type = meta["media_type"]
+    disposition = meta["disposition"]
+    extension = meta["extension"]
+
+    # Safe deterministic filename from trusted artifact type and ID (not raw object key)
+    safe_filename = (
+        f"diagnostic-{artifact.artifact_type.lower()}-{str(artifact.id)[:8]}.{extension}"
+    )
+
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'{disposition}; filename="{safe_filename}"',
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Length": str(artifact.byte_size),
+        },
+    )

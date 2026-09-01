@@ -39,6 +39,16 @@ export type DiagnosticStatus =
 /** EP-028 M3 — bounded browser access classification. */
 export type BrowserAccessClassification = "ok" | "degraded" | "challenge_suspected";
 
+/** EP-029 M2a — diagnostic artifact types exposed through the authenticated proxy. */
+export type DiagnosticArtifactType =
+  | "SCREENSHOT_VIEWPORT"
+  | "SCREENSHOT_VIEWPORT_PRECONSENT"
+  | "SCREENSHOT_VIEWPORT_POSTCONSENT"
+  | "SCREENSHOT_FULL_PAGE"
+  | "RAW_DOM"
+  | "NORMALIZED_DOM"
+  | "MANIFEST";
+
 export type Severity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
 /** Incident lifecycle status (canonical check constraint). */
@@ -110,6 +120,43 @@ export interface InitialDiagnostic {
   status: string;
   completed_at: string | null;
   browser_access_classification: string | null;
+}
+
+/** EP-029 M2a — diagnostic results for a DIAGNOSTIC/OPERATOR_UI run. */
+export interface DiagnosticResults {
+  site_id: string;
+  site_name: string;
+  site_domain: string;
+  publisher_name: string | null;
+  run: DiagnosticRun;
+  artifacts: DiagnosticArtifact[];
+}
+
+/** EP-029 M2a — run details for diagnostic results. */
+export interface DiagnosticRun {
+  run_id: string;
+  observation_kind: string;
+  trigger_source: string;
+  trigger_correlation_id: string | null;
+  status: string;
+  attempt_count: number;
+  final_url: string | null;
+  http_status: number | null;
+  completed_at: string | null;
+  started_at: string | null;
+  browser_access_classification: BrowserAccessClassification | null;
+  scenario_id: string;
+  collector_bundle_version: string;
+  limitations: string[];
+}
+
+/** EP-029 M2a — artifact summary for diagnostic results. */
+export interface DiagnosticArtifact {
+  artifact_id: string;
+  artifact_type: DiagnosticArtifactType;
+  content_type: string;
+  byte_size: number;
+  sha256: string;
 }
 
 /** GET /product/source-health?site_id={id} (required param) */
