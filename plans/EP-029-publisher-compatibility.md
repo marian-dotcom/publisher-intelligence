@@ -413,6 +413,25 @@ architecture/security/tests/estimate are recorded in §17 and §19. Code/test im
 **not authorized in this plan** and remains a separate step. No code/data/container/site change;
 scheduler remains stopped.
 
+### 2026-09-01 — M2a implementation committed; exact-head CI executes green
+
+Implementation committed on `agent/ep-029-publisher-compatibility` at
+`cf833544ed6e9d406bc78994d8faf5d179385026` (15 files: M2a endpoints, M1 Timeline notes site-filter,
+frontend M2a UI, frontend/backend M2a tests, typing remediation, documentation) and pushed. GitHub CI
+at exact HEAD:
+
+- Push run `33539907395` — **SUCCESS**: backend ✓, frontend ✓, repository-safety ✓.
+- Pull-request run `33539912074` — **SUCCESS**: backend ✓, frontend ✓, repository-safety ✓.
+
+Final accepted totals remain unchanged per the authoritative record in §20: 434 unit; 11 focused
+Timeline/manual-note; 23 focused M2a; 239 complete integration in one process; 133 frontend; mypy 272
+files / zero issues; production build; scheduler/worker isolated one-shots; security/repository
+checks. The CI evidence above appends to that record and is not a competing evidence block.
+
+No deployment and no staging/live UI verification was performed. The staging scheduler remains
+stopped; Gate P remains **UNAUTHORIZED** by this plan and Limited Pilot remains **NOT GRANTED**. PR #35
+unchanged (OPEN, DRAFT, MERGEABLE, head `cf833544…`); body refresh and Ready-for-review remain pending.
+
 ## 17. Decision Log
 
 ### 2026-08-30 — Validate zero-resistance pilot candidate instead of bypassing evz.ro
@@ -576,11 +595,13 @@ The single authoritative final zero-failure validation record is maintained in �
 
 ## 20. Next Step
 
-The M2a UI remediation is **implemented and locally validated on the EP-029 branch** via the final
-canonical ladder (673 backend tests: 434 unit + 239 integration, 0 failures; 133 frontend tests; full
-static/type/lint/build checks). Acceptance evidence is limited to the zero-failure canonical ladder
+The M2a UI remediation is **implemented, committed, and CI-validated at exact HEAD
+(`cf83354…`)** via the final canonical ladder (673 backend tests: 434 unit + 239 integration,
+0 failures; 133 frontend tests; full static/type/lint/build checks) and green GitHub CI on push and
+pull-request (see §16 Progress Log, 2026-09-01 "M2a implementation committed; exact-head CI executes
+green"). Acceptance evidence is limited to the zero-failure canonical ladder
 recorded below and in §16; all earlier rejected runs are recorded there but are not evidence. The
-implementation remains pending PR review, merge, and deployment; it is not yet merged or deployed.
+implementation is not yet merged or deployed.
 
 **Accepted canonical validation record (2026-09-01 FINAL — zero failures):**
 
@@ -623,12 +644,19 @@ read and checked after read; not streaming; 20 MB aligned with SECURITY.md §75;
 full-page screenshot ~4.6 MB. Deployment, live UI verification, Gate P, and Limited Pilot remain
 unstarted/unauthorized.
 
-**Next authorized actions:**
+**Lifecycle state:**
 
-- **Final diff review** of the M2a implementation, typing remediation, and documentation updates.
-- **Commit and push** the EP-029 M2a change set.
-- **CI** on the branch (expected green per the accepted record).
-- **PR review and merge** of the M2a change (PR #35 is untouched by this work).
+Completed:
+- **Final diff review** of the M2a implementation, typing remediation, and documentation updates
+  (M-1 stale §19 validation record removed; §19 now references §7/§20).
+- **Implementation commit and push** — commit `cf833544ed6e9d406bc78994d8faf5d179385026` pushed to
+  `agent/ep-029-publisher-compatibility`.
+- **Exact-head CI** — push run `33539907395` SUCCESS and pull-request run `33539912074` SUCCESS
+  (backend/frontend/repository-safety passed in both); recorded in §16.
+
+Next:
+- **Refresh PR #35 body** (currently stale), then **mark Ready for review**.
+- **PR review and merge** of the M2a change (PR #35 head `cf833544…`, OPEN / DRAFT / MERGEABLE).
 - **Deploy M2a** to the staging environment.
 - **Staging UI verification** of the operator-facing diagnostic-results projection (not yet performed).
 - **M3 — Document evidence and contain activity:** Requires resolving the unresolved data-linkage
