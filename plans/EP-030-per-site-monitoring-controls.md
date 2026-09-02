@@ -1,8 +1,8 @@
 # EP-030 — Per-Site Monitoring Controls
 
-**Status:** READY — M0 COMPLETE (planning/feasibility only); M1–M4 NOT STARTED; implementation NOT AUTHORIZED; Gate P HUMAN GATE / UNAUTHORIZED; Limited Pilot NOT GRANTED
+**Status:** READY — M0 COMPLETE (planning/feasibility only); **M1 COMPLETE** (data model + authenticated control API); M2–M4 NOT STARTED; Gate P HUMAN GATE / UNAUTHORIZED; Limited Pilot NOT GRANTED
 **Owner:** Codex / Engineering
-**Created / Updated:** 2026-09-02
+**Created / Updated:** 2026-09-02 (M1 validated this date)
 **Base commit:** `a92da909c53c0618b4671bd569b4a1937a935c27` (origin/main; EP-029 M4 merged)
 **MVP scope impact:** NO
 **External publisher onboarding:** OUT OF SCOPE
@@ -432,6 +432,38 @@ All tests use isolated fixtures / disposable DB; no real publisher contact.
 
 ## 11. Progress / Decision Log
 
+- 2026-09-02: **M1 COMPLETE** (data model + authenticated per-site monitoring control API; branch
+  `agent/ep-030-per-site-monitoring-controls`, Draft PR #38). Migration `0029_site_monitoring_controls`
+  applies cleanly base→head: `sites.monitoring_state`/`_updated_at` default OFF, `UNIQUE(tenant_id,id)`,
+  `site_monitoring_state_changes` append-only audit (composite FK, `from<>to`/state CHECKs), checkpoint
+  `SKIPPED` added (no SKIPPED generation in M1); guarded downgrade refuses while audit rows exist, any
+  site is ON, or SKIPPED runs exist (never deletes audit / rewrites SKIPPED / flips ON→OFF). Service
+  (`app/browser/monitoring_control.py`) + `PUT /product/sites/{site_id}/monitoring` (ADMIN+CSRF,
+  actor-tenant, non-disclosing 404, idempotent, `FOR UPDATE`, six-hour next-boundary projection,
+  in-flight SCHEDULED projection) registered in `app/main.py`. **Test-only remediation (MINOR-1..5)**
+  added populated-0028→0029 upgrade backfill coverage, incidents/evidence-pack zero-mutation counts,
+  concurrent opposing-transition serialization, and strict-future/exact-boundary-next resolution.
+  Validation ladder (§10 + remediation ladder) run on a fresh isolated
+  DB/bucket (`publisher_intelligence_ep030_full` / `publisher-intelligence-ep030-full`):
+  `ruff format --check`/`ruff check` clean (311 files); mypy **Success, 275 files, 0 errors**; unit
+  **434 passed** (exact CI/default unit env, no stale DB/S3/RUN_INTEGRATION overrides); full
+  integration (`RUN_INTEGRATION=1`, `BROWSER_ALLOW_PRIVATE_NETWORKS=true`) **255 passed, 0 failures**
+  in one process; focused migration tests (`test_migrations.py`) **5 passed**; focused monitoring
+  tests (`test_product_site_monitoring.py`, 14 cases incl. the new concurrent-opposing and
+  strict-future-boundary tests) **14 passed**; scheduler one-shot exit 0 (browser checkpoint pass
+  `site_count=0, run_count=0, job_count=0`; retention pass job_count=1); worker one-shot exit 0
+  (retention only, 0 rows deleted); `docker compose config` OK; `check_secrets.py` OK; `git diff --check`
+  clean. `alembic check` reports only pre-existing unrelated drift (`retention_runs`,
+  `monetization_capability`, `seo_observations`) unchanged from before; no new drift from this EP. The
+  earlier "16 passed" noted a module-level total (12 monitoring + 4 migrations); the truthful
+  composition is 14 monitoring tests + EP-030 coverage added within `test_migrations.py` (5 migration
+  tests total, incl. two EP-030-specific). M1 is **not independently deployable**: it stores the
+  monitoring authorization state and exposes the control API only; scheduler due-query gating (GATE-1/2)
+  and worker GATE-3 enforcement land in M2, so no site must be enabled and the staging scheduler must
+  remain STOPPED until M2 is authorized and implemented. M1 does not start M2; no
+  frontend exposure; scheduler/worker enforcement deferred to M2; no deployment/scheduler-restart/site
+  enforcement. Test-only remediation touched no production code. NOT committed/pushed.
+
 - 2026-09-02: planning authored. EP-029 M4 close verified at `a92da909…` (PR #37 MERGED; CI
   green on `33561839030` / `33561888659`); branch facts, migration head, containment verified;
   research subagents read canonical docs + code (§2). Status DRAFT.
@@ -450,6 +482,9 @@ All tests use isolated fixtures / disposable DB; no real publisher contact.
 
 ## 12. Next Boundary
 
-Human gate accepted: final plan verdict READY; M0 COMPLETE (planning/feasibility only). M1–M4,
-deploying, restarting the scheduler, enabling any site, creating EP-031/EP-032, or starting
-Gate P / Limited Pilot each require separate authorizations.
+M0 COMPLETE and **M1 COMPLETE** (data model + authenticated control API, validated, on branch/Draft
+PR #38; NOT committed/pushed). **M1 is NOT independently deployable** — its scheduling-gating
+(GATE-1/2/3) enforcement is M2, so no site may be enabled and the staging scheduler must remain
+STOPPED until M2 is authorized and implemented. **M2–M4, deploying, restarting the scheduler,
+enabling any site, creating EP-031/EP-032, or starting Gate P / Limited Pilot each require separate
+authorizations.**
