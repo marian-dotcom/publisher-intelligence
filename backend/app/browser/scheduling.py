@@ -101,7 +101,12 @@ class CheckpointSchedulingService:
             sites = list(
                 (
                     await session.scalars(
-                        select(Site).where(Site.status == "ACTIVE").order_by(Site.id)
+                        select(Site)
+                        .where(
+                            Site.status == "ACTIVE",
+                            Site.monitoring_state == "ON",
+                        )
+                        .order_by(Site.id)
                     )
                 ).all()
             )
@@ -157,6 +162,24 @@ class CheckpointSchedulingService:
         now: datetime,
     ) -> list[ScheduledRun] | None:
         async with self._session_factory() as session, session.begin():
+            # GATE-2 (EP-030 M2): within the materialization transaction, lock
+            # the tenant-owned site row FOR UPDATE and re-read the monitoring
+            # authorization boundary. This serializes against a concurrent
+            # enable/disable write (R1/R6) and materializes nothing unless the
+            # site is still ON and the candidate window is strictly after the
+            # enable watermark. Missing/invalid state fails closed. The lock
+            # never spans browser/network I/O (short commit-immediately tx).
+            locked_site = await session.scalar(
+                select(Site)
+                .where(Site.tenant_id == site.tenant_id, Site.id == site.id)
+                .with_for_update()
+            )
+            if locked_site is None:
+                return []
+            if locked_site.monitoring_state != "ON":
+                return []
+            if not bounds.window_start > locked_site.monitoring_state_updated_at:
+                return []
             window_id = await self._window_id(session, site, bounds)
             # EP-026 M4 circuit breaker: deterministic read-time projection of
             # the cost ledger — once this site's checkpoint usage for the

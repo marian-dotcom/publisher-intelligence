@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 
 from app.browser.gpt import gpt_stable_key
 from app.browser.models import (
@@ -29,11 +29,13 @@ from app.browser.models import (
     Publisher,
     SeoObservation,
     Site,
+    SiteMonitoringStateChange,
     SyntheticPerformanceObservation,
     Template,
     TemplateExpectedEntity,
     VideoPlayerObservation,
 )
+from app.browser.monitoring_control import set_monitoring_state
 from app.browser.persistence import CheckpointRepository
 from app.browser.scheduling import CheckpointSchedulingService, resolve_six_hour_window
 from app.browser.service import B2_DESKTOP_SCENARIO_CODE, B5_REJECT_SCENARIO_CODE, CheckpointService
@@ -440,6 +442,7 @@ async def _cleanup_tenant(tenant_id: uuid.UUID, storage: S3Storage) -> None:
             BrowserScenario,
             InteractionProfile,
             Template,
+            SiteMonitoringStateChange,
             Site,
             Publisher,
             Job,
@@ -1386,6 +1389,30 @@ async def test_scheduler_produces_repeatable_desktop_and_mobile_runs(
         url=f"{fixture_site}/complete",
     )
     try:
+        # EP-030 M2: scheduled monitoring is fail-closed by default; enable the
+        # registered site so the deterministic scheduler/worker gates authorize
+        # the SCHEDULED desktop+mobile runs this test exercises.
+        async with factory() as session:
+            site = await session.scalar(select(Site).where(Site.tenant_id == registered.tenant_id))
+            assert site is not None
+            await set_monitoring_state(
+                factory,
+                tenant_id=registered.tenant_id,
+                site_id=site.id,
+                enabled=True,
+                actor_id=registered.tenant_id,
+            )
+            # EP-030 M2 GATE-2: the current six-hour window only materializes
+            # when its start is strictly after the enable watermark. For a
+            # repeatable deterministic scheduler test, advance the watermark
+            # into the deep past so the window bucket that "now" falls into is
+            # schedulable independently of wall-clock timing.
+            await session.execute(
+                update(Site)
+                .where(Site.id == site.id)
+                .values(monitoring_state_updated_at=datetime(2020, 1, 1, tzinfo=UTC))
+            )
+            await session.commit()
         await run_browser_worker(once=True)
         first_window_time = datetime.now(UTC)
         first_bounds = resolve_six_hour_window(first_window_time, "UTC")

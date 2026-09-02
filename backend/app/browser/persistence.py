@@ -64,6 +64,17 @@ class CheckpointStateError(RuntimeError):
     pass
 
 
+class CheckpointSkippedError(RuntimeError):
+    """Raised by GATE-3 (EP-030 M2) when a SCHEDULED run was disabled before
+    execution. The run and attempt are already terminalized as SKIPPED in the
+    same commit-immediately transaction; the worker must complete the job with
+    no navigation, retry, DERIVE, or evidence."""
+
+
+# EP-030 M2: canonical limitation id recorded on a GATE-3 administrative skip.
+SKIP_LIMITATION_ID = "monitoring-disabled-before-execution"
+
+
 @dataclass(frozen=True, slots=True)
 class ComparableCheckpoint:
     run: CheckpointRun
@@ -295,13 +306,23 @@ class CheckpointRepository:
         now = datetime.now(UTC)
         async with self._session_factory() as session, session.begin():
             statement = self._target_statement(tenant_id, checkpoint_run_id).with_for_update(
-                of=CheckpointRun
+                of=[CheckpointRun, Site]
             )
             row = (await session.execute(statement)).one_or_none()
             if row is None:
                 raise CheckpointStateError("checkpoint does not belong to the job tenant")
             run = row[0]
             if run.status in FINAL_CHECKPOINT_STATUSES:
+                # EP-030 M2 (GATE-3) crash/redelivery: if this SCHEDULED run was
+                # already terminalized SKIPPED (monitoring disabled before
+                # execution) and then redelivered after a worker crashed before
+                # queue.complete, treat it as an intentional skip, not a state
+                # error. The worker completes the job with zero contact and no
+                # retry instead of failing it.
+                if run.status == "SKIPPED" and run.limitations == [SKIP_LIMITATION_ID]:
+                    raise CheckpointSkippedError(
+                        "scheduled monitoring already disabled (skipped on redelivery)"
+                    )
                 raise CheckpointStateError("finalized checkpoint cannot be restarted")
             existing_attempt = await session.scalar(
                 select(CheckpointAttempt).where(
@@ -312,6 +333,34 @@ class CheckpointRepository:
             )
             if existing_attempt is not None:
                 raise CheckpointStateError("checkpoint attempt already exists")
+            # GATE-3 (EP-030 M2): administrative pre-flight applied ONLY to
+            # routine SCHEDULED monitoring work. DIAGNOSTIC/INCIDENT_DIAGNOSTIC
+            # runs are never skipped here. The site row is locked FOR UPDATE
+            # above, serializing against a concurrent enable/disable write
+            # (R3/R6). If the site was disabled after this run was materialized
+            # and queued, we terminalize the run and attempt as SKIPPED
+            # atomically and raise CheckpointSkippedError so the worker completes
+            # the job with zero navigation/contact/retry/DERIVE. The lock spans
+            # only this short commit-immediately transaction, never network I/O.
+            if run.observation_kind == "SCHEDULED":
+                site = row[2]
+                if site is None or site.monitoring_state != "ON":
+                    await self._terminalize_skipped(
+                        session,
+                        run=run,
+                        tenant_id=tenant_id,
+                        checkpoint_run_id=checkpoint_run_id,
+                        attempt_number=attempt_number,
+                        now=now,
+                    )
+                    # Commit the SKIPPED state before the skip outcome escapes
+                    # this transaction. The FOR UPDATE site lock above serialized
+                    # an enable/disable write; making the terminalization durable
+                    # first means the worker completes the job with the run
+                    # truthfully SKIPPED (R2/R3/R6). After this commit the outer
+                    # `async with session.begin()` exit is a no-op.
+                    await session.commit()
+                    raise CheckpointSkippedError("scheduled monitoring disabled before execution")
             run.status = "RUNNING"
             run.started_at = run.started_at or now
             run.attempt_count = max(run.attempt_count, attempt_number)
@@ -1026,6 +1075,36 @@ class CheckpointRepository:
             )
             .on_conflict_do_nothing(index_elements=["checkpoint_run_id"])
         )
+
+    @staticmethod
+    async def _terminalize_skipped(
+        session: AsyncSession,
+        *,
+        run: CheckpointRun,
+        tenant_id: uuid.UUID,
+        checkpoint_run_id: uuid.UUID,
+        attempt_number: int,
+        now: datetime,
+    ) -> None:
+        """GATE-3 administrative skip (EP-030 M2): atomically terminalize a
+        SCHEDULED run + attempt as SKIPPED with zero navigation/evidence. The
+        worker completes the job with no retry, no DERIVE, and no event."""
+        session.add(
+            CheckpointAttempt(
+                id=uuid.uuid4(),
+                tenant_id=tenant_id,
+                checkpoint_run_id=checkpoint_run_id,
+                attempt_number=attempt_number,
+                started_at=now,
+                completed_at=now,
+                status="SKIPPED",
+                metadata_json={},
+            )
+        )
+        run.status = "SKIPPED"
+        run.completed_at = now
+        run.limitations = [SKIP_LIMITATION_ID]
+        await CheckpointRepository._refresh_window_status(session, run.checkpoint_window_id, now)
 
     @staticmethod
     async def _refresh_window_status(

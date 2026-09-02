@@ -140,6 +140,9 @@ async def _source_health_rows(
             CheckpointRun.tenant_id == tenant_id,
             CheckpointRun.site_id == site_id,
             CheckpointRun.observation_kind == "SCHEDULED",
+            # EP-030 M2: an administrative SKIPPED run carries no actual
+            # observation and must not displace the last genuine observation.
+            CheckpointRun.status != "SKIPPED",
         )
         .order_by(CheckpointRun.started_at.desc())
         .limit(1)

@@ -182,6 +182,12 @@ async def _seed_site_with_current_window(
                 canonical_scheme="https",
                 timezone="UTC",
                 status="ACTIVE",
+                # EP-030 M2: scheduled monitoring is fail-closed by default.
+                # This seed drives the SCHEDULED scheduler path, so authorize
+                # monitoring with a deep-past watermark so GATE-2 treats the
+                # current six-hour window as strictly future and schedulable.
+                monitoring_state="ON",
+                monitoring_state_updated_at=datetime(2020, 1, 1, tzinfo=UTC),
             )
         )
         await session.flush()

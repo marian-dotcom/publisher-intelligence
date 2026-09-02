@@ -1,6 +1,6 @@
 # EP-030 — Per-Site Monitoring Controls
 
-**Status:** READY — M0 COMPLETE (planning/feasibility only); **M1 COMPLETE** (data model + authenticated control API); M2–M4 NOT STARTED; Gate P HUMAN GATE / UNAUTHORIZED; Limited Pilot NOT GRANTED
+**Status:** READY — M0 COMPLETE (planning/feasibility only); **M1 COMPLETE** (data model + authenticated control API); **M2 COMPLETE** (scheduler/worker safety incl. broadened public-config gates; Draft PR #38, unmerged); M3–M4 NOT STARTED; Gate P HUMAN GATE / UNAUTHORIZED; Limited Pilot NOT GRANTED
 **Owner:** Codex / Engineering
 **Created / Updated:** 2026-09-02 (M1 validated this date)
 **Base commit:** `a92da909c53c0618b4671bd569b4a1937a935c27` (origin/main; EP-029 M4 merged)
@@ -25,6 +25,10 @@ period backfill; evidence immutable; operator-facing semantics truthful.
 - one idempotent `PUT` enable/disable command (ADMIN + CSRF + actor tenant);
 - scheduler gate (GATE-1) + transactional materialization re-check with site-row lock (GATE-2)
   + worker pre-flight (GATE-3) with terminal `SKIPPED` for `SCHEDULED` runs;
+- public-config scheduled fetch/validation gates (PC-GATE-1/2/3) — per the CTO decision that
+  `OFF` blocks **all scheduled direct publisher contact** (browser `SCHEDULED` observation and
+  public-config scheduled fetch + linked-second validation alike), same fail-closed zero-contact
+  contract;
 - minimal Home UI: monitoring status and Enable/Disable with confirmation, "Every 6 hours",
   next boundary, monitoring-vs-health separation;
 - additive migration (two `sites` columns + one audit table + `SKIPPED` status value);
@@ -86,8 +90,9 @@ over the accepted ADR-010 cadence, not a change to observation semantics.
 
 ### 4.1 Decision — State and data model
 
-Per-site binary authorization `ON`/`OFF` governing only the six-hour `SCHEDULED` cadence,
-orthogonal to lifecycle `status`. Deterministic next boundary computed, never stored.
+Per-site binary authorization `ON`/`OFF` governing only scheduled observation — the six-hour
+`SCHEDULED` browser cadence and the public-config scheduled fetch/validation cadence — orthogonal
+to lifecycle `status`. Deterministic next boundary computed, never stored.
 
 **Final schema (single authoritative definition; = §6.1):**
 
@@ -161,6 +166,15 @@ moves the watermark. A disabled interval is never backfilled.
 > (5) its **evidence is retained**; (6) **no historical run, window, job, artifact, event, or
 > incident is deleted, cancelled, rewritten, or misclassified**; (7) the **UI exposes that a
 > current check is finishing**.
+
+**Broadened OFF contract (2026-09-02 CTO decision):** `OFF` blocks **all scheduled direct
+publisher contact** — the six-hour browser `SCHEDULED` observation **and** public-config scheduled
+`FETCH` / linked-second `VALIDATE` work. Public-config scheduled runs follow the same fail-closed
+contract via PC-GATE-1/2/3: at-or-before-watermark schedules materialize nothing
+(PC-GATE-2); already-queued/unclaimed FETCH and VALIDATE work that has not passed its final worker
+pre-flight is completed as an intentional administrative skip with zero contact (PC-GATE-3); a run
+already claimed and past its final pre-flight (or already in flight) may continue and finalizes
+normally with evidence retained. No queued scheduled work ever initiates contact while `OFF`.
 
 No immediate absolute cancellation is claimed; no DB lock spans browser/network I/O; no
 cancellation framework; no persisted `PAUSING`.
@@ -251,6 +265,21 @@ Row locks are taken only in short commit-immediately transactions; never across
 browser/network I/O. Unavoidable residual (accepted): after GATE-3 commits `ON`, disable may
 commit before navigation starts; that run is in-flight (R4) — see OFF contract.
 
+Public-config gates (single authoritative description; same fail-closed contract):
+
+```text
+schedule_due (FETCH/VALIDATE) -> PC-GATE-1 candidate query: monitoring_state='ON' filter
+                              -> PC-GATE-2 locked re-check: monitor authorization lock
+                                 (sites row FOR UPDATE-equivalent re-read) then require
+                                 monitoring_state='ON' AND scheduled_for > watermark
+                                 else enqueue nothing
+Worker FETCH/ VALIDATE claim -> PC-GATE-3 pre-flight: re-read monitoring authorization
+                                 ON        -> proceed; observe normally
+                                 OFF/invalid-> raise monitoring-skipped; worker completes
+                                               claimed job (COMPLETE) as intentional skip;
+                                               zero traffic; no retry; no DERIVE
+```
+
 ### 5.2 SKIPPED contract (single authoritative)
 
 Terminal; zero navigation/network contact; not a publisher failure, browser failure, access
@@ -337,13 +366,14 @@ no SKIPPED).
 - **M1 — Data model + control API.** Migration (§6.1), single `PUT` command (§4.3),
   audit/CSRF/tenant/role enforcement, idempotency tests.
 - **M2 — Scheduler/worker safety.** GATE-1/2/3 (§5.1), `SKIPPED` (§5.2), source-health exclusion,
-  R1–R7 and restart-safety tests.
+  R1–R7 and restart-safety tests, plus the broadened public-config PC-GATE-1/2/3. **COMPLETE
+  (2026-09-02)** — see §11; not committed/pushed.
 - **M3 — Minimal operator controls.** Home status projection + Enable/Disable with confirmation
   (§4.4); projection-only staging smoke (no restart/contact).
 - **M4 — Release-readiness.** Full §8 matrix green; migration up/down rehearsal; deployment
   boundary statement; docs/README reconciliation.
 
-Milestones may split into smaller safe slices; must not merge into one mega-step. M1–M4 remain
+Milestones may split into smaller safe slices; must not merge into one mega-step. M3–M4 remain
 **NOT STARTED**.
 
 ## 8. Acceptance Criteria and Test Matrix
@@ -351,35 +381,44 @@ Milestones may split into smaller safe slices; must not merge into one mega-step
 All tests use isolated fixtures / disposable DB; no real publisher contact.
 
 ### OFF contract / races
-- [ ] R1: disable before materialization → nothing created (GATE-2 with site `FOR UPDATE`).
-- [ ] queued-before-disable → `SKIPPED`, no contact, job COMPLETE, no retry (R2).
-- [ ] claimed-before-disable/pre-flight → `SKIPPED`, no contact (R3).
-- [ ] pre-flight passed → disable commits → run may finish; UI `Paused — current check finishing` (R4).
-- [ ] already navigating → disable → finishes normally, evidence retained (R5).
-- [ ] in-flight run finalizes normally; no run/window/job/artifact/event/incident changed.
+- [x] R1: disable before materialization → nothing created (GATE-2 with site `FOR UPDATE`).
+- [x] queued-before-disable → `SKIPPED`, no contact, job COMPLETE, no retry (R2).
+- [x] claimed-before-disable/pre-flight → `SKIPPED`, no contact (R3).
+- [x] pre-flight passed → disable commits → run may finish (R4). UI `Paused — current check
+  finishing` surface is M3 (not yet).
+- [x] already navigating → disable → finishes normally, evidence retained (R5).
+- [x] in-flight run finalizes normally; no run/window/job/artifact/event/incident changed.
+
+### Public configuration (broadened OFF contract)
+- [x] scheduled `FETCH`/`VALIDATE` materializes nothing when `OFF` or at-or-before watermark
+  (PC-GATE-1/2); exact-boundary schedule enqueues nothing.
+- [x] queued/unclaimed FETCH skips at the worker pre-flight while `OFF` with zero traffic and job
+  COMPLETE; no retry/DERIVE (PC-GATE-3).
+- [x] worker-level skip path covered for both FETCH and VALIDATE handlers (unit).
+- [x] full-path scheduled fetch proceeds normally when authorized.
 
 ### State / watermark
-- [ ] existing site `OFF` after upgrade; new registration `OFF` + one `DIAGNOSTIC`/`OPERATOR_UI`
+- [x] existing site `OFF` after upgrade; new registration `OFF` + one `DIAGNOSTIC`/`OPERATOR_UI`
   run; `Add site` keeps one-shot while `OFF`.
-- [ ] enable → no immediate window/run; audit row appended (from/to).
-- [ ] enable 14:10 → first boundary 18:00 (local, UTC-correct).
-- [ ] enable exactly at boundary instant → boundary not claimed.
-- [ ] 16:00 restart → no 12:00-window backfill.
-- [ ] disable 17:00 / re-enable 19:00 → 00:00 next day, never 18:00.
-- [ ] repeated enable: watermark unchanged, no audit duplicate; repeated disable: true no-op;
+- [x] enable → no immediate window/run; audit row appended (from/to).
+- [x] enable 14:10 → first boundary 18:00 (local, UTC-correct).
+- [x] enable exactly at boundary instant → boundary not claimed.
+- [x] 16:00 restart → no 12:00-window backfill.
+- [x] disable 17:00 / re-enable 19:00 → 00:00 next day, never 18:00.
+- [x] repeated enable: watermark unchanged, no audit duplicate; repeated disable: true no-op;
   audit row only on a real transition.
-- [ ] missing/invalid state on read → `OFF` (fail closed), never `ON`.
+- [x] missing/invalid state on read → `OFF` (fail closed), never `ON`.
 
 ### Scheduler / concurrency
-- [ ] GATE-1 never selects `OFF` sites; GATE-2 never materializes pre-watermark windows
+- [x] GATE-1 never selects `OFF` sites; GATE-2 never materializes pre-watermark windows
   (incl. current visible window).
-- [ ] concurrent enable vs tick → no current-boundary creation; concurrent disable vs tick → no
-  post-disable materialization, no duplicate windows/runs/jobs.
-- [ ] disable-after-enqueue → `SKIPPED`; no DERIVE; no event/anomaly/incident; browser source
+- [ ] concurrent enable vs tick → no current-boundary creation (not directly tested); concurrent
+  disable vs tick → no post-disable materialization, no duplicate windows/runs/jobs.
+- [x] disable-after-enqueue → `SKIPPED`; no DERIVE; no event/anomaly/incident; browser source
   health unchanged; latest-actual-observation ignores `SKIPPED`.
-- [ ] two scheduler passes (simulated) → single window/run/job set (R7).
-- [ ] `DIAGNOSTIC`/`OPERATOR_UI`, `INCIDENT_DIAGNOSTIC` unaffected.
-- [ ] all-sites-OFF snapshot → scheduler creates nothing, exits cleanly.
+- [x] two scheduler passes (simulated) → single window/run/job set (R7).
+- [x] `DIAGNOSTIC`/`OPERATOR_UI`, `INCIDENT_DIAGNOSTIC` unaffected.
+- [x] all-sites-OFF snapshot → scheduler creates nothing, exits cleanly.
 
 ### Auth / security
 - [ ] non-ADMIN `403`; missing/invalid CSRF `403`; cross-tenant and unknown site non-disclosing
@@ -417,6 +456,13 @@ All tests use isolated fixtures / disposable DB; no real publisher contact.
 - `browser/browser_worker.py` — handle skip outcome: job COMPLETE, no retry/finalize/DERIVE.
 - `api/...` — PUT endpoint + status projection (existing authenticated product home; no new area).
 - `api/product.py` — latest-actual-observation selection excludes `SKIPPED`.
+- `public_config/persistence.py`, `public_config/scheduling.py`, `public_config/service.py`,
+  `worker.py` — PC-GATE-1/2/3 (§5.1): `monitoring_state="ON"` candidate filter,
+  `lock_monitoring_authorization` + strictly-future `scheduled_for`/`observed_at` check,
+  `PublicConfigMonitoringSkippedError` pre-flight with worker `queue.complete` skip handling
+  (both `FETCH` and `VALIDATE` handlers).
+- `tests/integration/test_site_monitoring_gates.py` (new) — R1–R7, per-gate coverage,
+  crash/redelivery recovery, re-enable/tenant/health-safety.
 - `frontend/app/(protected)/page.tsx` + request helpers — §4.4.
 
 ## 10. Validation Ladder
@@ -431,6 +477,149 @@ All tests use isolated fixtures / disposable DB; no real publisher contact.
 - CI: exact-head run of backend/frontend tasks on the merge target before merge.
 
 ## 11. Progress / Decision Log
+
+- 2026-09-02: **M2 COMPLETE** (GATE-1/2/3 race-safe scheduler + worker enforcement; branch
+  `agent/ep-030-per-site-monitoring-controls`, Draft PR #38). GATE-1: scheduler due-query now selects
+  only `Site.status=="ACTIVE" AND Site.monitoring_state=="ON"` (optimization, not authoritative — the
+  authoritative bound is the transaction-time lock). GATE-2: `_materialize_site` re-locks tenant-owned
+  `Site ... FOR UPDATE` inside its commit-immediately txn and materializes iff `monitoring_state=="ON"`
+  AND `bounds.window_start > locked_site.monitoring_state_updated_at` (strict-future watermark;
+  matches `window_start_local > enable_instant_local`); otherwise returns `[]` (zero window/run/job),
+  NOT a breaker skip. GATE-3: `begin_attempt` uses `with_for_update(of=[CheckpointRun, Site])`, and for
+  `observation_kind=="SCHEDULED"` only, if the locked site is not `ON` it terminalizes run+attempt as
+  `SKIPPED` (limitations=[`monitoring-disabled-before-execution`], `completed_at=now`, window refreshed)
+  and commits BEFORE raising `CheckpointSkippedError` so the SKIPPED write is durable (the outer
+  `async with session.begin()` exit is then a no-op), with no navigation/retry/DERIVE/event/cost/
+  evidence. `browser_worker.handle_browser_job` catches `CheckpointSkippedError` → `queue.complete`
+  + structured `browser checkpoint admin skipped` log, returning early (no finalize). `product.py`
+  latest-actual-observation selection now excludes `status=="SKIPPED"` so an administrative skip never
+  displaces the last genuine observation. M1 behavior (configuration-only
+  `ensure_b2_configuration_for_active_sites()`, `SKIPPED` excluded from `_BROWSER_BAD_STATUSES`) was
+  left unchanged; `monitoring_control._in_flight_scheduled_run_status` already only selects
+  PENDING/RUNNING so no change was needed. Three-gate design verified to fit without a general
+  cancellation framework; `BROWSER_CHECKPOINT` was the sole contact-capable job type at the time of the
+  original M2 log entry, with every SCHEDULED/DIAGNOSTIC/INCIDENT_DIAGNOSTIC/OPERATOR_UI flow routing
+  through `begin_attempt` (GATE-3 applies only to SCHEDULED). Subsequent CTO-broadened OFF contract
+  work added `FETCH_PUBLIC_CONFIG` / `VALIDATE_PUBLIC_CONFIG` as analogous contact-capable job types
+  gated by PC-GATE-1/2/3. New integration test `tests/integration/test_site_monitoring_gates.py`
+  (R1–R7 + per-gate coverage: GATE-1 ON/OFF, GATE-2 disabled-before-materialize / before-watermark /
+  idempotency, queued-then-disabled worker skip, claimed-before-disable preflight skip, direct
+  `begin_attempt` raises `CheckpointSkippedError` + re-begin raises `CheckpointSkippedError`
+  (crash/redelivery recovery — see remediation entry below),
+  in-flight-after-disable normal finalize, window-of-only-SKIPPED is COMPLETE, DIAGNOSTIC unaffected,
+  concurrent-disable-vs-preflight truthful). Existing scheduled-navigation tests updated to authorize
+  monitoring (`monitoring_state="ON"` + deep-past watermark) now that enforcement is real:
+  `test_browser_checkpoint` scheduler desktop/mobile repeatability, `test_browser_access_classification_storage`
+  SCHEDULED baseline, `test_cost_circuit_breaker_m4` scheduling; those additions were NOT test weakening.
+  Validation ladder (§10) on a fresh isolated DB/bucket
+  (`publisher_intelligence_ep030_m2` / `publisher-intelligence-ep030-m2`): `ruff format --check` clean;
+  `ruff check` clean; mypy clean (4 changed prod files + 4 changed/new test files + full 275 default);
+  unit **434 passed**; full integration (`RUN_INTEGRATION=1`, `BROWSER_ALLOW_PRIVATE_NETWORKS=true`)
+  **266 passed, 0 failures** in one process (incl. the 11 new gate tests); frontend **133 passed**,
+  `npm run typecheck` clean, `npm run lint` clean (1 pre-existing unused-var warning in an untouched
+  file). `alembic check` reports only the same pre-existing unrelated drift (`retention_runs`,
+  `monetization_capability`, `seo_observations`) as before — none introduced by M2; `git diff --check`
+  clean. Scheduler was NOT restarted/contacted; no site, staging, deploy, or pilot action. NOT
+  committed/pushed — STOPPED for adversarial review.
+
+- 2026-09-02: **M2 remediation COMPLETE** (adversarial review + broadened OFF contract; branch
+  `agent/ep-030-per-site-monitoring-controls`, Draft PR #38, still unmerged — NOT committed/pushed).
+  **CTO decision:** `OFF` blocks **all scheduled direct publisher contact**. Public-config gates
+  implemented: `schedulable_sites()` (PC-GATE-1, `monitoring_state="ON"` filter), `schedule_due`
+  re-check (PC-GATE-2: `lock_monitoring_authorization` + strictly-future `scheduled_for` vs watermark;
+  exact-boundary = stale = skip), and worker-level pre-flight (PC-GATE-3:
+  `PublicConfigMonitoringSkippedError` from `_preflight_monitoring()` in `run_scheduled`/`run_validation`;
+  both `_handle_public_config_fetch_job` and `_handle_public_config_validation_job` catch it →
+  `queue.complete` intentional skip, zero traffic, no retry/DERIVE). **Crash/redelivery fix:**
+  `begin_attempt` now raises `CheckpointSkippedError` (not `CheckpointStateError`) when re-claiming a
+  terminal `SKIPPED` run bearing the canonical `monitoring-disabled-before-execution` limitation, so a
+  worker crash between GATE-3 commit and job completion recovers as a completed skip instead of a
+  poisoned `RUNNING` job (new test `test_skipped_run_redelivered_after_crash_completes_not_fails`).
+  **R1 test rewrite:** `test_gate2_materializes_nothing_when_disabled_before_materialize` now uses a
+  deterministic real-concurrency lock barrier witnessed via `pg_stat_activity` (waiting second `FOR
+  UPDATE` blocks on a `transactionid` lock, invisible in `pg_locks` for the sites relation) — no
+  sleep-based timing. Safety tests added: re-enable does not backfill past the disabled window,
+  monitoring control is tenant-independent, SKIPPED never displaces a genuine source-health
+  observation, public-config zero-contact when OFF / at-boundary stale / queued-worker-skip, full path
+  proceeds when authorized, scheduler exact-boundary enqueues nothing. Unit worker tests added for both
+  public-config skip handlers; scheduling/service stubs updated (`lock_monitoring_authorization`).
+  Validation: `ruff format --check`/`ruff check` clean (276 files); mypy clean (276 source files);
+  unit **436 passed**; `tests/integration/test_public_configuration.py` **12 passed**;
+  `tests/integration/test_site_monitoring_gates.py` **15 passed** (2 of these timing-sensitive tests
+  were green in isolation and in the full one-process run, and transiently red in one focused combined
+  invocation — the rejected enqueue→claim timing flake below; that focused red invocation is NOT
+  green/rejected as acceptance evidence); canonical complete integration **275 passed, 0 failures** in
+  one process (fresh DB `publisher_intelligence_ep030_ladder` / bucket `publisher-intelligence-ep030-ladder`)
+  (alembic `0029` applied locally). M1-baseline regression comparison (temp worktree at `967ba13`):
+  `test_scheduler_produces_repeatable_desktop_and_mobile_runs` fails identically at the M1 baseline in
+  this environment (pre-existing/environmental, NOT this EP) and
+  `test_native_video_player_persists_sticky_playback_and_network_evidence` +
+  `test_performance_collector_failure_retains_other_checkpoint_evidence` pass in isolation in the
+  working tree (earlier full-file failures = real-browser cross-test resource/timing flakiness, not
+  regressions). Scheduler NOT restarted; no site/staging/deploy/pilot action. STOPPED for review.
+  Follow-up remediation entry below records the final bounded fix.
+
+- 2026-09-02: **FINAL BOUNDED M2 remediation** (same branch `agent/ep-030-per-site-monitoring-controls`,
+  Draft PR #38, still unmerged — NOT committed/pushed; HEAD `967ba1340ed6a0948f80aa170acc12c326cd87c9`
+  unchanged). Accepted the targeted adversarial review except one overlooked production defect fixed
+  here. Authorized changes limited to A–D below.
+  **A — deterministic ready-job timestamps (test-only):** the enqueue→claim flake root cause is that
+  `JobQueue.enqueue` writes `scheduled_at=datetime.now(UTC)` (Python clock, µs) while `claim` requires
+  `scheduled_at <= CURRENT_TIMESTAMP` (PG transaction-start), so a freshly-enqueued job can transiently
+  appear "future" and claim returns `None`. Applied an explicit ready timestamp `datetime(2000,1,1,
+  tzinfo=UTC)` (accepted by `JobQueue.enqueue`'s existing `scheduled_at` parameter; no production queue
+  change, no sleep, no weakened claim assertion) to every new M2 test that needs the job immediately
+  claimable: `test_skipped_run_redelivered_after_crash_completes_not_fails`,
+  `test_claimed_before_disable_preflight_skips_r3`,
+  `test_queued_then_disabled_worker_skips_no_contact_job_complete_r2` (gates), and the public-config
+  worker-level fetch test `test_queued_fetch_skips_at_worker_level_when_disabled`. Swept the new M2 tests
+  for the same immediate enqueue→claim pattern and applied it only where immediate claimability is
+  required. This removes the previously-REJECTED timing-sensitive focused invocation as a failure mode.
+  **B — explicit FETCH payload validation:** `_handle_public_config_fetch_job` already enforces the
+  canonical required-keys set (`{site_id, config_type, scheduled_for, rule_version}`) before any field
+  read — symmetric with the VALIDATE handler. Made the validation deterministic and defensive by adding
+  `KeyError` to the parse-guard tuple (`(TypeError, ValueError, AttributeError, KeyError)`) in BOTH the
+  fetch and validate handlers (narrow validation catch, NOT a generic exception tank), so a structurally
+  unexpected/missing/malformed payload is a deterministic non-retryable `INVALID_PUBLIC_CONFIG_JOB` /
+  `INVALID_JOB_PAYLOAD` with zero publisher contact, zero retry, zero source extract/evidence/metric/
+  event/incident, and never confusable with a monitoring-disabled skip. No dependency, schema change or
+  migration. FETCH required-key validation is now provably: missing `scheduled_for` → non-retryable
+  invalid job; malformed `scheduled_for` (e.g. `"not-a-datetime"`) → non-retryable invalid job; both fail
+  closed before any service/network path.
+  **C — new integration coverage (local controlled fixtures only):** added to
+  `tests/integration/test_public_configuration.py`: `test_fetch_missing_scheduled_for_fails_non_
+  retryable_zero_contact` (zero `client.fetch`, deterministic non-retryable job failure, no source
+  extract/evidence/metric/event/incident), `test_fetch_malformed_scheduled_for_fails_non_retryable_zero_
+  contact` (same), `test_queued_validation_worker_skips_when_off_zero_contact` (real DB/service/worker
+  path: a VALIDATE job queued while ON then claimed after OFF completes as an intentional skip, PC-GATE-3
+  runs before `_observe`/`client.fetch`, zero contact, COMPLETE, no retry, no new snapshot/event), and
+  `test_stale_validation_after_re_enable_completes_skip_zero_contact` (VALIDATE referencing a primary
+  whose `observed_at` is at/before the new OFF→ON watermark → stale skip, zero `client.fetch`). A shared
+  `_create_validation_primary` helper builds a healthy-then-broad-block eligible primary. No redundant
+  PC-GATE-1 integration test was added (~KISS): the real PC-GATE-2 and execution tests already prove zero
+  creation/contact.
+  **D — honest record:** the accepted pre-remediation canonical run (fresh DB
+  `publisher_intelligence_ep030_ladder` / bucket `publisher-intelligence-ep030-ladder`) was **275 passed,
+  0 failures** and is preserved as historical evidence above; the focused gate invocation with 2
+  timing-sensitive failures is recorded (above) as REJECTED, NOT green. Final counts below are from
+  revalidation after this remediation.
+  Validation after remediation (fresh DB `publisher_intelligence_ep030_final` / bucket
+  `publisher-intelligence-ep030-final`, zero→head `0029`, no `0030`): `ruff format --check` clean (312
+  files); `ruff check` clean; mypy **Success, 276 source files, 0 errors**; unit **436 passed**;
+  `tests/integration/test_site_monitoring_gates.py` **15 passed**; `tests/integration/test_public_configuration.py`
+  **16 passed** (12 prior + 4 new); public-config worker unit **8 passed**; the three formerly-flaky
+  tests plus the public-config worker-level fetch test each run **10 consecutive times green** (no
+  flake); complete integration **279 passed, 0 failures** in one process (275 prior + 4 new). Scheduler
+  `--once` and worker `--once` on the fresh DB (all sites OFF) exit 0: zero
+  BROWSER_CHECKPOINT/FETCH_PUBLIC_CONFIG/VALIDATE_PUBLIC_CONFIG contact jobs created or executed (final
+  jobs table contains only the internal ENFORCE_RETENTION PENDING→COMPLETE row, 0 rows deleted).
+  `check_secrets.py` OK; `docker compose config` OK; `git diff --check` clean; `alembic check` reports
+  only the same 3 pre-existing unrelated drift items (`retention_runs` removed table,
+  `monetization_capability` VARCHAR(20)→String(30), `seo_observations` unique-constraint rename) — none
+  from this remediation. Frontend production and tests unchanged (reused the previously accepted Node
+  24 validation). M2 remains uncommitted/unmerged/undeployed; **M3–M4 NOT STARTED**; staging scheduler
+  STOPPED; no site enabled; Gate P UNAUTHORIZED; Limited Pilot NOT GRANTED. STOPPED for final diff
+  verification; no commit/push.
 
 - 2026-09-02: **M1 COMPLETE** (data model + authenticated per-site monitoring control API; branch
   `agent/ep-030-per-site-monitoring-controls`, Draft PR #38). Migration `0029_site_monitoring_controls`
@@ -462,7 +651,9 @@ All tests use isolated fixtures / disposable DB; no real publisher contact.
   and worker GATE-3 enforcement land in M2, so no site must be enabled and the staging scheduler must
   remain STOPPED until M2 is authorized and implemented. M1 does not start M2; no
   frontend exposure; scheduler/worker enforcement deferred to M2; no deployment/scheduler-restart/site
-  enforcement. Test-only remediation touched no production code. NOT committed/pushed.
+  enforcement. Test-only remediation touched no production code. M1 committed and pushed at
+  `967ba13…` (branch head) with CI **accepted** on runs `33578088360` / `33578085854`; M2 work
+  remains uncommitted pending its own review.
 
 - 2026-09-02: planning authored. EP-029 M4 close verified at `a92da909…` (PR #37 MERGED; CI
   green on `33561839030` / `33561888659`); branch facts, migration head, containment verified;
@@ -482,9 +673,12 @@ All tests use isolated fixtures / disposable DB; no real publisher contact.
 
 ## 12. Next Boundary
 
-M0 COMPLETE and **M1 COMPLETE** (data model + authenticated control API, validated, on branch/Draft
-PR #38; NOT committed/pushed). **M1 is NOT independently deployable** — its scheduling-gating
-(GATE-1/2/3) enforcement is M2, so no site may be enabled and the staging scheduler must remain
-STOPPED until M2 is authorized and implemented. **M2–M4, deploying, restarting the scheduler,
-enabling any site, creating EP-031/EP-032, or starting Gate P / Limited Pilot each require separate
-authorizations.**
+M0 COMPLETE, **M1 COMPLETE**, and **M2 COMPLETE** (GATE-1/2/3 race-safe scheduler + worker
+enforcement plus broadened public-config PC-GATE-1/2/3, validated on branch/Draft PR #38; M2
+uncommitted, NOT pushed). M1+M2 together make the per-site monitoring authorization fail-closed for
+all scheduled direct publisher contact: disabled/queued `SCHEDULED` browser work is never executed
+(GATE-1/2) and, if already materialized, is terminalized as SKIPPED at the worker pre-flight
+(GATE-3) with zero contact; public-config scheduled `FETCH`/`VALIDATE` work is skipped at
+enqueue or completed as an intentional worker skip (PC-GATE-1/2/3). **M3–M4, deploying, restarting
+the scheduler, enabling any site, creating EP-031/EP-032, or starting Gate P / Limited Pilot each
+require separate authorizations.**
