@@ -421,8 +421,15 @@ commit (`b61494bb…`); M3 is **COMPLETE** and the EP-029 M4 **release-readiness
 authenticated operator-created incident exists in staging — not system-derived, purpose/motivation
 unknown, reconciliation deferred until Gate P preparation). **Gate P remains a separate HUMAN GATE
 (UNAUTHORIZED by the EP-029 plan) and Limited Pilot remains NOT GRANTED**. The staging scheduler stays
-STOPPED and **no scheduled monitoring is authorized**. The future product sequence EP-030 (per-site
-monitoring controls) → EP-031 (polished operator UI / Site Overview) → EP-032 (minimal CrUX History) →
+STOPPED and **no scheduled monitoring is authorized**. EP-030 (per-site monitoring controls) is an
+**active ExecPlan (Draft PR #38, unmerged)**: M1 (data model + authenticated per-site `ON`/`OFF`
+control API) is **COMPLETE and committed (`967ba13…`, CI accepted)**; M2 (scheduler/worker
+fail-closed safety, broadened by a CTO decision so `OFF` blocks **all scheduled direct publisher
+contact** — browser `SCHEDULED` observation and public-config scheduled fetch/validation alike, with
+a `SKIPPED` terminal state) is **COMPLETE and validated on the branch, uncommitted**. Neither M1 nor
+M2 is deployed: M1/M2 together only make the controls fail-closed; no site is enabled and the
+staging scheduler remains STOPPED. The future product sequence EP-031 (polished operator UI / Site
+Overview) → EP-032 (minimal CrUX History) →
 separately authorized Gate P / Limited Pilot → post-pilot LLM Site Intelligence Briefing remains
 **proposed only — not authorized and not yet covered by active ExecPlans**; no further live publisher
 contact, recurring monitoring, or pilot authorization is included beyond the single candidate

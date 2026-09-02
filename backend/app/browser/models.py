@@ -9,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     String,
@@ -30,6 +31,7 @@ FINAL_CHECKPOINT_STATUSES = (
     "BROWSER_ERROR",
     "TIMEOUT",
     "BLOCKED",
+    "SKIPPED",
 )
 
 
@@ -52,7 +54,14 @@ class Publisher(Base):
 
 class Site(Base):
     __tablename__ = "sites"
-    __table_args__ = (UniqueConstraint("tenant_id", "canonical_domain"),)
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "canonical_domain"),
+        UniqueConstraint("tenant_id", "id"),
+        CheckConstraint(
+            "monitoring_state IN ('ON', 'OFF')",
+            name="ck_sites_monitoring_state",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
@@ -66,8 +75,62 @@ class Site(Base):
     canonical_scheme: Mapped[str] = mapped_column(String(10), nullable=False, default="https")
     timezone: Mapped[str] = mapped_column(String(100), nullable=False, default="UTC")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="ACTIVE")
+    monitoring_state: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=text("'OFF'"), default="OFF"
+    )
+    monitoring_state_updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
+# EP-030 M1: append-only per-site scheduled-monitoring transition audit. Rows
+# are written only on a real OFF<->ON transition and are never updated or
+# deleted through normal application paths. The composite FK makes it
+# database-impossible for an audit row to pair a tenant with another tenant's
+# site. actor_id mirrors the operator-subject identity used by incidents
+# (created_by) and is deliberately not a FK: operator lifecycle is separate.
+class SiteMonitoringStateChange(Base):
+    __tablename__ = "site_monitoring_state_changes"
+    __table_args__ = (
+        CheckConstraint(
+            "from_state IN ('ON', 'OFF')",
+            name="ck_site_monitoring_state_changes_from",
+        ),
+        CheckConstraint(
+            "to_state IN ('ON', 'OFF')",
+            name="ck_site_monitoring_state_changes_to",
+        ),
+        CheckConstraint(
+            "from_state <> to_state",
+            name="ck_site_monitoring_state_changes_clean_transition",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "site_id"],
+            ["sites.tenant_id", "sites.id"],
+            ondelete="RESTRICT",
+            name="fk_site_monitoring_state_changes_site",
+        ),
+        Index(
+            "ix_site_monitoring_state_changes_site_changed",
+            "tenant_id",
+            "site_id",
+            "changed_at",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False
+    )
+    site_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    from_state: Mapped[str] = mapped_column(Text, nullable=False)
+    to_state: Mapped[str] = mapped_column(Text, nullable=False)
+    actor_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
 
 
@@ -207,7 +270,7 @@ class CheckpointRun(Base):
     __table_args__ = (
         CheckConstraint(
             "status IN ('PENDING', 'RUNNING', 'COMPLETE', 'PARTIAL', 'SITE_ERROR', "
-            "'BROWSER_ERROR', 'TIMEOUT', 'BLOCKED')",
+            "'BROWSER_ERROR', 'TIMEOUT', 'BLOCKED', 'SKIPPED')",
             name="ck_checkpoint_runs_status",
         ),
         CheckConstraint(
