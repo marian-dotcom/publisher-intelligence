@@ -43,7 +43,7 @@ export function readCsrfToken(): string | null {
 }
 
 interface RequestOptions {
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "PUT";
   body?: unknown;
 }
 

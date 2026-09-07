@@ -1,8 +1,8 @@
 # EP-030 — Per-Site Monitoring Controls
 
-**Status:** READY — M0 COMPLETE (planning/feasibility only); **M1 COMPLETE** (data model + authenticated control API); **M2 COMPLETE** (scheduler/worker safety incl. broadened public-config gates; Draft PR #38, unmerged); M3–M4 NOT STARTED; Gate P HUMAN GATE / UNAUTHORIZED; Limited Pilot NOT GRANTED
+**Status:** READY — M0 COMPLETE (planning/feasibility only); **M1 COMPLETE** (data model + authenticated control API); **M2 COMPLETE** (scheduler/worker safety incl. broadened public-config gates; committed `ad79469bbd8f00538b425e03cbe7b2b4287209ca`; Draft PR #38, unmerged; CI runs `33626255435` (pull_request) / `33626390421` (push) both SUCCESS); **M3 COMPLETE** (minimal Home monitoring controls; same branch; Draft PR #38, unmerged/undeployed); **M4 NOT STARTED**; Gate P HUMAN GATE / UNAUTHORIZED; Limited Pilot NOT GRANTED
 **Owner:** Codex / Engineering
-**Created / Updated:** 2026-09-02 (M1 validated this date)
+**Created / Updated:** 2026-09-03 (M3 validated this date)
 **Base commit:** `a92da909c53c0618b4671bd569b4a1937a935c27` (origin/main; EP-029 M4 merged)
 **MVP scope impact:** NO
 **External publisher onboarding:** OUT OF SCOPE
@@ -367,14 +367,17 @@ no SKIPPED).
   audit/CSRF/tenant/role enforcement, idempotency tests.
 - **M2 — Scheduler/worker safety.** GATE-1/2/3 (§5.1), `SKIPPED` (§5.2), source-health exclusion,
   R1–R7 and restart-safety tests, plus the broadened public-config PC-GATE-1/2/3. **COMPLETE
-  (2026-09-02)** — see §11; not committed/pushed.
+  (2026-09-02)** — see §11; committed `ad79469bbd8f00538b425e03cbe7b2b4287209ca`; CI runs
+  `33626255435` (pull_request) / `33626390421` (push) both SUCCESS. Not merged/deployed.
 - **M3 — Minimal operator controls.** Home status projection + Enable/Disable with confirmation
-  (§4.4); projection-only staging smoke (no restart/contact).
+  (§4.4); projection-only staging smoke (no restart/contact). **COMPLETE (2026-09-03)** — see §11;
+  uncommitted/merged/undeployed variant of the same Draft PR #38 branch.
 - **M4 — Release-readiness.** Full §8 matrix green; migration up/down rehearsal; deployment
-  boundary statement; docs/README reconciliation.
+  boundary statement; docs/README reconciliation. **NOT STARTED.**
 
-Milestones may split into smaller safe slices; must not merge into one mega-step. M3–M4 remain
-**NOT STARTED**.
+Milestones may split into smaller safe slices; must not merge into one mega-step. M3 is COMPLETE;
+M4 remains **NOT STARTED**. M3 is not deployed, not merged, and no site has been enabled; the
+staging scheduler remains STOPPED.
 
 ## 8. Acceptance Criteria and Test Matrix
 
@@ -477,6 +480,83 @@ All tests use isolated fixtures / disposable DB; no real publisher contact.
 - CI: exact-head run of backend/frontend tasks on the merge target before merge.
 
 ## 11. Progress / Decision Log
+
+- 2026-09-03: **M3 COMPLETE** (minimal Home monitoring controls; same branch
+  `agent/ep-030-per-site-monitoring-controls`, Draft PR #38 — NOT committed/pushed; HEAD remains
+  `ad79469bbd8f00538b425e03cbe7b2b4287209ca`). Backend read-only projection: `home_status.monitoring`
+  (`backend/app/api/product.py`) reuses M1 `monitoring_control_result` + `MONITORING_CADENCE`,
+  exposing `enabled` (true|false|null), `monitoring_state_updated_at`,
+  `cadence{identifier:six-hour,hours:6}`, strictly-future `next_scheduled_for` (null when OFF/
+  unavailable), `in_flight_scheduled_run_status` (PENDING/RUNNING|null), tenant-scoped,
+  fail-closed never implicit ON; only `SiteMonitoringNotFoundError` → `monitoring: null`, unexpected
+  errors surface normally. Monitoring projection is additive and entirely separate from source
+  health/diagnostic/lifecycle. New integration test `tests/integration/test_home_monitoring_projection.py`
+  (8 tests: OFF/ON/strictly-future/OFF+in-flight/unavailable fail-closed/no-mutation/tenant-isolation
+  non-disclosing/additive-diagnostic + separation from source health), ruff/mypy clean. Frontend:
+  `lib/api.ts` `RequestOptions.method` extended to `"GET"|"POST"|"PUT"` (no separate fetch impl;
+  GET/POST semantics/CSRF unchanged); `lib/api-types.ts` `MonitoringProjection`,
+  `UpdateMonitoringResponse`, `HomeStatus.monitoring`; NEW `components/monitoring-controls.tsx`
+  `MonitoringCard` + `MonitoringDialog` using canonical `useAuth()` (throws without provider — missing
+  provider is a programming error, not a non-ADMIN fallback; role parsing not duplicated), captured
+  `{siteId, mode}` at dialog-open, derived `dialogOpen = dialog !== null && dialog.siteId === siteId`,
+  native `<dialog>`, four canonical states (ON="Monitoring active"/"Every 6 hours"+next check/"Pause
+  monitoring"; OFF no-run="Paused"/"No automatic checks will start."/"Enable monitoring"; OFF
+  in-flight="Paused — current check finishing"/"Enable monitoring"; unavailable="Monitoring state
+  unavailable"/"Automatic monitoring is treated as paused.", no mutation), mapMonitoringError for
+  401/403/404/network, single PUT `{enabled:true|false}` per confirmation, pending guard prevents
+  duplicate submit, Cancel/Escape make no request, bounded error keeps state, success refetches current
+  site, dialog closes/resets on site change (site A response cannot update site B). `app/(protected)/page.tsx`
+  wires `<MonitoringCard>` in `section aria-label="Automatic monitoring"` after Source health with a
+  gen-guarded `refreshHome` callback (gen `siteGenRef` guards against stale site responses); removed
+  `AuthContext`/`useContext` imports in favor of `useAuth()`. Frontend tests: NEW
+  `tests/monitoring-controls.test.tsx` (25 tests incl. 4 UI states, ADMIN/non-ADMIN/loading/
+  unauthenticated/missing-session/missing-provider-throws, confirmation text, exactly one PUT,
+  cancel/Escape no request, duplicate-submit prevention, 401/403/404/network bounded errors, success
+  refetches, site-change close; dialog buttons via `document.querySelector` per AddSiteDialog
+  convention), NEW `tests/home-timeline.test.tsx` (mocks `@/lib/auth-client`; HOME_BODY without
+  `monitoring` → fail-closed unavailable), and `tests/add-site-dialog.test.tsx` now mocks
+  `@/lib/auth-client` `useAuth` so `<HomePage />` renders under a provider. Validation ladder (§10) on a
+  fresh isolated DB/bucket `publisher_intelligence_ep030_m3` / `publisher-intelligence-ep030-m3`
+  (zero→head `0029`, no `0030`): `uv sync --all-groups --locked`; `ruff format --check` clean (313
+  files); `ruff check` clean; mypy **Success, 277 files, 0 errors** (incl. tests/scripts/migrations/env.py);
+  unit **436 passed** (exact CI/default env); complete integration (`RUN_INTEGRATION=1`,
+  `BROWSER_ALLOW_PRIVATE_NETWORKS=true`) **287 passed, 0 failures, 169 warnings** in one process
+  (M2 CI 279 + M3 8); focused M3+M1/M2 **62 passed**; scheduler `--once` clean (all sites OFF,
+  site_count 0, retention pass 1 job) and worker `--once` clean (ENFORCE_RETENTION only, 0 rows
+  deleted); frontend Node 24.20 + pnpm 11.16 frozen-lockfile install, `typecheck` (tsc) clean, `eslint`
+  0 errors (1 pre-existing unused-var warning in untouched `investigate-dialog.test.tsx`), complete
+  `vitest` **158 passed / 15 files** (CI 133 + M3 25), production `next build` SUCCESS (7 static pages);
+  `check_secrets.py` OK; `docker compose config` OK; `git diff --check` clean; `alembic check` reports
+  only the same 3 pre-existing unrelated drift items (`retention_runs` removed table,
+  `monetization_capability` VARCHAR(20)→String(30), `seo_observations` unique-constraint rename) — none
+  from M3, confirming no new migration. M3 uncommitted/unmerged/undeployed; **M4 NOT STARTED**; staging
+  scheduler STOPPED; no site enabled; Gate P HUMAN GATE/UNAUTHORIZED; Limited Pilot NOT GRANTED.
+  STOPPED for review; nothing staged/committed/pushed.
+
+- 2026-09-07: **M3 race remediation** (same branch, Draft PR #38; HEAD remains
+  `ad79469bbd8f00538b425e03cbe7b2b4287209ca`, nothing staged/committed/pushed). Added sequential
+  deferred A→B and A→B→A race regression tests; both FAILED pre-fix (A→B: A's "Processing…" dialog
+  was not remounted/persisted under B after switching selection; A→B→A: freshly re-opened A dialog
+  confirm inherited the prior pending/submitting state). Two-file production fix: (1)
+  `frontend/components/monitoring-controls.tsx` — `onRefetch` prop changed to
+  `(requestSiteId: string) => void | Promise<void>`; parent `onConfirm={(requestSiteId) => {
+  setDialog(null); void onRefetch(requestSiteId); }}`; `MonitoringDialogProps.onConfirm =
+  (requestSiteId: string) => void`; `handleConfirm` calls `onConfirm(siteId)` after success. (2)
+  `frontend/app/(protected)/page.tsx` — `MonitoringCard` keyed by `${selectedSiteId ?? "none"}:
+  ${monitoringGen}`, `siteId={selectedSiteId}`, guarded `monitoringOnRefetch` that no-ops unless
+  `monitoringGenRef.current === monitoringGen` (render snapshot) and
+  `selectedSiteId === requestSiteId`, else `return refreshHome()`. `monitoringGen` is a
+  render-visible `useState` mirror (with `monitoringGenRef`) bumped at site change/add and `refreshHome`;
+  deliberately separate from `siteGenRef`'s poll-invalidation bump (avoids `react-hooks/refs`
+  ref-in-render and `react-hooks/set-state-in-effect`). No `MonitoringDialog` generation props, no new
+  hook, no global state, no AbortController, no backend change. Revalidation: typecheck `tsc --noEmit`
+  clean; `eslint .` 0 errors (1 pre-existing unused-var warning in `investigate-dialog.test.tsx`);
+  focused A→B, A→B→A, unchanged-site refetch, native-cancel all pass; race tests ×20 pass (0 failures);
+  full `tests/monitoring-controls.test.tsx` **27 passed (27)**; focused `home-timeline.test.tsx`
+  **11 passed**; complete `vitest` **160 passed / 15 files**; production `next build` SUCCESS (7
+  static pages); `check_secrets.py` OK; `git diff --check` clean. Uncommitted/unmerged/undeployed; no
+  site enabled; **M4 NOT STARTED**; Gate P HUMAN GATE/UNAUTHORIZED; Limited Pilot NOT GRANTED.
+  STOPPED for commit authorization.
 
 - 2026-09-02: **M2 COMPLETE** (GATE-1/2/3 race-safe scheduler + worker enforcement; branch
   `agent/ep-030-per-site-monitoring-controls`, Draft PR #38). GATE-1: scheduler due-query now selects
@@ -673,12 +753,13 @@ All tests use isolated fixtures / disposable DB; no real publisher contact.
 
 ## 12. Next Boundary
 
-M0 COMPLETE, **M1 COMPLETE**, and **M2 COMPLETE** (GATE-1/2/3 race-safe scheduler + worker
-enforcement plus broadened public-config PC-GATE-1/2/3, validated on branch/Draft PR #38; M2
-uncommitted, NOT pushed). M1+M2 together make the per-site monitoring authorization fail-closed for
+M0 COMPLETE, **M1 COMPLETE**, **M2 COMPLETE** (committed `ad79469bbd8f00538b425e03cbe7b2b4287209ca`;
+CI `33626255435`/`33626390421` SUCCESS), and **M3 COMPLETE** (minimal Home monitoring controls;
+same Draft PR #38 branch, uncommitted/unmerged/undeployed). M1+M2 together make the per-site
+monitoring authorization fail-closed for
 all scheduled direct publisher contact: disabled/queued `SCHEDULED` browser work is never executed
 (GATE-1/2) and, if already materialized, is terminalized as SKIPPED at the worker pre-flight
 (GATE-3) with zero contact; public-config scheduled `FETCH`/`VALIDATE` work is skipped at
-enqueue or completed as an intentional worker skip (PC-GATE-1/2/3). **M3–M4, deploying, restarting
+enqueue or completed as an intentional worker skip (PC-GATE-1/2/3). **M4, deploying, restarting
 the scheduler, enabling any site, creating EP-031/EP-032, or starting Gate P / Limited Pilot each
 require separate authorizations.**

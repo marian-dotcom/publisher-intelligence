@@ -10,10 +10,15 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.site_monitoring import MONITORING_CADENCE
 from app.auth.dependencies import ActorContext, get_current_actor
 from app.browser.access_reliability import classification_from_storage
 from app.browser.cost import breaker_open_for_usage, latest_site_window_usage
 from app.browser.models import Artifact, CheckpointRun, Publisher, Site
+from app.browser.monitoring_control import (
+    SiteMonitoringNotFoundError,
+    monitoring_control_result,
+)
 from app.config.settings import Settings
 from app.connectors.freshness import SOURCE_FRESHNESS_THRESHOLDS, freshness_state
 from app.connectors.models import DataConnection
@@ -277,6 +282,7 @@ async def home_status(
         )
         sources: dict[str, str] = {}
         initial_diagnostic: dict[str, object] | None = None
+        monitoring_projection: dict[str, object] | None = None
         if selected is not None:
             sources = await _source_health_rows(
                 session,
@@ -288,6 +294,33 @@ async def home_status(
                 tenant_id=actor.tenant_id,
                 site_id=selected.id,
             )
+            # EP-030 M3: additive read-only monitoring projection for the
+            # selected site. Reuses the M1 monitoring-control projection/service
+            # so cadence and next-boundary semantics cannot diverge from the PUT
+            # endpoint. Fails closed to None (unavailable) on any missing/foreign
+            # site; never reports ON implicitly.
+            try:
+                mc = await monitoring_control_result(
+                    session,
+                    tenant_id=actor.tenant_id,
+                    site_id=selected.id,
+                )
+                monitoring_projection = {
+                    "site_id": str(selected.id),
+                    "enabled": mc.enabled,
+                    "monitoring_state_updated_at": (
+                        mc.monitoring_state_updated_at.isoformat()
+                        if mc.monitoring_state_updated_at
+                        else None
+                    ),
+                    "cadence": MONITORING_CADENCE,
+                    "next_scheduled_for": (
+                        mc.next_scheduled_for.isoformat() if mc.next_scheduled_for else None
+                    ),
+                    "in_flight_scheduled_run_status": mc.in_flight_scheduled_run_status,
+                }
+            except SiteMonitoringNotFoundError:
+                monitoring_projection = None
         open_incidents = list(
             (
                 await session.scalars(
@@ -317,6 +350,7 @@ async def home_status(
         ),
         "source_health": sources,
         "initial_diagnostic": initial_diagnostic,
+        "monitoring": monitoring_projection,
         "open_incident_count": len(open_incidents),
         "monetization_capability": monetization_capability,
     }
