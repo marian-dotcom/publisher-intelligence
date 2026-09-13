@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from typing import Any, cast
 
 from app.public_config.contracts import PublicConfigSiteTarget
+from app.public_config.persistence import MonitoringAuthorization
 from app.public_config.scheduling import (
     PublicConfigSchedulingService,
     resolve_public_config_slot,
@@ -15,6 +16,19 @@ class Repository:
 
     async def schedulable_sites(self) -> tuple[PublicConfigSiteTarget, ...]:
         return self._sites
+
+    async def lock_monitoring_authorization(
+        self, *, tenant_id: uuid.UUID, site_id: uuid.UUID
+    ) -> MonitoringAuthorization:
+        # EP-030 M2: the stub models a repository whose schedulable_sites() has
+        # already applied PC-GATE-1 (ACTIVE + ON). For scheduling-math unit tests
+        # the locked authorization is authoritatively ON with a deep-past
+        # watermark so any current six-hour slot is strictly future.
+        del tenant_id, site_id
+        return MonitoringAuthorization(
+            monitoring_state="ON",
+            watermark_updated_at=datetime(2020, 1, 1, tzinfo=UTC),
+        )
 
 
 class Queue:

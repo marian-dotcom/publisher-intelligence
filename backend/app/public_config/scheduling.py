@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.jobs.queue import JobQueue
 from app.public_config.contracts import PUBLIC_CONFIG_RULE_VERSION, ConfigType
-from app.public_config.persistence import PublicConfigRepository
+from app.public_config.persistence import PublicConfigRepository, PublicConfigStateError
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +55,23 @@ class PublicConfigSchedulingService:
                         }
                     },
                 )
+                continue
+            # PC-GATE-2 (EP-030 M2): re-lock the tenant-owned Site FOR UPDATE and
+            # re-read the monitoring authorization. Enqueue nothing unless the
+            # site is STILL ON and this scheduled slot is strictly after the
+            # latest enable watermark (i.e., in the current authorization epoch,
+            # not a stale OFF-era backfill). The lock never spans network I/O and
+            # serializes against a concurrent enable/disable write (PC-R1).
+            try:
+                authorization = await self._repository.lock_monitoring_authorization(
+                    tenant_id=site.tenant_id,
+                    site_id=site.site_id,
+                )
+            except PublicConfigStateError:
+                continue
+            if authorization.monitoring_state != "ON":
+                continue
+            if not scheduled_for > authorization.watermark_updated_at:
                 continue
             valid_sites += 1
             for config_type in PUBLIC_CONFIG_TYPES:

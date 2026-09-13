@@ -12,6 +12,7 @@ from typing import cast
 from sqlalchemy import select
 
 from app.browser.contracts import MONITORING_USER_AGENT, BrowserEvidence
+from app.browser.monitoring_control import set_monitoring_state
 from app.browser.persistence import CheckpointRepository
 from app.db.session import get_session_factory
 
@@ -108,6 +109,19 @@ def test_non_diagnostic_finalize_leaves_classification_null() -> None:
     tenant_id = seeded["tenant_id"]
     baseline_run_id = seeded["baseline_run_id"]
     site_id = seeded["site_id"]
+
+    # EP-030 M2: scheduled monitoring is fail-closed by default; authorize the
+    # site so the SCHEDULED baseline begins rather than being administratively
+    # skipped by the worker pre-flight gate.
+    asyncio.run(
+        set_monitoring_state(
+            get_session_factory(),
+            tenant_id=cast(uuid.UUID, tenant_id),
+            site_id=cast(uuid.UUID, site_id),
+            enabled=True,
+            actor_id=cast(uuid.UUID, tenant_id),
+        )
+    )
 
     target = asyncio.run(
         repository.begin_attempt(

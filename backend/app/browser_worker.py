@@ -9,7 +9,12 @@ import uuid
 from pathlib import Path
 
 from app.browser.cost import CheckpointCostRecorder
-from app.browser.persistence import CheckpointRepository, CheckpointStateError, EvidencePersister
+from app.browser.persistence import (
+    CheckpointRepository,
+    CheckpointSkippedError,
+    CheckpointStateError,
+    EvidencePersister,
+)
 from app.browser.runner import BrowserRunner
 from app.common.logging import configure_logging
 from app.config.settings import Settings, get_settings
@@ -75,6 +80,23 @@ async def handle_browser_job(
             checkpoint_run_id=checkpoint_run_id,
             attempt_number=lease.attempt,
         )
+    except CheckpointSkippedError:
+        # EP-030 M2 (GATE-3): the site was disabled before this SCHEDULED run
+        # executed. The repository already terminalized the run+attempt as
+        # SKIPPED. Complete the claimed job with zero navigation/contact, no
+        # retry, no DERIVE, no event, and no cost/evidence record.
+        completed = await queue.complete(job_id=lease.id, lock_token=lease.lock_token)
+        logger.info(
+            "browser checkpoint admin skipped",
+            extra={
+                "context": {
+                    **context,
+                    "checkpoint_run_id": str(checkpoint_run_id),
+                    "fenced_update": completed,
+                }
+            },
+        )
+        return
     except CheckpointStateError:
         await queue.fail_or_retry(
             job_id=lease.id,

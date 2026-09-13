@@ -103,6 +103,21 @@ export interface SiteSummary {
   name: string;
 }
 
+/** EP-030 M3 — read-only monitoring projection for the selected Home site.
+ * Nullable fields are contractual: enabled===false is Paused, whereas a null
+ * `monitoring` on HomeStatus (or an invalid/unavailable read) is the fail-closed
+ * "Monitoring state unavailable" — never implicitly ON. */
+export interface MonitoringProjection {
+  site_id: string;
+  enabled: boolean;
+  monitoring_state_updated_at: string | null;
+  cadence: { identifier: string; hours: number };
+  /** Strictly-future when ON; null when OFF/unavailable. Never fabricated. */
+  next_scheduled_for: string | null;
+  /** Current non-terminal SCHEDULED run status when one exists; else null. */
+  in_flight_scheduled_run_status: "PENDING" | "RUNNING" | null;
+}
+
 /** GET /product/home/status */
 export interface HomeStatus {
   sites: SiteSummary[];
@@ -110,8 +125,21 @@ export interface HomeStatus {
   publisher_site_condition: string; // site status; independent of source_health by contract
   source_health: Record<SourceKey, SourceHealth>;
   initial_diagnostic: InitialDiagnostic | null;
+  /** EP-030 M3: additive monitoring projection for the selected site, or null
+   * when unavailable (no selection / fail-closed). Never fabricated as ON. */
+  monitoring: MonitoringProjection | null;
   open_incident_count: number;
   monetization_capability: MonetizationCapability;
+}
+
+/** PUT /product/sites/{site_id}/monitoring response (EP-030 M1). */
+export interface UpdateMonitoringResponse {
+  site_id: string;
+  enabled: boolean;
+  monitoring_state_updated_at: string;
+  cadence: { identifier: string; hours: number };
+  next_scheduled_for: string | null;
+  in_flight_scheduled_run_status: "PENDING" | "RUNNING" | null;
 }
 
 /** EP-028 M2 — bounded initial-diagnostic projection for operator registration. */

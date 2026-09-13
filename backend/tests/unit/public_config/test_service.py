@@ -16,7 +16,7 @@ from app.public_config.contracts import (
     SnapshotWriteResult,
     StoredPublicConfigSnapshot,
 )
-from app.public_config.persistence import PublicConfigStateError
+from app.public_config.persistence import MonitoringAuthorization, PublicConfigStateError
 from app.public_config.service import PublicConfigRunError, PublicConfigService
 
 TENANT_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
@@ -39,6 +39,16 @@ class Repository:
             canonical_domain="example.com",
             canonical_scheme="https",
             timezone="UTC",
+        )
+
+    async def lock_monitoring_authorization(
+        self, *, tenant_id: uuid.UUID, site_id: uuid.UUID
+    ) -> MonitoringAuthorization:
+        if tenant_id != TENANT_ID or site_id != SITE_ID:
+            raise PublicConfigStateError("site is not owned")
+        return MonitoringAuthorization(
+            monitoring_state="ON",
+            watermark_updated_at=datetime(2020, 1, 1, tzinfo=UTC),
         )
 
     async def persist_snapshot(

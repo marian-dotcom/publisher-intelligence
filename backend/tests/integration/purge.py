@@ -48,6 +48,7 @@ PURGE_ORDER = (
     "interaction_profiles",
     "monitored_urls",
     "templates",
+    "site_monitoring_state_changes",
     "sites",
     "publishers",
     "jobs",

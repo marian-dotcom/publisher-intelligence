@@ -1,4 +1,5 @@
 import uuid
+from dataclasses import dataclass
 from datetime import datetime
 
 from sqlalchemy import select
@@ -22,20 +23,67 @@ class PublicConfigStateError(RuntimeError):
     pass
 
 
+@dataclass(frozen=True, slots=True)
+class MonitoringAuthorization:
+    """EP-030 M2: the tenant-owned site's locked monitoring authorization state.
+
+    `monitoring_state` is ``ON`` when scheduled public-config contact is
+    authorized; `watermark_updated_at` is the latest enable/disable transition
+    instant. A scheduled observation/due instant is eligible only when it is
+    strictly after `watermark_updated_at` (never at-or-before), mirroring the
+    browser GATE-2/GATE-3 authorization epoch semantics.
+    """
+
+    monitoring_state: str
+    watermark_updated_at: datetime
+
+
 class PublicConfigRepository:
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
 
     async def schedulable_sites(self) -> tuple[PublicConfigSiteTarget, ...]:
+        # PC-GATE-1 (EP-030 M2): coarse candidate filter. Scheduled public-config
+        # contact is authorized only for ACTIVE sites whose monitoring_state is
+        # ON. OFF/missing/invalid state fails closed (never a candidate).
         async with self._session_factory() as session:
             sites = list(
                 (
                     await session.scalars(
-                        select(Site).where(Site.status == "ACTIVE").order_by(Site.id)
+                        select(Site)
+                        .where(
+                            Site.status == "ACTIVE",
+                            Site.monitoring_state == "ON",
+                        )
+                        .order_by(Site.id)
                     )
                 ).all()
             )
         return tuple(_site_target(site) for site in sites)
+
+    async def lock_monitoring_authorization(
+        self,
+        *,
+        tenant_id: uuid.UUID,
+        site_id: uuid.UUID,
+    ) -> MonitoringAuthorization:
+        """PC-GATE-2/3: within the caller's short transaction, lock the exact
+        tenant-owned Site row FOR UPDATE and re-read its monitoring state and
+        watermark. Serializes against a concurrent enable/disable write. A
+        missing/cross-tenant site fails closed. Never spans network I/O — the
+        caller commits/releases before any HTTP work."""
+        async with self._session_factory() as session, session.begin():
+            site = await session.scalar(
+                select(Site)
+                .where(Site.tenant_id == tenant_id, Site.id == site_id)
+                .with_for_update()
+            )
+            if site is None:
+                raise PublicConfigStateError("site does not belong to public configuration tenant")
+            return MonitoringAuthorization(
+                monitoring_state=site.monitoring_state,
+                watermark_updated_at=site.monitoring_state_updated_at,
+            )
 
     async def load_active_site(
         self, *, tenant_id: uuid.UUID, site_id: uuid.UUID

@@ -13,6 +13,7 @@ import {
   SiteCondition,
   SourceHealthBadge,
 } from "@/components/domain";
+import { MonitoringCard } from "@/components/monitoring-controls";
 import { Button, EmptyState, ErrorState, LoadingState } from "@/components/primitives";
 import { apiFetch } from "@/lib/api";
 import type {
@@ -44,6 +45,12 @@ export default function HomePage() {
   const [addSiteOpen, setAddSiteOpen] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const siteGenRef = useRef(0);
+  // Render-visible mirror of the monitoring selection generation (bumped at
+  // site change/add and refresh; deliberately separate from siteGenRef's
+  // poll-invalidation bump). Needed for the MonitoringCard key/guard without
+  // reading a ref during render (react-hooks/refs).
+  const [monitoringGen, setMonitoringGen] = useState(0);
+  const monitoringGenRef = useRef(0);
 
   // Initial/default load; site selection changes re-run through siteParam.
   useEffect(() => {
@@ -143,6 +150,8 @@ export default function HomePage() {
       pollTimerRef.current = null;
     }
     siteGenRef.current += 1;
+    monitoringGenRef.current += 1;
+    setMonitoringGen((g) => g + 1);
     setSiteParam(next === "" ? undefined : next);
     setLoading(true);
     setDetailHealth(null);
@@ -153,6 +162,8 @@ export default function HomePage() {
     setDetailHealth(null);
     // Invalidate any in-flight poll before selecting the new site.
     siteGenRef.current += 1;
+    monitoringGenRef.current += 1;
+    setMonitoringGen((g) => g + 1);
     if (pollTimerRef.current !== null) {
       clearTimeout(pollTimerRef.current);
       pollTimerRef.current = null;
@@ -164,6 +175,40 @@ export default function HomePage() {
   function onViewDiagnosticResults(siteId: string) {
     router.push(`/diagnostic-results?site_id=${encodeURIComponent(siteId)}`);
   }
+
+  // Refetch the currently-selected site's home status after a monitoring
+  // mutation. Generation-guarded so a response for an older selection can never
+  // overwrite the current site's data.
+  const refreshHome = useCallback(async () => {
+    siteGenRef.current += 1;
+    monitoringGenRef.current += 1;
+    setMonitoringGen((g) => g + 1);
+    const gen = siteGenRef.current;
+    if (pollTimerRef.current !== null) {
+      clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    try {
+      const status = await apiFetch<HomeStatus>(
+        `/product/home/status${siteParam ? `?site_id=${siteParam}` : ""}`,
+      );
+      if (gen !== siteGenRef.current) return;
+      setHome(status);
+      if (status.selected_site_id) {
+        const detail = await apiFetch<SourceHealthResponse>(
+          `/product/source-health?site_id=${status.selected_site_id}`,
+        );
+        if (gen !== siteGenRef.current) return;
+        setDetailHealth(detail);
+      } else {
+        if (gen !== siteGenRef.current) return;
+        setDetailHealth(null);
+      }
+    } catch {
+      // The dialog already surfaces mutation failures; a refetch that fails
+      // transiently simply keeps the current (pre-mutation) projection.
+    }
+  }, [siteParam]);
 
   const sources: Record<SourceKey, SourceHealth> =
     detailHealth?.sources ?? home?.source_health ?? ({} as Record<SourceKey, SourceHealth>);
@@ -180,6 +225,24 @@ export default function HomePage() {
   const hasDiagnostic = home.initial_diagnostic !== null;
   const diagnosticStatus = hasDiagnostic ? home.initial_diagnostic!.status : null;
   const isTerminal = diagnosticStatus !== null && diagnosticStatus !== "PENDING" && diagnosticStatus !== "RUNNING";
+
+  // Capture the selection generation for this render (via the render-visible
+  // monitoringGen mirror, kept in lockstep with siteGenRef). MonitoringCard is
+  // keyed by selection+generation and handed a generation-guarded refetch so a
+  // mutation that started for an older selection can never close/reset this
+  // card's dialog or refetch once the selection/generation has moved on. The
+  // server mutation remains valid for its original site, but its stale
+  // completion produces no current-page UI effect.
+  const selectedSiteId = home.selected_site_id;
+  const monitoringOnRefetch = (requestSiteId: string) => {
+    if (
+      monitoringGenRef.current !== monitoringGen ||
+      selectedSiteId !== requestSiteId
+    ) {
+      return;
+    }
+    return refreshHome();
+  };
 
   return (
     <>
@@ -230,6 +293,17 @@ export default function HomePage() {
             <SourceHealthBadge source={key} health={sources[key] ?? "UNKNOWN"} />
           </p>
         ))}
+      </section>
+
+      <section aria-label="Automatic monitoring">
+        {/* Monitoring authorization is a separate fact from source health,
+            diagnostic status, and site lifecycle. */}
+        <MonitoringCard
+          key={`${selectedSiteId ?? "none"}:${monitoringGen}`}
+          monitoring={home.monitoring}
+          siteId={selectedSiteId}
+          onRefetch={monitoringOnRefetch}
+        />
       </section>
 
       {loading ? <LoadingState label="Updating…" /> : null}

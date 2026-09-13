@@ -35,7 +35,11 @@ from app.public_config.contracts import PUBLIC_CONFIG_RULE_VERSION, ConfigType
 from app.public_config.event_persistence import PublicConfigEventRepository
 from app.public_config.event_service import PublicConfigEventService
 from app.public_config.persistence import PublicConfigRepository, PublicConfigStateError
-from app.public_config.service import PublicConfigRunError, PublicConfigService
+from app.public_config.service import (
+    PublicConfigMonitoringSkippedError,
+    PublicConfigRunError,
+    PublicConfigService,
+)
 from app.retention.service import RetentionService
 from app.secrets.oci import OciAccessTokenResolver
 from app.storage.s3 import S3Storage
@@ -255,7 +259,14 @@ async def _handle_public_config_fetch_job(
             raise ValueError("scheduled instant must have an offset")
         if rule_version != PUBLIC_CONFIG_RULE_VERSION:
             raise ValueError("unsupported public configuration rule version")
-    except (TypeError, ValueError, AttributeError):
+    # EP-030 M2 (PC-GATE-3) fetch payload validation: reject missing/malformed
+    # payload fields deterministically as a non-retryable invalid job BEFORE any
+    # service/network path. KeyError is excluded by the required-keys check
+    # above; it is listed for defensive robustness so a structurally unexpected
+    # payload can never escape to the retryable runtime-error branch. This is a
+    # narrow validation catch, not a generic exception tank. No publisher contact,
+    # no source extract/evidence/metric/event/incident is produced.
+    except (TypeError, ValueError, AttributeError, KeyError):
         await _fail_public_config_job(
             queue,
             lease,
@@ -275,6 +286,23 @@ async def _handle_public_config_fetch_job(
             attempt=lease.attempt,
             rule_version=rule_version,
         )
+    except PublicConfigMonitoringSkippedError:
+        # EP-030 M2 (PC-GATE-3): monitoring is OFF or this is a stale OFF-era job.
+        # Mark the job COMPLETE as an intentional monitoring-disabled skip with
+        # zero DNS/HTTP publisher contact, no retry, no DERIVE, no records.
+        completed = await queue.complete(job_id=lease.id, lock_token=lease.lock_token)
+        logger.info(
+            "public configuration monitoring disabled skip",
+            extra={
+                "context": {
+                    **context,
+                    "site_id": str(site_id),
+                    "config_type": config_type,
+                    "fenced_update": completed,
+                }
+            },
+        )
+        return
     except PublicConfigRunError as error:
         await _fail_public_config_job(
             queue,
@@ -351,7 +379,11 @@ async def _handle_public_config_validation_job(
         rule_version = _payload_string(lease.payload["rule_version"])
         if rule_version != PUBLIC_CONFIG_RULE_VERSION:
             raise ValueError("unsupported public configuration rule version")
-    except (TypeError, ValueError, AttributeError):
+    # Symmetric with the FETCH handler: KeyError is excluded by the required-keys
+    # check; listed defensively so a structurally unexpected payload is a
+    # deterministic non-retryable invalid job, never a retryable runtime error,
+    # with zero publisher contact or derived records.
+    except (TypeError, ValueError, AttributeError, KeyError):
         await _fail_public_config_job(
             queue,
             lease,
@@ -371,6 +403,24 @@ async def _handle_public_config_validation_job(
             attempt=lease.attempt,
             rule_version=rule_version,
         )
+    except PublicConfigMonitoringSkippedError:
+        # EP-030 M2 (PC-GATE-3): monitoring is OFF or the validation belongs to a
+        # stale authorization epoch. Complete intentionally with zero publisher
+        # contact; no retry, no DERIVE, no records.
+        completed = await queue.complete(job_id=lease.id, lock_token=lease.lock_token)
+        logger.info(
+            "public configuration monitoring disabled skip",
+            extra={
+                "context": {
+                    **context,
+                    "site_id": str(site_id),
+                    "config_type": config_type,
+                    "primary_snapshot_id": str(primary_snapshot_id),
+                    "fenced_update": completed,
+                }
+            },
+        )
+        return
     except PublicConfigRunError as error:
         await _fail_public_config_job(
             queue,

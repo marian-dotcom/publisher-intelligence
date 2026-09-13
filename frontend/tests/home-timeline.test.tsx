@@ -10,7 +10,14 @@ const routerMocks = vi.hoisted(() => ({
   searchParams: { current: new URLSearchParams() },
 }));
 
+const authMocks = vi.hoisted(() => ({
+  useAuth: vi.fn(),
+}));
+
 vi.mock("@/lib/api");
+vi.mock("@/lib/auth-client", () => ({
+  useAuth: authMocks.useAuth,
+}));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: routerMocks.push }),
   useSearchParams: () => routerMocks.searchParams.current,
@@ -18,9 +25,24 @@ vi.mock("next/navigation", () => ({
 
 const mockedFetch = vi.mocked(apiFetch);
 
+function defaultSession() {
+  return {
+    status: "authenticated",
+    session: { role: "OPERATOR" },
+    retry: vi.fn(),
+    logout: vi.fn(),
+    login: vi.fn(),
+  };
+}
+
+beforeEach(() => {
+  authMocks.useAuth.mockReturnValue(defaultSession());
+});
+
 afterEach(() => {
   mockedFetch.mockReset();
   routerMocks.push.mockClear();
+  authMocks.useAuth.mockReset();
 });
 
 const HOME_BODY = {

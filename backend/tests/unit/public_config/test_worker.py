@@ -5,7 +5,7 @@ from typing import Any, cast
 from app.jobs.queue import JobLease
 from app.public_config.contracts import PUBLIC_CONFIG_RULE_VERSION, PublicConfigRunResult
 from app.public_config.persistence import PublicConfigStateError
-from app.public_config.service import PublicConfigRunError
+from app.public_config.service import PublicConfigMonitoringSkippedError, PublicConfigRunError
 from app.worker import handle_job
 
 
@@ -170,3 +170,37 @@ async def test_worker_does_not_retry_security_failure() -> None:
 
     assert queue.failure is not None and queue.failure["retryable"] is False
     assert queue.failure["error_message"] == "PUBLIC_CONFIG_SECURITY_ERROR"
+
+
+async def test_worker_completes_fetch_on_monitoring_skipped() -> None:
+    """PC-GATE-3 (EP-030 M2): an OFF/stale-epoch scheduled fetch completes the
+    job as an intentional skip — zero retry, zero failure recorded."""
+    queue = Queue()
+    service = Service(PublicConfigMonitoringSkippedError("monitoring disabled"))
+
+    await handle_job(
+        cast(Any, queue),
+        lease("FETCH_PUBLIC_CONFIG", fetch_payload()),
+        5,
+        public_config_service=cast(Any, service),
+    )
+
+    assert queue.completed is True and queue.failure is None
+    assert len(service.scheduled_calls) == 1
+
+
+async def test_worker_completes_validation_on_monitoring_skipped() -> None:
+    """PC-GATE-3 (EP-030 M2): a stale-epoch validation completes as an
+    intentional skip — zero retry, zero failure recorded."""
+    queue = Queue()
+    service = Service(PublicConfigMonitoringSkippedError("stale epoch"))
+
+    await handle_job(
+        cast(Any, queue),
+        lease("VALIDATE_PUBLIC_CONFIG", validation_payload()),
+        5,
+        public_config_service=cast(Any, service),
+    )
+
+    assert queue.completed is True and queue.failure is None
+    assert len(service.validation_calls) == 1

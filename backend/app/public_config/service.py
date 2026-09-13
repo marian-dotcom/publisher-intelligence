@@ -18,7 +18,10 @@ from app.public_config.contracts import (
     public_config_observation_key,
 )
 from app.public_config.event_service import PublicConfigEventService
-from app.public_config.persistence import PublicConfigRepository, PublicConfigStateError
+from app.public_config.persistence import (
+    PublicConfigRepository,
+    PublicConfigStateError,
+)
 from app.public_config.robots import ROBOTS_NORMALIZER_VERSION, parse_robots_txt
 
 
@@ -34,6 +37,15 @@ class PublicConfigRunError(RuntimeError):
         self.code = code
         self.retryable = retryable
         self.snapshot_id = snapshot_id
+
+
+class PublicConfigMonitoringSkippedError(RuntimeError):
+    """EP-030 M2 (PC-GATE-3): monitoring was turned OFF (or a stale OFF-era job was
+    redelivered) before this scheduled public-config fetch began. No publisher
+    contact occurred. The worker must mark the job COMPLETE as an intentional
+    monitoring-disabled skip: no retry, no DNS/HTTP, no event/incident/evidence/
+    source-extract/metric point, and never classified as a publisher or system
+    failure."""
 
 
 class PublicConfigService:
@@ -64,6 +76,15 @@ class PublicConfigService:
     ) -> PublicConfigRunResult:
         _validate_run_inputs(scheduled_for, attempt, rule_version)
         target = await self._repository.load_active_site(tenant_id=tenant_id, site_id=site_id)
+        # PC-GATE-3 (EP-030 M2): locked pre-flight immediately before any fetch.
+        # Require ON and that this scheduled due instant is strictly after the
+        # latest enable watermark (current authorization epoch). Rejected -> skip
+        # with zero DNS/HTTP contact; the worker completes the job intentionally.
+        await self._preflight_monitoring(
+            tenant_id=tenant_id,
+            site_id=site_id,
+            due=scheduled_for,
+        )
         observed_at = _aware_now(self._clock())
         normalizer_version = _normalizer_version(config_type)
         healthy_predecessor = await self._repository.previous_healthy_scheduled_snapshot(
@@ -191,6 +212,16 @@ class PublicConfigService:
             summary=primary.summary,
         ):
             raise PublicConfigStateError("validation primary is not a high-risk transition")
+        # PC-GATE-3 (EP-030 M2): locked pre-flight immediately before the
+        # validation re-fetch. The re-fetch belongs to the authorization epoch
+        # of its primary observation: allow only if monitoring is ON and the
+        # primary was observed strictly after the latest enable watermark. A
+        # validation queued before a disable/re-enable is stale and fails closed.
+        await self._preflight_monitoring(
+            tenant_id=tenant_id,
+            site_id=site_id,
+            due=primary.observed_at,
+        )
         observed_at = _aware_now(self._clock())
         if observed_at <= primary.observed_at:
             observed_at = primary.observed_at + timedelta(microseconds=1)
@@ -214,6 +245,37 @@ class PublicConfigService:
                 validation_snapshot_id=result.snapshot_id,
             )
         return result
+
+    async def _preflight_monitoring(
+        self,
+        *,
+        tenant_id: uuid.UUID,
+        site_id: uuid.UUID,
+        due: datetime,
+    ) -> None:
+        """PC-GATE-3 (EP-030 M2): locked authorization pre-flight that must run
+        immediately before any publisher network contact. Requires the site to be
+        ON and the scheduled `due` instant to be strictly after the latest enable
+        watermark (current authorization epoch). On rejection raises
+        `PublicConfigMonitoringSkippedError` so the worker completes the job with
+        zero DNS/HTTP publisher contact, no retry, and no downstream records."""
+        try:
+            authorization = await self._repository.lock_monitoring_authorization(
+                tenant_id=tenant_id,
+                site_id=site_id,
+            )
+        except PublicConfigStateError as error:
+            raise PublicConfigMonitoringSkippedError(
+                "scheduled public-config monitoring disabled before execution"
+            ) from error
+        if authorization.monitoring_state != "ON":
+            raise PublicConfigMonitoringSkippedError(
+                "scheduled public-config monitoring disabled before execution"
+            )
+        if not due > authorization.watermark_updated_at:
+            raise PublicConfigMonitoringSkippedError(
+                "scheduled public-config work belongs to a stale authorization epoch"
+            )
 
     async def _observe(
         self,

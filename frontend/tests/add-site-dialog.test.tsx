@@ -4,6 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiFetch, ApiError } from "@/lib/api";
 
 vi.mock("@/lib/api");
+vi.mock("@/lib/auth-client", () => ({
+  useAuth: authMocks.useAuth,
+}));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
@@ -12,12 +15,28 @@ vi.mock("next/navigation", () => ({
 
 const mockedFetch = vi.mocked(apiFetch);
 
+const authMocks = vi.hoisted(() => ({
+  useAuth: vi.fn(),
+}));
+
+function defaultSession() {
+  return {
+    status: "authenticated",
+    session: { role: "OPERATOR" },
+    retry: vi.fn(),
+    logout: vi.fn(),
+    login: vi.fn(),
+  };
+}
+
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
+  authMocks.useAuth.mockReturnValue(defaultSession());
 });
 
 afterEach(() => {
   mockedFetch.mockReset();
+  authMocks.useAuth.mockReset();
   vi.useRealTimers();
   vi.restoreAllMocks();
   document.body.innerHTML = "";
