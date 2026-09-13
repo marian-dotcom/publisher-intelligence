@@ -1,8 +1,8 @@
 # EP-030 — Per-Site Monitoring Controls
 
-**Status:** READY — M0 COMPLETE (planning/feasibility only); **M1 COMPLETE** (data model + authenticated control API); **M2 COMPLETE** (scheduler/worker safety incl. broadened public-config gates; committed `ad79469bbd8f00538b425e03cbe7b2b4287209ca`; Draft PR #38, unmerged; CI runs `33626255435` (pull_request) / `33626390421` (push) both SUCCESS); **M3 COMPLETE** (minimal Home monitoring controls; same branch; Draft PR #38, unmerged/undeployed); **M4 NOT STARTED**; Gate P HUMAN GATE / UNAUTHORIZED; Limited Pilot NOT GRANTED
+**Status:** READY — M0 COMPLETE (planning/feasibility only); **M1 COMPLETE** (data model + authenticated control API); **M2 COMPLETE** (scheduler/worker safety incl. broadened public-config gates; committed `ad79469bbd8f00538b425e03cbe7b2b4287209ca`; Draft PR #38, unmerged; CI runs `33626255435` (pull_request) / `33626390421` (push) both SUCCESS); **M3 COMPLETE** (minimal Home monitoring controls; committed and pushed `d2f5503ae8e3113e7c2732fda7f91b0fa5f9ec9c`; same Draft PR #38 branch, unmerged/undeployed); **M4 COMPLETE** (release-readiness validation ladder 2026-09-13 — see §11; nothing committed/pushed/deployed this milestone); Gate P HUMAN GATE / UNAUTHORIZED; Limited Pilot NOT GRANTED
 **Owner:** Codex / Engineering
-**Created / Updated:** 2026-09-03 (M3 validated this date)
+**Created / Updated:** 2026-09-13 (M4 validation ladder run this date)
 **Base commit:** `a92da909c53c0618b4671bd569b4a1937a935c27` (origin/main; EP-029 M4 merged)
 **MVP scope impact:** NO
 **External publisher onboarding:** OUT OF SCOPE
@@ -371,13 +371,12 @@ no SKIPPED).
   `33626255435` (pull_request) / `33626390421` (push) both SUCCESS. Not merged/deployed.
 - **M3 — Minimal operator controls.** Home status projection + Enable/Disable with confirmation
   (§4.4); projection-only staging smoke (no restart/contact). **COMPLETE (2026-09-03)** — see §11;
-  uncommitted/merged/undeployed variant of the same Draft PR #38 branch.
+  committed/pushed `d2f5503`, unmerged/undeployed variant of the same Draft PR #38 branch.
 - **M4 — Release-readiness.** Full §8 matrix green; migration up/down rehearsal; deployment
-  boundary statement; docs/README reconciliation. **NOT STARTED.**
+  boundary statement; docs/README reconciliation. **COMPLETE (2026-09-13)** — validation ladder green;
+  see §11. Not committed/pushed/merged/deployed.
 
-Milestones may split into smaller safe slices; must not merge into one mega-step. M3 is COMPLETE;
-M4 remains **NOT STARTED**. M3 is not deployed, not merged, and no site has been enabled; the
-staging scheduler remains STOPPED.
+Milestones may split into smaller safe slices; must not merge into one mega-step. M3 is COMPLETE (committed `d2f5503`, unmerged/undeployed); M4 remains **NOT STARTED**. M3 is not deployed, not merged, and no site has been enabled; the staging scheduler remains STOPPED.
 
 ## 8. Acceptance Criteria and Test Matrix
 
@@ -481,9 +480,41 @@ All tests use isolated fixtures / disposable DB; no real publisher contact.
 
 ## 11. Progress / Decision Log
 
+- 2026-09-13: **M4 release-readiness validation COMPLETE** (branch
+  `agent/ep-030-per-site-monitoring-controls`, HEAD `d2f5503ae8e3113e7c2732fda7f91b0fa5f9ec9c`, Draft PR
+  #38 OPEN/DRAFT unchanged; nothing committed/pushed/merged/deployed). Frontend (Node 24, pnpm
+  `11.16.0`, `--frozen-lockfile`, pnpm-lock.yaml unchanged): eslint 0 errors (1 pre-existing warning in
+  `tests/investigate-dialog.test.tsx`); `tsc --noEmit` clean; vitest **160 passed / 15 files**; `next
+  build` SUCCESS (7 static pages). Backend static: `ruff format --check` clean (313 files); `ruff
+  check` clean; mypy **Success, 277 files, 0 errors**; unit **436 passed** (exact CI/default env).
+  Canonical complete integration on a fresh disposable DB (zero→head `0029`) + fresh bucket
+  (`RUN_INTEGRATION=1`, `BROWSER_ALLOW_PRIVATE_NETWORKS=true`, one process): **287 passed, 0
+  failures**; EP-030 files green: `test_site_monitoring_gates.py` 15, `test_public_configuration.py`
+  16, `test_product_site_monitoring.py` 14, `test_home_monitoring_projection.py` 8. Migration: fresh
+  DB zero→head `0029` OK; `downgrade base` OK; `0029→0028` down / `0028→0029` up OK; `test_migrations.py`
+  **5 passed**; `alembic check` reports only the same 3 pre-existing unrelated drift items
+  (`retention_runs`, `monetization_capability`, `seo_observations`) — no new drift. Scheduler/worker
+  smoke on the fresh all-sites-OFF DB: `python -m app.scheduler --once` exit 0 (browser checkpoint
+  pass `site_count=0, run_count=0, job_count=0`; public-config `site_count=0`; zero
+  BROWSER_CHECKPOINT/FETCH_PUBLIC_CONFIG/VALIDATE_PUBLIC_CONFIG jobs; only internal ENFORCE_RETENTION
+  created); `python -m app.worker --once` exit 0 (ENFORCE_RETENTION COMPLETE, `artifacts: 0` rows
+  deleted, `hold_conflicts_skipped: 0`; final jobs table = only ENFORCE_RETENTION COMPLETE). Repo
+  hygiene: `check_secrets.py` OK; `docker compose config` OK; `git diff --check` clean. Working tree at
+  end: only `plans/EP-030-per-site-monitoring-controls.md` modified. Boundaries unchanged: staging
+  scheduler STOPPED; no site enabled; no real-site contact; Gate P HUMAN GATE / UNAUTHORIZED; Limited
+  Pilot NOT GRANTED. Local-dev note (classified, not an EP-030 defect): on the shared local dev stack
+  the SAME canonical integration command reports **283 passed, 4 failed** (`test_access_challenge_
+  detection` healthy-page, `test_browser_checkpoint` scheduler-repeatable, `test_browser_source_recovery`
+  recovery-idempotent, `test_operations_m6` queue-depth); all 4 are non-EP-030 files and pass on an
+  isolated DB/S3; root cause = concurrent background-writer contention from the running local compose
+  stack (live scheduler enqueuing `BROWSER_CHECKPOINT`/`FETCH_PUBLIC_CONFIG` jobs and browser-workers
+  claiming checkpoint leases against the shared DB during the tests) — the same local-vs-CI flake
+  class documented at M1/M2; all 4 files were green in the M1/M2/M3 isolated canonical runs. STOPPED for
+  final report; no commit/push/merge authorized; Gate P / Limited Pilot not authorized.
+
 - 2026-09-03: **M3 COMPLETE** (minimal Home monitoring controls; same branch
-  `agent/ep-030-per-site-monitoring-controls`, Draft PR #38 — NOT committed/pushed; HEAD remains
-  `ad79469bbd8f00538b425e03cbe7b2b4287209ca`). Backend read-only projection: `home_status.monitoring`
+  `agent/ep-030-per-site-monitoring-controls`, Draft PR #38 — committed and pushed as
+  `d2f5503ae8e3113e7c2732fda7f91b0fa5f9ec9c`; M2 checkpoint `ad79469bbd8f00538b425e03cbe7b2b4287209ca`). Backend read-only projection: `home_status.monitoring`
   (`backend/app/api/product.py`) reuses M1 `monitoring_control_result` + `MONITORING_CADENCE`,
   exposing `enabled` (true|false|null), `monitoring_state_updated_at`,
   `cadence{identifier:six-hour,hours:6}`, strictly-future `next_scheduled_for` (null when OFF/
@@ -529,12 +560,11 @@ All tests use isolated fixtures / disposable DB; no real publisher contact.
   `check_secrets.py` OK; `docker compose config` OK; `git diff --check` clean; `alembic check` reports
   only the same 3 pre-existing unrelated drift items (`retention_runs` removed table,
   `monetization_capability` VARCHAR(20)→String(30), `seo_observations` unique-constraint rename) — none
-  from M3, confirming no new migration. M3 uncommitted/unmerged/undeployed; **M4 NOT STARTED**; staging
+  from M3, confirming no new migration. M3 committed/pushed as `d2f5503`, unmerged/undeployed; **M4 NOT STARTED**; staging
   scheduler STOPPED; no site enabled; Gate P HUMAN GATE/UNAUTHORIZED; Limited Pilot NOT GRANTED.
-  STOPPED for review; nothing staged/committed/pushed.
+  STOPPED for review.
 
-- 2026-09-07: **M3 race remediation** (same branch, Draft PR #38; HEAD remains
-  `ad79469bbd8f00538b425e03cbe7b2b4287209ca`, nothing staged/committed/pushed). Added sequential
+- 2026-09-07: **M3 race remediation** (same branch, Draft PR #38; M3 committed as `d2f5503`, M2 checkpoint `ad79469bbd8f00538b425e03cbe7b2b4287209ca`). Added sequential
   deferred A→B and A→B→A race regression tests; both FAILED pre-fix (A→B: A's "Processing…" dialog
   was not remounted/persisted under B after switching selection; A→B→A: freshly re-opened A dialog
   confirm inherited the prior pending/submitting state). Two-file production fix: (1)
@@ -554,8 +584,8 @@ All tests use isolated fixtures / disposable DB; no real publisher contact.
   focused A→B, A→B→A, unchanged-site refetch, native-cancel all pass; race tests ×20 pass (0 failures);
   full `tests/monitoring-controls.test.tsx` **27 passed (27)**; focused `home-timeline.test.tsx`
   **11 passed**; complete `vitest` **160 passed / 15 files**; production `next build` SUCCESS (7
-  static pages); `check_secrets.py` OK; `git diff --check` clean. Uncommitted/unmerged/undeployed; no
-  site enabled; **M4 NOT STARTED**; Gate P HUMAN GATE/UNAUTHORIZED; Limited Pilot NOT GRANTED.
+  static pages); `check_secrets.py` OK; `git diff --check` clean. Committed as `d2f5503` (M2
+  checkpoint `ad79469`); no site enabled; **M4 NOT STARTED**; Gate P HUMAN GATE/UNAUTHORIZED; Limited Pilot NOT GRANTED.
   STOPPED for commit authorization.
 
 - 2026-09-02: **M2 COMPLETE** (GATE-1/2/3 race-safe scheduler + worker enforcement; branch
@@ -754,8 +784,11 @@ All tests use isolated fixtures / disposable DB; no real publisher contact.
 ## 12. Next Boundary
 
 M0 COMPLETE, **M1 COMPLETE**, **M2 COMPLETE** (committed `ad79469bbd8f00538b425e03cbe7b2b4287209ca`;
-CI `33626255435`/`33626390421` SUCCESS), and **M3 COMPLETE** (minimal Home monitoring controls;
-same Draft PR #38 branch, uncommitted/unmerged/undeployed). M1+M2 together make the per-site
+CI `33626255435`/`33626390421` SUCCESS), **M3 COMPLETE** (minimal Home monitoring controls;
+committed and pushed `d2f5503ae8e3113e7c2732fda7f91b0fa5f9ec9c`; Draft PR #38 unmerged/undeployed),
+and **M4 COMPLETE** (release-readiness validation ladder green 2026-09-13; nothing committed/pushed in
+M4).
+M1+M2 together make the per-site
 monitoring authorization fail-closed for
 all scheduled direct publisher contact: disabled/queued `SCHEDULED` browser work is never executed
 (GATE-1/2) and, if already materialized, is terminalized as SKIPPED at the worker pre-flight
