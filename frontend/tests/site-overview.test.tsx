@@ -395,7 +395,7 @@ describe("SiteOverviewPage · loading / error / stale drives", () => {
   });
 });
 
-describe("SiteOverviewPage · M3 panels and M4 boundary", () => {
+describe("SiteOverviewPage · M3/M4 panels and M5 boundary", () => {
   it("renders the three M3 result panels", async () => {
     mockedFetch.mockResolvedValueOnce(BASE_OVERVIEW);
 
@@ -407,19 +407,27 @@ describe("SiteOverviewPage · M3 panels and M4 boundary", () => {
     expect(screen.getByRole("button", { name: /View diagnostic results/ })).toBeInTheDocument();
   });
 
-  it("renders no M4 content in the M3 shell", async () => {
+  it("renders the four M4 result panels", async () => {
     mockedFetch.mockResolvedValueOnce(BASE_OVERVIEW);
 
     render(<SiteOverviewPage />);
 
-    await screen.findByRole("heading", { level: 2, name: "Recent runs" });
-    expect(screen.queryByRole("heading", { level: 2, name: /source health/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 2, name: /browser monitoring detail/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 2, name: /publisher condition/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 2, name: /open incidents/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 2, name: /recent activity/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 2, name: /deep links/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 2, name: /evidence pack/i })).not.toBeInTheDocument();
+    await screen.findByRole("heading", { level: 2, name: "Recent activity" });
+    expect(screen.getByRole("heading", { level: 2, name: "Source status" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Browser monitoring detail" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Open incidents" })).toBeInTheDocument();
+  });
+
+  it("renders no M5 content in the M4 shell", async () => {
+    mockedFetch.mockResolvedValueOnce(BASE_OVERVIEW);
+
+    render(<SiteOverviewPage />);
+
+    await screen.findByRole("heading", { level: 2, name: "Recent activity" });
+    expect(screen.queryByRole("heading", { level: 2, name: /monitoring configuration/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2, name: /connector setup/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2, name: /cadence settings/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Run diagnostic now|configure|connect/i })).not.toBeInTheDocument();
   });
 });
 
@@ -680,6 +688,335 @@ describe("SiteOverviewPage · OPERATOR/ADMIN result parity", () => {
     expect(screen.queryByRole("button", { name: "Enable monitoring" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Pause monitoring" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Run diagnostic now/ })).not.toBeInTheDocument();
+  });
+});
+
+// ---- M4 fixtures ----
+
+const MACHINE_ENTRY = {
+  entry_kind: "machine_observed" as const,
+  event_id: "evt-1",
+  event_type: "BROWSER_ACCESS_CHALLENGE_SUSPECTED",
+  source: "BROWSER_MONITORING",
+  provenance: "machine_observed" as const,
+  severity: "MEDIUM" as const,
+  status: "RECORDED",
+  time_precision: "UNKNOWN" as const,
+  observed_at: "2026-09-13T12:00:00Z",
+  occurred_at: null,
+  occurrence_window_start: null,
+  occurrence_window_end: null,
+  site_id: SITE_ID,
+};
+
+const HUMAN_ENTRY = {
+  entry_kind: "human_reported" as const,
+  note_id: "n1",
+  note_type: "manual_note",
+  provenance: "human_reported" as const,
+  source: "operator",
+  observed_at: "2026-09-13T14:00:00Z",
+  occurred_at: null,
+  text: "Manual note: observed redirect loop after CMP update",
+  site_id: SITE_ID,
+};
+
+const INCIDENT_A = {
+  incident_id: "inc-1",
+  title: "Traffic drop detected",
+  symptom_family: "Traffic anomaly",
+  status: "INVESTIGATING" as const,
+  severity: "HIGH" as const,
+  reported_start_at: "2026-09-12T10:00:00Z",
+  reported_end_at: null,
+  opened_at: "2026-09-12T11:00:00Z",
+  site_id: SITE_ID,
+};
+
+const INCIDENT_B = {
+  incident_id: "inc-2",
+  title: "Ad revenue decline",
+  symptom_family: "Revenue anomaly",
+  status: "OPEN" as const,
+  severity: "MEDIUM" as const,
+  reported_start_at: null,
+  reported_end_at: null,
+  opened_at: "2026-09-13T08:00:00Z",
+  site_id: SITE_ID,
+};
+
+function overviewM4(
+  over: Partial<
+    Pick<
+      SiteOverviewResponse,
+      | "site"
+      | "monitoring"
+      | "initial_diagnostic"
+      | "latest_scheduled_run"
+      | "recent_runs"
+      | "source_health"
+      | "browser_monitoring_detail"
+      | "open_incidents"
+      | "recent_activity"
+    >
+  > = {},
+): SiteOverviewResponse {
+  return { ...BASE_OVERVIEW, ...over };
+}
+
+function sourceHealth(
+  overrides: Partial<Record<string, SourceHealth>> = {},
+): SiteOverviewResponse["source_health"] {
+  return {
+    BROWSER_MONITORING: "UNKNOWN",
+    GA4: "UNKNOWN",
+    GSC: "UNKNOWN",
+    GAM: "UNKNOWN",
+    PUBLIC_CONFIG: "UNKNOWN",
+    ...overrides,
+  };
+}
+
+// ---- M4 source health ----
+
+describe("SiteOverviewPage · source health panel", () => {
+  it("renders all five source health badges independently", async () => {
+    mockedFetch.mockResolvedValueOnce(
+      overviewM4({
+        source_health: sourceHealth({
+          BROWSER_MONITORING: "HEALTHY",
+          GA4: "DEGRADED",
+          GSC: "UNAVAILABLE",
+          GAM: "STALE",
+          PUBLIC_CONFIG: "UNKNOWN",
+        }),
+      }),
+    );
+    render(<SiteOverviewPage />);
+    await screen.findByRole("heading", { level: 2, name: "Source status" });
+    const src = card("Source status");
+    expect(src.getByText(/Browser Monitoring · HEALTHY/)).toBeInTheDocument();
+    expect(src.getByText(/GA4 · DEGRADED/)).toBeInTheDocument();
+    expect(src.getByText(/Search Console · UNAVAILABLE/)).toBeInTheDocument();
+    expect(src.getByText(/Ad Manager · STALE/)).toBeInTheDocument();
+    expect(src.getByText(/Public Config · UNKNOWN/)).toBeInTheDocument();
+  });
+
+  it("never renders publisher-failure language from source unavailability", async () => {
+    mockedFetch.mockResolvedValueOnce(
+      overviewM4({
+        source_health: sourceHealth({
+          BROWSER_MONITORING: "UNAVAILABLE",
+          GA4: "ACTION_REQUIRED",
+          GSC: "BLOCKED",
+        }),
+      }),
+    );
+    render(<SiteOverviewPage />);
+    await screen.findByRole("heading", { level: 2, name: "Source status" });
+    expect(
+      screen.queryByText(/site (is )?unhealthy|site (is )?down|publisher.?fail/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("has no aggregate site health score or conclusion", async () => {
+    mockedFetch.mockResolvedValueOnce(overviewM4());
+    render(<SiteOverviewPage />);
+    await screen.findByRole("heading", { level: 2, name: "Source status" });
+    expect(
+      screen.queryByText(/overall|score|site health|health check|aggregate/i),
+    ).not.toBeInTheDocument();
+  });
+});
+
+// ---- M4 browser condition ----
+
+describe("SiteOverviewPage · browser monitoring detail panel", () => {
+  it("renders browser monitoring detail when present", async () => {
+    const detail = {
+      source: "BROWSER_MONITORING",
+      state: "HEALTHY",
+      reason: "Latest browser check succeeded",
+      detected_at: "2026-09-13T12:00:00Z",
+      boundary:
+        "Describes Publisher Intelligence's browser observation source, not the publisher/site health.",
+    };
+    mockedFetch.mockResolvedValueOnce(overviewM4({ browser_monitoring_detail: detail }));
+    render(<SiteOverviewPage />);
+    await screen.findByRole("heading", { level: 2, name: "Browser monitoring detail" });
+    const p = card("Browser monitoring detail");
+    expect(p.getByText("HEALTHY")).toBeInTheDocument();
+    expect(p.getByText("Latest browser check succeeded")).toBeInTheDocument();
+    expect(p.getByText(/observation source/)).toBeInTheDocument();
+  });
+
+  it("renders a neutral state when browser monitoring detail is absent", async () => {
+    mockedFetch.mockResolvedValueOnce(overviewM4({ browser_monitoring_detail: null }));
+    render(<SiteOverviewPage />);
+    await screen.findByRole("heading", { level: 2, name: "Browser monitoring detail" });
+    expect(card("Browser monitoring detail").getByText("Condition not available")).toBeInTheDocument();
+    expect(card("Browser monitoring detail").queryByText(/fail|unhealthy/i)).not.toBeInTheDocument();
+  });
+
+  it("source health does not overwrite the browser condition panel", async () => {
+    mockedFetch.mockResolvedValueOnce(
+      overviewM4({
+        source_health: sourceHealth({ BROWSER_MONITORING: "DEGRADED" }),
+        browser_monitoring_detail: { state: "HEALTHY", reason: "ok" },
+      }),
+    );
+    render(<SiteOverviewPage />);
+    await screen.findByRole("heading", { level: 2, name: "Source status" });
+    expect(card("Source status").getByText(/DEGRADED/)).toBeInTheDocument();
+    expect(card("Browser monitoring detail").getByText("HEALTHY")).toBeInTheDocument();
+  });
+});
+
+// ---- M4 incidents ----
+
+describe("SiteOverviewPage · open incidents panel", () => {
+  it("renders an open incident with severity/status/title/date/link", async () => {
+    mockedFetch.mockResolvedValueOnce(overviewM4({ open_incidents: [INCIDENT_A] }));
+    render(<SiteOverviewPage />);
+    await screen.findByRole("heading", { level: 2, name: "Open incidents" });
+    const inc = card("Open incidents");
+    expect(inc.getByText("Traffic drop detected")).toBeInTheDocument();
+    expect(inc.getByText("Traffic anomaly")).toBeInTheDocument();
+    expect(inc.getByText("INVESTIGATING")).toBeInTheDocument();
+    expect(inc.getByText("HIGH")).toBeInTheDocument();
+    const link = inc.getByRole("link", { name: /Traffic drop detected/ });
+    expect(link).toHaveAttribute("href", "/incidents/inc-1");
+  });
+
+  it("renders multiple open incidents", async () => {
+    mockedFetch.mockResolvedValueOnce(
+      overviewM4({ open_incidents: [INCIDENT_A, INCIDENT_B] }),
+    );
+    render(<SiteOverviewPage />);
+    await screen.findByRole("heading", { level: 2, name: "Open incidents" });
+    expect(card("Open incidents").getByText("Traffic drop detected")).toBeInTheDocument();
+    expect(card("Open incidents").getByText("Ad revenue decline")).toBeInTheDocument();
+  });
+
+  it("renders an empty open incidents state", async () => {
+    mockedFetch.mockResolvedValueOnce(overviewM4({ open_incidents: [] }));
+    render(<SiteOverviewPage />);
+    await screen.findByRole("heading", { level: 2, name: "Open incidents" });
+    expect(card("Open incidents").getByText("No open incidents for this site")).toBeInTheDocument();
+  });
+
+  it("has no incident mutation controls", async () => {
+    mockedFetch.mockResolvedValueOnce(overviewM4({ open_incidents: [INCIDENT_A] }));
+    render(<SiteOverviewPage />);
+    await screen.findByRole("heading", { level: 2, name: "Open incidents" });
+    expect(card("Open incidents").queryByRole("button")).not.toBeInTheDocument();
+  });
+});
+
+// ---- M4 activity ----
+
+describe("SiteOverviewPage · recent activity panel", () => {
+  it("renders a machine-observed activity entry", async () => {
+    mockedFetch.mockResolvedValueOnce(overviewM4({ recent_activity: [MACHINE_ENTRY] }));
+    render(<SiteOverviewPage />);
+    await screen.findByRole("heading", { level: 2, name: "Recent activity" });
+    const act = card("Recent activity");
+    expect(act.getByText("BROWSER_ACCESS_CHALLENGE_SUSPECTED")).toBeInTheDocument();
+    expect(act.getByText("RECORDED")).toBeInTheDocument();
+    expect(act.getByText("MEDIUM")).toBeInTheDocument();
+    expect(act.getByText("Machine observed")).toBeInTheDocument();
+  });
+
+  it("renders a human-reported activity entry preserving provenance", async () => {
+    mockedFetch.mockResolvedValueOnce(overviewM4({ recent_activity: [HUMAN_ENTRY] }));
+    render(<SiteOverviewPage />);
+    await screen.findByRole("heading", { level: 2, name: "Recent activity" });
+    const act = card("Recent activity");
+    expect(act.getByText(/observed redirect loop/)).toBeInTheDocument();
+    expect(act.getByText("Human reported")).toBeInTheDocument();
+  });
+
+  it("renders an empty recent activity state", async () => {
+    mockedFetch.mockResolvedValueOnce(overviewM4({ recent_activity: [] }));
+    render(<SiteOverviewPage />);
+    await screen.findByRole("heading", { level: 2, name: "Recent activity" });
+    expect(card("Recent activity").getByText("No activity yet")).toBeInTheDocument();
+  });
+
+  it("provides a site-filtered timeline deep link", async () => {
+    mockedFetch.mockResolvedValueOnce(overviewM4({ recent_activity: [] }));
+    render(<SiteOverviewPage />);
+    await screen.findByRole("heading", { level: 2, name: "Recent activity" });
+    fireEvent.click(
+      card("Recent activity").getByRole("button", { name: /View full timeline/ }),
+    );
+    expect(routerMocks.push).toHaveBeenCalledWith("/timeline?site_id=s1");
+  });
+
+  it("does not leak stale activity when the route site_id changes", async () => {
+    const entry1 = { ...MACHINE_ENTRY, event_id: "e1", event_type: "NOINDEX_ADDED" };
+    const entry2 = { ...MACHINE_ENTRY, event_id: "e2", event_type: "REDIRECT_LOOP" };
+    mockedFetch
+      .mockResolvedValueOnce(overviewM4({ recent_activity: [entry1] }))
+      .mockResolvedValueOnce(
+        overviewM4({
+          site: { ...BASE_OVERVIEW.site, site_id: "s2", name: "Other Site" },
+          recent_activity: [entry2],
+        }),
+      );
+    const { rerender } = render(<SiteOverviewPage />);
+    await screen.findByText("NOINDEX_ADDED");
+    paramsMock.current = { site_id: "s2" };
+    rerender(<SiteOverviewPage />);
+    await screen.findByText("REDIRECT_LOOP");
+    expect(card("Recent activity").queryByText("NOINDEX_ADDED")).not.toBeInTheDocument();
+  });
+});
+
+// ---- M4 parity + no charts/scores ----
+
+describe("SiteOverviewPage · M4 role parity and invariants", () => {
+  it("shows the same read-only M4 result panels to an OPERATOR", async () => {
+    authMocks.useAuth.mockReturnValue(session("OPERATOR"));
+    mockedFetch.mockResolvedValueOnce(
+      overviewM4({
+        monitoring: monitoring({ enabled: false }),
+        source_health: sourceHealth({ BROWSER_MONITORING: "HEALTHY" }),
+        browser_monitoring_detail: { state: "HEALTHY", reason: "Latest check ok" },
+        open_incidents: [INCIDENT_A],
+        recent_activity: [MACHINE_ENTRY],
+      }),
+    );
+    render(<SiteOverviewPage />);
+    await screen.findByRole("heading", { level: 2, name: "Recent activity" });
+    expect(card("Source status").getByText(/Browser Monitoring · HEALTHY/)).toBeInTheDocument();
+    expect(card("Browser monitoring detail").getByText("HEALTHY")).toBeInTheDocument();
+    expect(card("Open incidents").getByText("Traffic drop detected")).toBeInTheDocument();
+    expect(card("Recent activity").getByText("BROWSER_ACCESS_CHALLENGE_SUSPECTED")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Enable monitoring" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Run diagnostic now/ })).not.toBeInTheDocument();
+    expect(card("Open incidents").queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("renders no M5 configuration or cadence UI", async () => {
+    mockedFetch.mockResolvedValueOnce(overviewM4());
+    render(<SiteOverviewPage />);
+    await screen.findByRole("heading", { level: 2, name: "Recent activity" });
+    expect(
+      screen.queryByRole("heading", {
+        level: 2,
+        name: /monitoring configuration|connector setup|cadence settings/i,
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("contains no chart, graph, score, or aggregate analytics", async () => {
+    mockedFetch.mockResolvedValueOnce(overviewM4());
+    render(<SiteOverviewPage />);
+    await screen.findByRole("heading", { level: 2, name: "Source status" });
+    expect(
+      screen.queryByText(/chart|graph|score|KPI|analytics|dashboard/i),
+    ).not.toBeInTheDocument();
   });
 });
 

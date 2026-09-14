@@ -191,5 +191,10 @@ h2 { font-size: var(--font-size-lg); margin: 0 0 var(--space-3); }
 .overview-run-skipped { color: var(--text-muted); font-size: var(--font-size-sm); }
 .overview-run-time { color: var(--text-muted); font-size: var(--font-size-sm); }
 .overview-run-limitation { color: var(--text-muted); font-size: var(--font-size-sm); font-style: italic; }
+
+/* EP-031 M4 — source status, browser detail, incidents, activity */
+.overview-source-health-grid { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.overview-panel-limitation { color: var(--text-muted); font-size: var(--font-size-sm); font-style: italic; margin: var(--space-3) 0 0; }
+.overview-incident-opened { color: var(--text-muted); font-size: var(--font-size-sm); margin-left: auto; }
 .hypothesis-rank { font-weight: 700; margin-right: var(--space-3); }
 .confidence { color: var(--text-muted); font-size: var(--font-size-sm); }

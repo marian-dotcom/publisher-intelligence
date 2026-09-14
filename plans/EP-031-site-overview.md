@@ -1,11 +1,12 @@
 # EP-031 — Site Overview (Polished Operator UI, v1)
 
-**Status:** READY — M0 (governance record), M1 (backend projection), M2 (route + shell), and M3
-(operational result panels) implemented and validated; M4–M6 awaiting subsequent authorization.
+**Status:** READY — M0 (governance record), M1 (backend projection), M2 (route + shell), M3
+(operational result panels), and M4 (source status / browser detail / incidents / activity)
+implemented and validated; M5–M6 awaiting subsequent authorization.
 No site registration, site enablement, publisher contact, deployment,
 scheduler restart, Gate P, or Limited Pilot included.
 **Owner:** Codex / Engineering
-**Created / Updated:** 2026-09-14 (M3 implemented + validated)
+**Created / Updated:** 2026-09-14 (M4 implemented + validated)
 **Target milestone:** Product / Operations track — EP-031 "polished operator UI / Site Overview"
 (previously reserved by EP-028/EP-029/EP-030 as context-only; this file makes it an active plan).
 **Base commit:** `6b43df655cbbda53c4a5cc5c9af00b088abb296c` (main; EP-030 doc closure, deployed a66bada)
@@ -17,7 +18,7 @@ scheduler restart, Gate P, or Limited Pilot included.
 - [x] M1 — backend: `GET /product/sites/{site_id}/overview` projection + `CheckpointStatus` literal fix + backend tests
 - [x] M2 — frontend: `/sites/[site_id]` route + page shell + identity header + monitoring card reuse + Home entry point
 - [x] M3 — frontend: diagnostic / latest-scheduled / recent-runs panels (kind + status semantics)
-- [ ] M4 — frontend: source health + open incidents + recent activity panels + deep links
+- [x] M4 — frontend: source health + open incidents + recent activity panels + deep links
 - [ ] M5 — loading / error / empty / stale states + a11y + tenant/security review pass
 - [ ] M6 — final validation ladder + README boundary refresh + plan closure (staging deploy only under separate authorization)
 
@@ -746,6 +747,18 @@ Impact: single serializer used by both surfaces.
             limitation text, never failure-toned; diagnostic deep link only for terminal
             diagnostics. M4 content strictly absent. No backend changes. New M3 tests (16),
             full suite 198 pass. See Validation Results.
+
+2026-09-14  M4 (source status / browser detail / incidents / activity). Extended site-overview.tsx
+            with SourceHealthPanel (five independent source-health badges, no aggregate score),
+            BrowserConditionPanel (browser observation-source detail with backend boundary label;
+            neutral "Condition not available" when absent), OpenIncidentsPanel (compact incident
+            cards deep-linking to established /incidents/[id], no mutation controls), and
+            RecentActivityPanel (bounded list using the shared TimelineEntryView + site-filtered
+            /timeline deep link). Extracted TimelineEntryView from the /timeline page into new
+            shared components/timeline-entries.tsx (single canonical entry renderer, no fork).
+            No incidents site-filter exists on the backend /incidents list, so incident deep
+            links go through the detail cards (per plan, no new filter added). No backend
+            changes. New M4 tests (19), full suite 217 pass. See Validation Results.
 ```
 
 ## Validation Results
@@ -785,13 +798,25 @@ Impact: single serializer used by both surfaces.
   git diff --check                  -> clean
   python3 scripts/check_secrets.py  -> Secret scan passed
   docker compose config --quiet     -> OK
+
+2026-09-14  M4 ladder (all green):
+  pnpm --dir frontend test -- tests/site-overview.test.tsx -> 57/57 passed in file
+  pnpm --dir frontend test          -> 217 passed (16 files; 19 new M4 tests; timeline
+                                        site-filter tests unaffected by TimelineEntryView
+                                        extraction into components/timeline-entries.tsx)
+  pnpm --dir frontend lint          -> 0 errors (1 pre-existing openDialog warning)
+  pnpm --dir frontend typecheck     -> clean
+  pnpm --dir frontend build         -> clean; /sites/[site_id] Dynamic
+  git diff --check                  -> clean
+  python3 scripts/check_secrets.py  -> Secret scan passed
+  docker compose config --quiet     -> OK
 ```
 
 ## 22. Final Outcome / Retrospective
 
 Planned as a section to be filled at completion (What shipped / Changes from plan / Validation /
-Limitations / Follow-ups / Lessons). No content yet — plan is READY; M0+M1+M2+M3 implemented and
-validated; M4-M6 await separate authorization.
+Limitations / Follow-ups / Lessons). No content yet — plan is READY; M0+M1+M2+M3+M4 implemented
+and validated; M5-M6 await separate authorization.
 
 ---
 
