@@ -193,6 +193,71 @@ export interface SourceHealthResponse {
   sources: Record<SourceKey, SourceHealth>;
 }
 
+// ---------- site overview ----------
+
+/** EP-031 — GET /product/sites/{site_id}/overview response type.
+ * The overview is a read-only per-site projection; `site` and `monitoring` are
+ * the M2 shell subset. M3/M4 blocks (initial_diagnostic, latest_scheduled_run,
+ * source_health, open_incidents, recent_runs, recent_activity) exist on the
+ * endpoint but are typed for later milestones and are never rendered by the M2 shell. */
+export interface SiteOverviewSite {
+  site_id: string;
+  name: string;
+  canonical_domain: string;
+  canonical_scheme: string;
+  /** `canonical_scheme://canonical_domain` (no url column exists on Site). */
+  url: string;
+  publisher_name: string | null;
+  status: string;
+  timezone: string;
+  created_at: Iso;
+}
+
+export interface SiteOverviewIncident {
+  incident_id: string;
+  title: string;
+  symptom_family: string;
+  status: IncidentStatus;
+  severity: Severity | null;
+  reported_start_at: Iso | null;
+  reported_end_at: Iso | null;
+  opened_at: Iso;
+  site_id: string;
+}
+
+export interface SiteOverviewRecentRun {
+  run_id: string;
+  observation_kind: string;
+  status: string;
+  started_at: Iso | null;
+  completed_at: Iso | null;
+  limitations: string[];
+}
+
+export interface SiteOverviewLatestScheduledRun {
+  run_id: string;
+  /** SCHEDULED-only, SKIPPED excluded (EP-030 latest-actual-observation discipline). */
+  status: string;
+  started_at: Iso | null;
+  completed_at: Iso | null;
+  attempt_count: number;
+  browser_access_classification: BrowserAccessClassification | null;
+}
+
+export interface SiteOverviewResponse {
+  site: SiteOverviewSite;
+  /** Null when the monitoring read is unavailable (fail-closed; never fabricated ON). */
+  monitoring: MonitoringProjection | null;
+  initial_diagnostic: InitialDiagnostic | null;
+  latest_scheduled_run: SiteOverviewLatestScheduledRun | null;
+  source_health: Record<SourceKey, SourceHealth>;
+  browser_monitoring_detail: Record<string, unknown> | null;
+  open_incidents: SiteOverviewIncident[];
+  recent_runs: SiteOverviewRecentRun[];
+  /** Exact GET /timeline entry serializer, site-scoped. */
+  recent_activity: TimelineEntry[];
+}
+
 // ---------- timeline ----------
 
 export type TimePrecision = "EXACT" | "WINDOW" | "UNKNOWN";
