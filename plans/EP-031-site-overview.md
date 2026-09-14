@@ -1,10 +1,11 @@
 # EP-031 — Site Overview (Polished Operator UI, v1)
 
-**Status:** READY — M0 (governance record) and M1 (backend projection) authorized; M2–M6 awaiting
-subsequent authorization. No site registration, site enablement, publisher contact, deployment,
+**Status:** READY — M0 (governance record), M1 (backend projection), M2 (route + shell), and M3
+(operational result panels) implemented and validated; M4–M6 awaiting subsequent authorization.
+No site registration, site enablement, publisher contact, deployment,
 scheduler restart, Gate P, or Limited Pilot included.
 **Owner:** Codex / Engineering
-**Created / Updated:** 2026-09-14 (M0 + M1 authorized; planning + initial implementation begin)
+**Created / Updated:** 2026-09-14 (M3 implemented + validated)
 **Target milestone:** Product / Operations track — EP-031 "polished operator UI / Site Overview"
 (previously reserved by EP-028/EP-029/EP-030 as context-only; this file makes it an active plan).
 **Base commit:** `6b43df655cbbda53c4a5cc5c9af00b088abb296c` (main; EP-030 doc closure, deployed a66bada)
@@ -12,10 +13,10 @@ scheduler restart, Gate P, or Limited Pilot included.
 ## Progress
 
 - [x] M0-PLAN — repo inspection + canonical doc + prior EP reconciliation (this document)
-- [ ] M0 — governance record: refresh PLANS.md §76.1 forward sequence (EP-027–030 COMPLETE; register EP-031 → EP-032)
-- [ ] M1 — backend: `GET /product/sites/{site_id}/overview` projection + `CheckpointStatus` literal fix + backend tests
-- [ ] M2 — frontend: `/sites/[site_id]` route + page shell + identity header + monitoring card reuse + Home entry point
-- [ ] M3 — frontend: diagnostic / latest-scheduled / recent-runs panels (kind + status semantics)
+- [x] M0 — governance record: refresh PLANS.md §76.1 forward sequence (EP-027–030 COMPLETE; register EP-031 → EP-032)
+- [x] M1 — backend: `GET /product/sites/{site_id}/overview` projection + `CheckpointStatus` literal fix + backend tests
+- [x] M2 — frontend: `/sites/[site_id]` route + page shell + identity header + monitoring card reuse + Home entry point
+- [x] M3 — frontend: diagnostic / latest-scheduled / recent-runs panels (kind + status semantics)
 - [ ] M4 — frontend: source health + open incidents + recent activity panels + deep links
 - [ ] M5 — loading / error / empty / stale states + a11y + tenant/security review pass
 - [ ] M6 — final validation ladder + README boundary refresh + plan closure (staging deploy only under separate authorization)
@@ -721,12 +722,30 @@ Impact: single serializer used by both surfaces.
             agent/ep-031-site-overview created off 6b43df6.
 
 2026-09-14  M1 (backend projection). Implemented GET /product/sites/{site_id}/overview in
-            product.py reusing _source_health_rows / _initial_diagnostic_projection /
-            monitoring_control_result / _classification_state; extracted shared
-            _monitoring_projection and _browser_monitoring_detail builders; memory.py serializer
-            extracted into _event_entry/_manual_note_entry + recent_activity_entries helper;
-            contracts.py CheckpointStatus Literal gained "SKIPPED". New integration test file.
-            See Validation Results.
+             product.py reusing _source_health_rows / _initial_diagnostic_projection /
+             monitoring_control_result / _classification_state; extracted shared
+             _monitoring_projection and _browser_monitoring_detail builders; memory.py serializer
+             extracted into _event_entry/_manual_note_entry + recent_activity_entries helper;
+             contracts.py CheckpointStatus Literal gained "SKIPPED". New integration test file.
+             See Validation Results.
+
+2026-09-14  M2 (frontend shell). Implemented /sites/[site_id] route page in
+            app/(protected)/sites/[site_id]/page.tsx (identity header + MonitoringCard reuse,
+            loading/error/empty/stale handling), Home "Overview" entry point, and overview
+            response contract types in lib/api-types.ts. Route uses useParams() (synchronous,
+            mockable next/navigation seam; accepted). New site-overview.test.tsx (22 tests).
+            Committed e9ac9ea ("EP-031 M2: add per-site overview route and Home entry point"),
+            pushed, CI 34836448563 SUCCESS. See Validation Results.
+
+2026-09-14  M3 (operational result panels). Created components/site-overview.tsx rendering
+            Latest diagnostic / Latest scheduled / Recent runs panels from the M1 overview
+            contract only. Reused DiagnosticStateBadge + StatusChip + primitives; added shared
+            exported BrowserAccessClassificationBadge to domain.tsx (single classification
+            source, no forking). Absent states are neutral ("No diagnostic yet"; "No scheduled
+            results yet"; "No runs yet"); SKIPPED renders "Skipped — monitoring paused" with
+            limitation text, never failure-toned; diagnostic deep link only for terminal
+            diagnostics. M4 content strictly absent. No backend changes. New M3 tests (16),
+            full suite 198 pass. See Validation Results.
 ```
 
 ## Validation Results
@@ -745,13 +764,34 @@ Impact: single serializer used by both surfaces.
   python3 scripts/check_secrets.py -> no known credential patterns
   docker compose config --quiet    -> OK
   git diff --check                 -> clean
+
+2026-09-14  M2 ladder (all green):
+  pnpm --dir frontend test -- tests/site-overview.test.tsx -> 22/22 passed (new file)
+  pnpm --dir frontend test          -> 182 passed (16 files)
+  pnpm --dir frontend lint          -> 0 errors (1 pre-existing openDialog warning)
+  pnpm --dir frontend typecheck     -> clean
+  pnpm --dir frontend build         -> clean; /sites/[site_id] Dynamic
+  git diff --check                  -> clean
+  python3 scripts/check_secrets.py  -> Secret scan passed
+  docker compose config --quiet     -> OK
+  CI (push e9ac9ea, run 34836448563) -> SUCCESS (install/lint/typecheck/test/build)
+
+2026-09-14  M3 ladder (all green):
+  pnpm --dir frontend test -- tests/site-overview.test.tsx -> 38/38 passed in file
+  pnpm --dir frontend test          -> 198 passed (16 files; 16 new M3 tests)
+  pnpm --dir frontend lint          -> 0 errors (1 pre-existing openDialog warning)
+  pnpm --dir frontend typecheck     -> clean
+  pnpm --dir frontend build         -> clean; /sites/[site_id] Dynamic
+  git diff --check                  -> clean
+  python3 scripts/check_secrets.py  -> Secret scan passed
+  docker compose config --quiet     -> OK
 ```
 
 ## 22. Final Outcome / Retrospective
 
 Planned as a section to be filled at completion (What shipped / Changes from plan / Validation /
-Limitations / Follow-ups / Lessons). No content yet — plan is READY; M0+M1 implemented and
-validated; M2-M6 await separate authorization.
+Limitations / Follow-ups / Lessons). No content yet — plan is READY; M0+M1+M2+M3 implemented and
+validated; M4-M6 await separate authorization.
 
 ---
 

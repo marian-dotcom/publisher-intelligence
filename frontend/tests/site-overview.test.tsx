@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import HomePage from "../app/(protected)/page";
@@ -7,6 +7,7 @@ import { apiFetch, ApiError } from "@/lib/api";
 import type {
   HomeStatus,
   MonitoringProjection,
+  SiteOverviewRecentRun,
   SiteOverviewResponse,
   SourceHealth,
   SourceHealthResponse,
@@ -112,6 +113,48 @@ const BASE_OVERVIEW: SiteOverviewResponse = {
 
 function overview(mon: MonitoringProjection | null): SiteOverviewResponse {
   return { ...BASE_OVERVIEW, monitoring: mon };
+}
+
+// M3 panel variants — shallow overrides on the contract-typed BASE projection.
+function overviewM3(
+  over: Partial<
+    Pick<
+      SiteOverviewResponse,
+      "site" | "monitoring" | "initial_diagnostic" | "latest_scheduled_run" | "recent_runs"
+    >
+  > = {},
+): SiteOverviewResponse {
+  return { ...BASE_OVERVIEW, ...over };
+}
+
+function diagnostic(
+  over: Partial<NonNullable<SiteOverviewResponse["initial_diagnostic"]>> = {},
+): NonNullable<SiteOverviewResponse["initial_diagnostic"]> {
+  return { ...BASE_OVERVIEW.initial_diagnostic!, ...over };
+}
+
+function scheduledRun(
+  over: Partial<NonNullable<SiteOverviewResponse["latest_scheduled_run"]>> = {},
+): NonNullable<SiteOverviewResponse["latest_scheduled_run"]> {
+  return { ...BASE_OVERVIEW.latest_scheduled_run!, ...over };
+}
+
+function recentRun(over: Partial<SiteOverviewRecentRun> = {}): SiteOverviewRecentRun {
+  return {
+    run_id: "r1",
+    observation_kind: "SCHEDULED",
+    status: "COMPLETE",
+    started_at: "2026-09-13T00:00:00Z",
+    completed_at: "2026-09-13T00:05:00Z",
+    limitations: [],
+    ...over,
+  };
+}
+
+// Scope queries to a single overview card, keyed by its h2 title.
+function card(title: string) {
+  const heading = screen.getByRole("heading", { level: 2, name: title });
+  return within(heading.closest(".card") as HTMLElement);
 }
 
 function confirmButton() {
@@ -225,8 +268,11 @@ describe("SiteOverviewPage · monitoring card states", () => {
 
     await screen.findByText("Monitoring state unavailable");
     expect(screen.getByText("Automatic monitoring is treated as paused.")).toBeInTheDocument();
-    // No mutation is offered for an unavailable read.
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    // No monitoring mutation is offered for an unavailable read (the M3
+    // diagnostic deep link is read-only navigation, not a mutation).
+    expect(screen.queryByRole("button", { name: "Enable monitoring" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pause monitoring" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Run diagnostic now/ })).not.toBeInTheDocument();
   });
 });
 
@@ -349,19 +395,291 @@ describe("SiteOverviewPage · loading / error / stale drives", () => {
   });
 });
 
-describe("SiteOverviewPage · M2 shell boundary", () => {
-  it("renders no M3/M4 panel content", async () => {
+describe("SiteOverviewPage · M3 panels and M4 boundary", () => {
+  it("renders the three M3 result panels", async () => {
     mockedFetch.mockResolvedValueOnce(BASE_OVERVIEW);
 
     render(<SiteOverviewPage />);
 
-    await screen.findByText("Climatologie Déploiement");
-    expect(screen.queryByRole("heading", { level: 2, name: /diagnostic/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 2, name: /scheduled/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 2, name: /recent runs/i })).not.toBeInTheDocument();
+    await screen.findByRole("heading", { level: 2, name: "Latest diagnostic" });
+    expect(screen.getByRole("heading", { level: 2, name: "Latest scheduled" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Recent runs" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /View diagnostic results/ })).toBeInTheDocument();
+  });
+
+  it("renders no M4 content in the M3 shell", async () => {
+    mockedFetch.mockResolvedValueOnce(BASE_OVERVIEW);
+
+    render(<SiteOverviewPage />);
+
+    await screen.findByRole("heading", { level: 2, name: "Recent runs" });
     expect(screen.queryByRole("heading", { level: 2, name: /source health/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2, name: /browser monitoring detail/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2, name: /publisher condition/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 2, name: /open incidents/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 2, name: /recent activity/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2, name: /deep links/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2, name: /evidence pack/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("SiteOverviewPage · latest diagnostic panel", () => {
+  it("renders the diagnostic state, access classification, and completed time", async () => {
+    mockedFetch.mockResolvedValueOnce(BASE_OVERVIEW);
+
+    render(<SiteOverviewPage />);
+
+    await screen.findByRole("heading", { level: 2, name: "Latest diagnostic" });
+    expect(card("Latest diagnostic").getByText("Diagnostic complete")).toBeInTheDocument();
+    expect(card("Latest diagnostic").getByText("Access: normal")).toBeInTheDocument();
+    expect(card("Latest diagnostic").getByText("Completed")).toBeInTheDocument();
+    expect(
+      card("Latest diagnostic").getByTestId("latest-diagnostic-completed").textContent,
+    ).toMatch(/\d{1,2}:\d{2}/);
+  });
+
+  it("shows a neutral empty state when no diagnostic exists", async () => {
+    mockedFetch.mockResolvedValueOnce(overviewM3({ initial_diagnostic: null }));
+
+    render(<SiteOverviewPage />);
+
+    await screen.findByRole("heading", { level: 2, name: "Latest diagnostic" });
+    expect(card("Latest diagnostic").getByText("No diagnostic yet")).toBeInTheDocument();
+    // Absence is neutral — never rendered as unhealthy/failed.
+    expect(card("Latest diagnostic").queryByText(/fail|unhealthy|down|error/i)).not.toBeInTheDocument();
+    expect(card("Latest diagnostic").queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("deep links to diagnostic results only for a terminal diagnostic", async () => {
+    mockedFetch.mockResolvedValueOnce(BASE_OVERVIEW);
+
+    render(<SiteOverviewPage />);
+
+    await screen.findByRole("heading", { level: 2, name: "Latest diagnostic" });
+    fireEvent.click(card("Latest diagnostic").getByRole("button", { name: /View diagnostic results/ }));
+    expect(routerMocks.push).toHaveBeenCalledWith("/diagnostic-results?site_id=s1");
+    expect(routerMocks.push).not.toHaveBeenCalledWith("/diagnostic-results");
+  });
+
+  it("renders no deep link or run action for a non-terminal diagnostic", async () => {
+    mockedFetch.mockResolvedValueOnce(
+      overviewM3({
+        initial_diagnostic: diagnostic({
+          status: "RUNNING",
+          completed_at: null,
+          browser_access_classification: null,
+        }),
+      }),
+    );
+
+    render(<SiteOverviewPage />);
+
+    await screen.findByRole("heading", { level: 2, name: "Latest diagnostic" });
+    expect(card("Latest diagnostic").getByText("Diagnostic running")).toBeInTheDocument();
+    expect(card("Latest diagnostic").queryByText(/Access:/)).not.toBeInTheDocument();
+    expect(card("Latest diagnostic").queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Run diagnostic now/ })).not.toBeInTheDocument();
+  });
+
+  it("encodes the site id in the diagnostic deep link", async () => {
+    const siteId = "a b+c/d";
+    paramsMock.current = { site_id: siteId };
+    mockedFetch.mockResolvedValueOnce(
+      overviewM3({ site: { ...BASE_OVERVIEW.site, site_id: siteId } }),
+    );
+
+    render(<SiteOverviewPage />);
+
+    await screen.findByRole("heading", { level: 2, name: "Latest diagnostic" });
+    fireEvent.click(card("Latest diagnostic").getByRole("button", { name: /View diagnostic results/ }));
+    expect(routerMocks.push).toHaveBeenCalledWith(
+      `/diagnostic-results?site_id=${encodeURIComponent(siteId)}`,
+    );
+  });
+
+  it("renders a FAILED diagnostic explicitly as failed", async () => {
+    mockedFetch.mockResolvedValueOnce(
+      overviewM3({ initial_diagnostic: diagnostic({ status: "SITE_ERROR" }) }),
+    );
+
+    render(<SiteOverviewPage />);
+
+    await screen.findByRole("heading", { level: 2, name: "Latest diagnostic" });
+    expect(card("Latest diagnostic").getByText("Diagnostic failed")).toBeInTheDocument();
+  });
+});
+
+describe("SiteOverviewPage · latest scheduled panel", () => {
+  it("renders the latest scheduled run status and timestamp", async () => {
+    mockedFetch.mockResolvedValueOnce(BASE_OVERVIEW);
+
+    render(<SiteOverviewPage />);
+
+    await screen.findByRole("heading", { level: 2, name: "Latest scheduled" });
+    expect(card("Latest scheduled").getByText("COMPLETE")).toBeInTheDocument();
+    expect(card("Latest scheduled").getByText("Access: normal")).toBeInTheDocument();
+    expect(card("Latest scheduled").getByText("Attempts")).toBeInTheDocument();
+    expect(
+      card("Latest scheduled").getByTestId("latest-scheduled-completed").textContent,
+    ).toMatch(/\d{1,2}:\d{2}/);
+  });
+
+  it("shows a neutral empty state and never substitutes a diagnostic run", async () => {
+    mockedFetch.mockResolvedValueOnce(overviewM3({ latest_scheduled_run: null }));
+
+    render(<SiteOverviewPage />);
+
+    await screen.findByRole("heading", { level: 2, name: "Latest scheduled" });
+    const scheduled = card("Latest scheduled");
+    expect(scheduled.getByText("No scheduled results yet")).toBeInTheDocument();
+    expect(scheduled.queryByText(/Diagnostic|COMPLETE/)).not.toBeInTheDocument();
+  });
+
+  it("does not surface SKIPPED in the latest scheduled card", async () => {
+    mockedFetch.mockResolvedValueOnce(
+      overviewM3({
+        latest_scheduled_run: scheduledRun({ status: "COMPLETE" }),
+        recent_runs: [
+          recentRun({ run_id: "skip-1", status: "SKIPPED", limitations: ["monitoring paused"] }),
+        ],
+      }),
+    );
+
+    render(<SiteOverviewPage />);
+
+    await screen.findByRole("heading", { level: 2, name: "Latest scheduled" });
+    const scheduled = card("Latest scheduled");
+    expect(scheduled.getByText("COMPLETE")).toBeInTheDocument();
+    expect(scheduled.queryByText(/Skipped/)).not.toBeInTheDocument();
+  });
+});
+
+describe("SiteOverviewPage · recent runs panel", () => {
+  it("renders mixed run kinds with distinct kind labels and statuses", async () => {
+    mockedFetch.mockResolvedValueOnce(
+      overviewM3({
+        recent_runs: [
+          recentRun({ run_id: "sched-1", observation_kind: "SCHEDULED", status: "COMPLETE" }),
+          recentRun({ run_id: "diag-1", observation_kind: "DIAGNOSTIC", status: "PARTIAL" }),
+          recentRun({ run_id: "inc-1", observation_kind: "INCIDENT_DIAGNOSTIC", status: "COMPLETE" }),
+        ],
+      }),
+    );
+
+    render(<SiteOverviewPage />);
+
+    await screen.findByRole("heading", { level: 2, name: "Recent runs" });
+    const runs = card("Recent runs");
+    expect(runs.getByText("Scheduled")).toBeInTheDocument();
+    expect(runs.getByText("Diagnostic")).toBeInTheDocument();
+    expect(runs.getByText("Incident diagnostic")).toBeInTheDocument();
+    expect(runs.getAllByText("COMPLETE")).toHaveLength(2);
+    expect(runs.getByText("PARTIAL")).toBeInTheDocument();
+    expect(runs.getAllByText(/\d{1,2}:\d{2}/).length).toBeGreaterThan(0);
+  });
+
+  it("keeps diagnostic and scheduled cohorts distinct", async () => {
+    mockedFetch.mockResolvedValueOnce(
+      overviewM3({ recent_runs: [recentRun({ run_id: "diag-1", observation_kind: "DIAGNOSTIC" })] }),
+    );
+
+    render(<SiteOverviewPage />);
+
+    await screen.findByRole("heading", { level: 2, name: "Recent runs" });
+    const runs = card("Recent runs");
+    expect(runs.getByText("Diagnostic")).toBeInTheDocument();
+    expect(runs.queryByText("Scheduled")).not.toBeInTheDocument();
+  });
+
+  it("renders SKIPPED neutrally with limitation text and no failure tone", async () => {
+    mockedFetch.mockResolvedValueOnce(
+      overviewM3({
+        recent_runs: [
+          recentRun({
+            run_id: "skip-1",
+            status: "SKIPPED",
+            limitations: ["monitoring paused for scheduled checks"],
+          }),
+        ],
+      }),
+    );
+
+    render(<SiteOverviewPage />);
+
+    await screen.findByRole("heading", { level: 2, name: "Recent runs" });
+    const runs = card("Recent runs");
+    expect(runs.getByText("Skipped — monitoring paused")).toBeInTheDocument();
+    expect(runs.getByText("monitoring paused for scheduled checks")).toBeInTheDocument();
+    expect(runs.queryByText("SKIPPED")).not.toBeInTheDocument();
+    expect(runs.queryByText(/fail|unhealthy|down|error/i)).not.toBeInTheDocument();
+  });
+
+  it("renders an empty recent runs state", async () => {
+    mockedFetch.mockResolvedValueOnce(overviewM3({ recent_runs: [] }));
+
+    render(<SiteOverviewPage />);
+
+    await screen.findByRole("heading", { level: 2, name: "Recent runs" });
+    expect(card("Recent runs").getByText("No runs yet")).toBeInTheDocument();
+  });
+});
+
+describe("SiteOverviewPage · M3 panel data freshness", () => {
+  it("does not leak stale panel data when the route site_id changes", async () => {
+    mockedFetch
+      .mockResolvedValueOnce(BASE_OVERVIEW) // s1
+      .mockResolvedValueOnce(
+        overviewM3({
+          site: { ...BASE_OVERVIEW.site, site_id: "s2", name: "Other Site" },
+          initial_diagnostic: diagnostic({
+            run_id: "diag-2",
+            status: "SITE_ERROR",
+            browser_access_classification: "degraded",
+          }),
+          recent_runs: [
+            recentRun({ run_id: "run-2", observation_kind: "DIAGNOSTIC", status: "COMPLETE" }),
+          ],
+        }),
+      ); // s2
+
+    const { rerender } = render(<SiteOverviewPage />);
+    await screen.findByText("Diagnostic complete");
+
+    paramsMock.current = { site_id: "s2" };
+    rerender(<SiteOverviewPage />);
+
+    await screen.findByText("Diagnostic failed");
+    const diagnosticCard = card("Latest diagnostic");
+    expect(diagnosticCard.queryByText("Diagnostic complete")).not.toBeInTheDocument();
+    expect(diagnosticCard.queryByText("Access: normal")).not.toBeInTheDocument();
+    expect(diagnosticCard.getByText("Access: degraded")).toBeInTheDocument();
+    expect(card("Recent runs").getByText("Diagnostic")).toBeInTheDocument();
+  });
+});
+
+describe("SiteOverviewPage · OPERATOR/ADMIN result parity", () => {
+  it("shows the same read-only M3 result panels to an OPERATOR", async () => {
+    authMocks.useAuth.mockReturnValue(session("OPERATOR"));
+    mockedFetch.mockResolvedValueOnce(
+      overviewM3({
+        monitoring: monitoring({ enabled: false }),
+        recent_runs: [
+          recentRun({ run_id: "sched-1", observation_kind: "SCHEDULED", status: "COMPLETE" }),
+          recentRun({ run_id: "skip-1", observation_kind: "SCHEDULED", status: "SKIPPED" }),
+        ],
+      }),
+    );
+
+    render(<SiteOverviewPage />);
+
+    await screen.findByRole("heading", { level: 2, name: "Recent runs" });
+    expect(card("Latest diagnostic").getByText("Diagnostic complete")).toBeInTheDocument();
+    expect(card("Latest scheduled").getByText("COMPLETE")).toBeInTheDocument();
+    expect(card("Recent runs").getAllByText("Scheduled")).toHaveLength(2);
+    expect(card("Recent runs").getByText("Skipped — monitoring paused")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Enable monitoring" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pause monitoring" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Run diagnostic now/ })).not.toBeInTheDocument();
   });
 });
 

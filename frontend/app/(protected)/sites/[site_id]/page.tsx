@@ -1,10 +1,11 @@
 "use client";
 
 /**
- * EP-031 M2 — per-site overview route (read-only operational drill-down of Home,
- * ADR-002: no new primary navigation area). Renders the site identity header
- * and reuses the existing MonitoringCard; the M3/M4 panels are NOT implemented
- * here. Navigation contract (Home): `/sites/<encoded-site-id>`.
+ * EP-031 M3 — per-site overview route (read-only operational drill-down of Home,
+ * ADR-002: no new primary navigation area). Renders the site identity header,
+ * reuses the existing MonitoringCard, and renders the M3 operational result
+ * panels (latest diagnostic, latest scheduled, recent runs). M4 content is NOT
+ * implemented here. Navigation contract (Home): `/sites/<encoded-site-id>`.
  */
 
 import { useEffect, useState } from "react";
@@ -13,6 +14,7 @@ import { useParams } from "next/navigation";
 import { Card, EmptyState, ErrorState, LoadingState } from "@/components/primitives";
 import { StatusChip } from "@/components/domain";
 import { MonitoringCard } from "@/components/monitoring-controls";
+import { SiteOverviewPanels } from "@/components/site-overview";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { SiteOverviewResponse } from "@/lib/api-types";
 
@@ -128,6 +130,10 @@ export default function SiteOverviewRoute() {
           siteId={site.site_id}
           onRefetch={(requestSiteId) => void handleRefetch(requestSiteId)}
         />
+      </section>
+
+      <section aria-label="Operational results">
+        <SiteOverviewPanels overview={overview} />
       </section>
     </>
   );

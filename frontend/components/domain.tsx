@@ -236,6 +236,18 @@ export function InitialDiagnosticBadge({ diagnostic }: { diagnostic: InitialDiag
   );
 }
 
+/** EP-031 M3 — shared browser-access classification badge.
+ * Reuses the EP-028 CLASSIFICATION_LABELS mapping so the Site Overview panels
+ * never fork classification semantics. Unrecognized values render nothing
+ * (never invented tones); callers decide when a classification is actionable. */
+export function BrowserAccessClassificationBadge({ classification }: { classification: string }) {
+  const label = isBrowserAccessClassification(classification)
+    ? CLASSIFICATION_LABELS[classification]
+    : null;
+  if (!label) return null;
+  return <span className={`badge badge-${classification}`}>{label}</span>;
+}
+
 // ---------- EP-029 M2a — explicit state labels ----------
 
 /** Explicit state labels for diagnostic run outcomes.
