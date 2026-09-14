@@ -8,7 +8,7 @@
  * implemented here. Navigation contract (Home): `/sites/<encoded-site-id>`.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { Card, EmptyState, ErrorState, LoadingState } from "@/components/primitives";
@@ -30,12 +30,16 @@ export default function SiteOverviewRoute() {
   const [overview, setOverview] = useState<SiteOverviewResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // Generation guard: bumped on every site_id change so that a post-mutation
+  // refetch for an older route can never overwrite the current site's data.
+  const routeGenRef = useRef(0);
 
   useEffect(() => {
     // No API request until a valid non-empty site id exists.
     if (site_id.length === 0) {
       return;
     }
+    routeGenRef.current += 1;
     let cancelled = false;
     (async () => {
       setError(null);
@@ -70,15 +74,16 @@ export default function SiteOverviewRoute() {
     };
   }, [site_id]);
 
-  // Post-mutation refetch for the reused MonitoringCard. Refuses a stale
-  // completion once the route's site id has moved on; a transient refetch
-  // failure keeps the current (pre-mutation) projection.
+  // Post-mutation refetch for the reused MonitoringCard. Generation-guarded so
+  // a response for an older route can never overwrite the current site's data.
   async function handleRefetch(requestSiteId: string) {
+    const gen = routeGenRef.current;
     if (requestSiteId !== site_id) return;
     try {
       const data = await apiFetch<SiteOverviewResponse>(
         `/product/sites/${encodeURIComponent(site_id)}/overview`,
       );
+      if (gen !== routeGenRef.current) return;
       setOverview(data);
     } catch {
       // Keep the current projection on a transient refetch failure.

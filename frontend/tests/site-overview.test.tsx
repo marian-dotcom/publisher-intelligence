@@ -1060,3 +1060,229 @@ describe("Home · Overview entry point", () => {
     expect(screen.queryByRole("button", { name: "Overview" })).not.toBeInTheDocument();
   });
 });
+
+// ---- M5: stale-race / a11y / semantic regression ----
+
+describe("SiteOverviewPage · A→B→A stale-data race", () => {
+  it("never leaks stale overview data across an A→B→A rapid route change", async () => {
+    let releaseFirstS1!: (value: SiteOverviewResponse) => void;
+    const firstS1 = new Promise<SiteOverviewResponse>((resolve) => {
+      releaseFirstS1 = resolve;
+    });
+
+    const s1Data = {
+      ...overview(monitoring({ enabled: true })),
+      initial_diagnostic: diagnostic({ status: "COMPLETE" }),
+      recent_runs: [recentRun({ run_id: "fresh", status: "COMPLETE" })],
+    };
+    const s2Data = {
+      ...overview(monitoring({ enabled: true })),
+      site: { ...BASE_OVERVIEW.site, site_id: "s2", name: "Site B" },
+    };
+    const staleData = {
+      ...overview(monitoring({ enabled: true })),
+      site: { ...BASE_OVERVIEW.site, site_id: "s1", name: "Stale First S1" },
+      recent_runs: [recentRun({ run_id: "stale", status: "SKIPPED" })],
+    };
+
+    mockedFetch
+      .mockImplementationOnce(() => firstS1) // s1 gen1 — held open
+      .mockResolvedValueOnce(s2Data) // s2 gen2
+      .mockResolvedValueOnce(s1Data); // s1 gen3
+
+    const { rerender } = render(<SiteOverviewPage />);
+    // s1 gen1 is held; page shows loading state.
+    expect(screen.getByText("Loading site overview…")).toBeInTheDocument();
+
+    // Navigate A→B: gen1 cancelled, gen2 fetch fires and resolves.
+    paramsMock.current = { site_id: "s2" };
+    await act(async () => {
+      rerender(<SiteOverviewPage />);
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Site B")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Stale First S1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Loading site overview…")).not.toBeInTheDocument();
+
+    // Navigate B→A: gen2 cancelled, gen3 fetch fires and resolves.
+    paramsMock.current = { site_id: "s1" };
+    await act(async () => {
+      rerender(<SiteOverviewPage />);
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Climatologie Déploiement")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Site B")).not.toBeInTheDocument();
+
+    // Release the stale gen1 response after both transitions have completed.
+    await act(async () => {
+      releaseFirstS1(staleData);
+    });
+
+    expect(screen.queryByText("Stale First S1")).not.toBeInTheDocument();
+    expect(screen.getByText("Climatologie Déploiement")).toBeInTheDocument();
+    expect(screen.queryByText("Site B")).not.toBeInTheDocument();
+    expect(card("Recent runs").getByText("COMPLETE")).toBeInTheDocument();
+    expect(card("Recent runs").queryByText("SKIPPED")).not.toBeInTheDocument();
+  });
+});
+
+describe("SiteOverviewPage · stale monitoring-refetch after route change", () => {
+  it("drops a post-mutation refetch whose route was superseded before resolution", async () => {
+    let releaseRefetch!: (value: SiteOverviewResponse) => void;
+    const pendingRefetch = new Promise<SiteOverviewResponse>((resolve) => {
+      releaseRefetch = resolve;
+    });
+
+    mockedFetch
+      .mockResolvedValueOnce(overview(monitoring({ enabled: false }))) // 0 initial s1
+      .mockResolvedValueOnce(monitoring({ enabled: true })) // 1 PUT response
+      .mockImplementationOnce(() => pendingRefetch) // 2 refetch GET — held
+      .mockResolvedValueOnce({
+        ...overview(monitoring({ enabled: true })),
+        site: { ...BASE_OVERVIEW.site, site_id: "s2", name: "Other Site" },
+      }); // 3 s2 initial GET
+
+    const { rerender } = render(<SiteOverviewPage />);
+    await screen.findByRole("button", { name: "Enable monitoring" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Enable monitoring" }));
+    await act(async () => {
+      fireEvent.click(confirmButton());
+    });
+
+    // Navigate to s2 while s1 refetch is still in flight.
+    paramsMock.current = { site_id: "s2" };
+    rerender(<SiteOverviewPage />);
+    await screen.findByText("Other Site");
+
+    // The stale s1 refetch resolves; it must be discarded.
+    await act(async () => {
+      releaseRefetch({
+        ...overview(monitoring({ enabled: true })),
+        site: { ...BASE_OVERVIEW.site, site_id: "s1", name: "Climatologie Déploiement" },
+      });
+    });
+
+    expect(screen.getByText("Other Site")).toBeInTheDocument();
+    expect(screen.queryByText("Climatologie Déploiement")).not.toBeInTheDocument();
+  });
+});
+
+describe("SiteOverviewPage · accessibility structure", () => {
+  it("renders exactly one h1 and the expected h2 panel headings", async () => {
+    mockedFetch.mockResolvedValueOnce(BASE_OVERVIEW);
+    render(<SiteOverviewPage />);
+    await screen.findByRole("heading", { level: 1, name: "Site Overview" });
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    const h2s = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    for (const label of [
+      "Automatic monitoring",
+      "Latest diagnostic",
+      "Latest scheduled",
+      "Recent runs",
+      "Source status",
+      "Browser monitoring detail",
+      "Open incidents",
+      "Recent activity",
+    ]) {
+      expect(h2s).toContain(label);
+    }
+  });
+
+  it("has no structural heading gaps (h3+) in the page skeleton", async () => {
+    mockedFetch.mockResolvedValueOnce(BASE_OVERVIEW);
+    render(<SiteOverviewPage />);
+    await screen.findByRole("heading", { level: 1, name: "Site Overview" });
+    expect(screen.queryByRole("heading", { level: 3 })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 4 })).not.toBeInTheDocument();
+  });
+
+  it("gives every rendered interactive control an accessible name", async () => {
+    mockedFetch.mockResolvedValueOnce(BASE_OVERVIEW);
+    render(<SiteOverviewPage />);
+    await screen.findByRole("heading", { level: 2, name: "Recent activity" });
+    const buttons = screen.getAllByRole("button");
+    const links = screen.queryAllByRole("link");
+    const interactive = [...buttons, ...links];
+    expect(interactive.length).toBeGreaterThan(0);
+    for (const el of interactive) {
+      const name = el.getAttribute("aria-label") ?? el.textContent ?? "";
+      expect(name.trim()).not.toBe("");
+    }
+  });
+
+  it("announces loading via role=status and errors via role=alert", async () => {
+    mockedFetch.mockImplementation(() => new Promise(() => {}));
+    const { unmount } = render(<SiteOverviewPage />);
+    expect(screen.getByRole("status")).toHaveTextContent("Loading site overview…");
+    unmount();
+
+    mockedFetch.mockReset();
+    mockedFetch.mockRejectedValue(new ApiError("not_found", 404, "Request failed: 404"));
+    render(<SiteOverviewPage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Site not found/);
+  });
+});
+
+describe("SiteOverviewPage · M5 semantic regression sweep", () => {
+  it("contains no publisher-failure, causal-claim, or site-health-conclusion language across the full page", async () => {
+    mockedFetch.mockResolvedValueOnce(
+      overviewM4({
+        initial_diagnostic: null,
+        latest_scheduled_run: null,
+        recent_runs: [
+          recentRun({ status: "SKIPPED", limitations: ["monitoring paused"] }),
+        ],
+        source_health: sourceHealth({
+          BROWSER_MONITORING: "UNAVAILABLE",
+          GA4: "BLOCKED",
+          GSC: "STALE",
+          GAM: "DEGRADED",
+        }),
+        browser_monitoring_detail: null,
+        open_incidents: [],
+        recent_activity: [],
+      }),
+    );
+
+    render(<SiteOverviewPage />);
+    await screen.findByRole("heading", { level: 2, name: "Open incidents" });
+    const body = document.body.textContent ?? "";
+
+    // Publisher/site must never be declared failing from observation facts.
+    for (const pattern of [
+      /publisher (is )?down/i,
+      /site (is )?down/i,
+      /publisher fail/i,
+      /site (is )?unhealthy/i,
+      /is breaking/i,
+      /outage/i,
+      /definitely/i,
+    ]) {
+      expect(body).not.toMatch(pattern);
+    }
+
+    // Neutral absence tokens must be rendered; failure tokens must not appear.
+    expect(body).toContain("No diagnostic yet");
+    expect(body).toContain("No scheduled results yet");
+    expect(body).toContain("No open incidents for this site");
+    expect(body).toContain("No activity yet");
+    expect(body).toContain("Condition not available");
+    expect(body).toContain("Skipped — monitoring paused");
+    expect(body).not.toMatch(/fail|unhealthy|down/i);
+  });
+
+  it("renders all-UNKNOWN source health badges as neutral absence-of-evidence", async () => {
+    mockedFetch.mockResolvedValueOnce(overviewM4({ source_health: sourceHealth() }));
+    render(<SiteOverviewPage />);
+    await screen.findByRole("heading", { level: 2, name: "Source status" });
+    const src = card("Source status");
+    const badges = src.getAllByText(/· UNKNOWN/);
+    expect(badges).toHaveLength(5);
+    for (const badge of badges) {
+      expect(badge.getAttribute("title")).toMatch(/no evidence available/);
+    }
+  });
+});

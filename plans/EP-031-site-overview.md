@@ -1,12 +1,13 @@
 # EP-031 — Site Overview (Polished Operator UI, v1)
 
 **Status:** READY — M0 (governance record), M1 (backend projection), M2 (route + shell), M3
-(operational result panels), and M4 (source status / browser detail / incidents / activity)
-implemented and validated; M5–M6 awaiting subsequent authorization.
+(operational result panels), M4 (source status / browser detail / incidents / activity), and M5
+(stabilization / a11y / security review) implemented and validated; M6 awaiting subsequent
+authorization.
 No site registration, site enablement, publisher contact, deployment,
 scheduler restart, Gate P, or Limited Pilot included.
 **Owner:** Codex / Engineering
-**Created / Updated:** 2026-09-14 (M4 implemented + validated)
+**Created / Updated:** 2026-09-14 (M5 implemented + validated)
 **Target milestone:** Product / Operations track — EP-031 "polished operator UI / Site Overview"
 (previously reserved by EP-028/EP-029/EP-030 as context-only; this file makes it an active plan).
 **Base commit:** `6b43df655cbbda53c4a5cc5c9af00b088abb296c` (main; EP-030 doc closure, deployed a66bada)
@@ -19,7 +20,7 @@ scheduler restart, Gate P, or Limited Pilot included.
 - [x] M2 — frontend: `/sites/[site_id]` route + page shell + identity header + monitoring card reuse + Home entry point
 - [x] M3 — frontend: diagnostic / latest-scheduled / recent-runs panels (kind + status semantics)
 - [x] M4 — frontend: source health + open incidents + recent activity panels + deep links
-- [ ] M5 — loading / error / empty / stale states + a11y + tenant/security review pass
+- [x] M5 — loading / error / empty / stale-race / a11y / tenant-security review pass
 - [ ] M6 — final validation ladder + README boundary refresh + plan closure (staging deploy only under separate authorization)
 
 ---
@@ -759,6 +760,20 @@ Impact: single serializer used by both surfaces.
             No incidents site-filter exists on the backend /incidents list, so incident deep
             links go through the detail cards (per plan, no new filter added). No backend
             changes. New M4 tests (19), full suite 217 pass. See Validation Results.
+
+2026-09-14  M5 (stabilization / a11y / security review). Adversarial review found one concrete
+            race: the post-mutation MonitoringCard refetch set overview unconditionally after
+            await, guarded only by a closure-captured site_id — a route change while the refetch
+            was in flight could overwrite the new route's data. Fixed with a routeGenRef
+            generation guard (same pattern as Home's siteGenRef); the primary effect already
+            used the cancelled-flag pattern and needed no change. Review confirmed: tenant gate
+            is single non-enumerating 404; foreign/nonexistent sites equivalent; GET no CSRF;
+            OPERATOR read-only; deep links use encodeURIComponent + server-provided site_id;
+            source health, SKIPPED, absence tokens never produce publisher-failure copy. New
+            M5 tests (8): A→B→A rapid-route race, stale post-mutation refetch after route change,
+            a11y structure (one h1, exact h2 set, no h3+, accessible names, role=status/alert),
+            full-page semantic sweep, all-UNKNOWN source badges. No backend changes. Full suite
+            225 pass. See Validation Results.
 ```
 
 ## Validation Results
@@ -810,13 +825,25 @@ Impact: single serializer used by both surfaces.
   git diff --check                  -> clean
   python3 scripts/check_secrets.py  -> Secret scan passed
   docker compose config --quiet     -> OK
+
+2026-09-14  M5 ladder (all green):
+  pnpm --dir frontend test -- tests/site-overview.test.tsx -> 65/65 passed in file
+  pnpm --dir frontend test          -> 225 passed (16 files; 8 new M5 tests)
+  pnpm --dir frontend lint          -> 0 errors (1 pre-existing openDialog warning)
+  pnpm --dir frontend typecheck     -> clean
+  pnpm --dir frontend build         -> clean; /sites/[site_id] Dynamic
+  RUN_INTEGRATION=1 pytest tests/integration/test_product_site_overview.py
+                                    -> 9 passed (backend overview boundary unchanged)
+  git diff --check                  -> clean
+  python3 scripts/check_secrets.py  -> Secret scan passed
+  docker compose config --quiet     -> OK
 ```
 
 ## 22. Final Outcome / Retrospective
 
 Planned as a section to be filled at completion (What shipped / Changes from plan / Validation /
-Limitations / Follow-ups / Lessons). No content yet — plan is READY; M0+M1+M2+M3+M4 implemented
-and validated; M5-M6 await separate authorization.
+Limitations / Follow-ups / Lessons). No content yet — plan is READY; M0+M1+M2+M3+M4+M5 implemented
+and validated; M6 awaits separate authorization.
 
 ---
 
