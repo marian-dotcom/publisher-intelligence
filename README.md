@@ -414,24 +414,20 @@ authorization, revenue, or causal claims.
 The repository still excludes full self-service OAuth onboarding UI, production rollout,
 provider write access, alert delivery, automated incident conclusions, and LLM synthesis.
 Refresh this summary after no more than three completed EPs, and earlier whenever an EP
-materially changes the implemented product or security boundary. **EP-029 is the latest merged and
-deployed implementation boundary**: M2a is **staging-verified** and remains the deployed application
-commit (`b61494bb…`); M3 is **COMPLETE** and the EP-029 M4 **release-readiness hand-off is COMPLETE
-(2026-09-01, documentation only)** — evidence documented, activity contained; one separate manual
-authenticated operator-created incident exists in staging — not system-derived, purpose/motivation
-unknown, reconciliation deferred until Gate P preparation). **Gate P remains a separate HUMAN GATE
-(UNAUTHORIZED by the EP-029 plan) and Limited Pilot remains NOT GRANTED**. The staging scheduler stays
-STOPPED and **no scheduled monitoring is authorized**. EP-030 (per-site monitoring controls) is an
-**active ExecPlan (Draft PR #38, unmerged)**: M1 (data model + authenticated per-site `ON`/`OFF`
-control API) is **COMPLETE and committed**; M2 (scheduler/worker
-fail-closed safety, broadened by a CTO decision so `OFF` blocks **all scheduled direct publisher
-contact** — browser `SCHEDULED` observation and public-config scheduled fetch/validation alike, with
-a `SKIPPED` terminal state) is **COMPLETE and committed (`ad79469bbd8f0…`, CI runs `33626255435` /
-`33626390421` SUCCESS)**; M3 (minimal Home monitoring controls — read-only status projection and an
-ADMIN-only Enable/Pause confirmation surface) is **COMPLETE and validated on the branch, uncommitted
-and undeployed**. None of M1–M3 are deployed or merged: M1+M2 together only make the controls
-fail-closed; M3 only exposes the operator control surface. No site is enabled and the
-staging scheduler remains STOPPED. The future product sequence EP-031 (polished operator UI / Site
+materially changes the implemented product or security boundary. **EP-030 is the latest merged and deployed implementation boundary**: EP-030 (per-site monitoring
+controls) M0–M4 are COMPLETE; PR #38 merged and **staging runtime activated at `a66bada23…`
+(2026-09-13)** — API/frontend/Postgres/MinIO healthy, Alembic revision `0029_site_monitoring_controls`,
+and scheduler, worker, and three browser-worker replicas all running the deployed build. The EP-030
+fail-closed gates (GATE-1/2/3 and PC-GATE-1/2/3) are live in staging: `sites` = 0 rows (monitoring
+ON = 0), and after restart only the internal `ENFORCE_RETENTION` job was observed — zero
+`BROWSER_CHECKPOINT`, `FETCH_PUBLIC_CONFIG`, or `VALIDATE_PUBLIC_CONFIG` publisher-contact jobs. No
+site is enabled and **no scheduled publisher contact occurs**: browser `SCHEDULED` observation and
+public-config scheduled fetch/validation remain blocked for any `OFF` site (terminal
+`SKIPPED`/skipped path). This supersedes the EP-029 M2a deployment (`b61494bb…`); the EP-029 M3/M4
+hand-off and its one manual operator-created staging incident (not system-derived, reconciliation
+deferred until Gate P preparation) remain recorded. **Gate P remains a separate HUMAN GATE
+(UNAUTHORIZED) and Limited Pilot remains NOT GRANTED**; the staging scheduler runs EP-030 code
+fail-closed with no site enabled. The future product sequence EP-031 (polished operator UI / Site
 Overview) → EP-032 (minimal CrUX History) →
 separately authorized Gate P / Limited Pilot → post-pilot LLM Site Intelligence Briefing remains
 **proposed only — not authorized and not yet covered by active ExecPlans**; no further live publisher

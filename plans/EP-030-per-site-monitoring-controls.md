@@ -1,6 +1,6 @@
 # EP-030 — Per-Site Monitoring Controls
 
-**Status:** READY — M0 COMPLETE (planning/feasibility only); **M1 COMPLETE** (data model + authenticated control API); **M2 COMPLETE** (scheduler/worker safety incl. broadened public-config gates; committed `ad79469bbd8f00538b425e03cbe7b2b4287209ca`; Draft PR #38, unmerged; CI runs `33626255435` (pull_request) / `33626390421` (push) both SUCCESS); **M3 COMPLETE** (minimal Home monitoring controls; committed and pushed `d2f5503ae8e3113e7c2732fda7f91b0fa5f9ec9c`; same Draft PR #38 branch, unmerged/undeployed); **M4 COMPLETE** (release-readiness validation ladder 2026-09-13 — see §11; nothing committed/pushed/deployed this milestone); Gate P HUMAN GATE / UNAUTHORIZED; Limited Pilot NOT GRANTED
+**Status:** READY — M0 COMPLETE (planning/feasibility only); **M1 COMPLETE** (data model + authenticated control API); **M2 COMPLETE** (scheduler/worker safety incl. broadened public-config gates; committed `ad79469bbd8f00538b425e03cbe7b2b4287209ca`; Draft PR #38, unmerged; CI runs `33626255435` (pull_request) / `33626390421` (push) both SUCCESS); **M3 COMPLETE** (minimal Home monitoring controls; committed and pushed `d2f5503ae8e3113e7c2732fda7f91b0fa5f9ec9c`; same Draft PR #38 branch, unmerged/undeployed); **M4 COMPLETE** (release-readiness validation ladder 2026-09-13 — see §11; closure `59b6ae4…`); **staging runtime ACTIVATED (2026-09-13)** — PR #38 merged, deployed `a66bada23…`, scheduler/worker/browser-workers running EP-030 code fail-closed, `sites` 0 / ON 0 / zero publisher-contact jobs; Gate P HUMAN GATE / UNAUTHORIZED; Limited Pilot NOT GRANTED
 **Owner:** Codex / Engineering
 **Created / Updated:** 2026-09-13 (M4 validation ladder run this date)
 **Base commit:** `a92da909c53c0618b4671bd569b4a1937a935c27` (origin/main; EP-029 M4 merged)
@@ -480,6 +480,32 @@ All tests use isolated fixtures / disposable DB; no real publisher contact.
 
 ## 11. Progress / Decision Log
 
+- 2026-09-13: **staging runtime activation COMPLETE** (post-merge; separately human-authorized).
+  Deployed `main` `a66bada23fc533c1d974e9b8b16a33dbd9d77b7c` (merge of PR #38; tree == closure commit
+  `59b6ae4`) to the staging compose stack per `docs/runbooks/local-runtime.md`: images built from the
+  a66bada tree; `docker compose up migrate` exit 0 (idempotent; Alembic revision stays
+  `0029_site_monitoring_controls`); `docker compose up -d` recreated api/frontend/scheduler/worker; the
+  browser profile was rebuilt and recreated explicitly
+  (`docker compose --profile browser build browser-worker`; `BROWSER_WORKER_REPLICAS=3 docker compose
+  --profile browser up -d --scale browser-worker=3 --no-deps browser-worker`) because generic
+  `build`/`up` exclude `profiles: ["browser"]` services. Runtime verified == commit: in-container sha256
+  of EP-030 files (`monitoring_control.py`, `scheduling.py`, `product.py`, `browser_worker.py`,
+  `scheduler.py`, `worker.py`) match the checkout tree. Health: api `/health/live` + `/health/ready` ok
+  (database + object_storage true), frontend `/login` 200, postgres + minio healthy. Fail-closed result:
+  `sites` 0 rows (monitoring ON=0, OFF=0), `site_monitoring_state_changes` 0 rows, zero
+  `BROWSER_CHECKPOINT`/`FETCH_PUBLIC_CONFIG`/`VALIDATE_PUBLIC_CONFIG` publisher-contact jobs after
+  restart — jobs table showed only `ENFORCE_RETENTION COMPLETE`; scheduler cycles clean (every pass
+  site_count=0; browser-checkpoint pass run_count=0/job_count=0; public-config job_count=0; retention
+  job_count=1/cycle); worker + three browser-worker replicas running the deployed build, no errors.
+  **Operational lesson (recorded in `docs/runbooks/local-runtime.md` → "Deployment checkpoint")**: the
+  authoritative "staging scheduler STOPPED" label did NOT match actual state — an old-image
+  `python -m app.scheduler` process had been running 12 days. Safe because zero sites existed (no
+  publisher contact possible), but future checkpoints must verify actual container/process/image state
+  rather than relying only on a previously recorded label. Browser-worker profile build/recreate
+  requirement also recorded in the runbook. Boundaries unchanged: no site enabled, no publisher
+  contact, Gate P HUMAN GATE / UNAUTHORIZED, Limited Pilot NOT GRANTED; scheduler now runs EP-030 code
+  fail-closed. STOPPED for documentation-only closure; nothing committed.
+
 - 2026-09-13: **M4 release-readiness validation COMPLETE** (branch
   `agent/ep-030-per-site-monitoring-controls`, HEAD `d2f5503ae8e3113e7c2732fda7f91b0fa5f9ec9c`, Draft PR
   #38 OPEN/DRAFT unchanged; nothing committed/pushed/merged/deployed). Frontend (Node 24, pnpm
@@ -786,13 +812,15 @@ All tests use isolated fixtures / disposable DB; no real publisher contact.
 M0 COMPLETE, **M1 COMPLETE**, **M2 COMPLETE** (committed `ad79469bbd8f00538b425e03cbe7b2b4287209ca`;
 CI `33626255435`/`33626390421` SUCCESS), **M3 COMPLETE** (minimal Home monitoring controls;
 committed and pushed `d2f5503ae8e3113e7c2732fda7f91b0fa5f9ec9c`; Draft PR #38 unmerged/undeployed),
-and **M4 COMPLETE** (release-readiness validation ladder green 2026-09-13; nothing committed/pushed in
-M4).
+**M4 COMPLETE** (release-readiness validation ladder green 2026-09-13; closure
+`59b6ae4f16c372b95d7467e1a3d4eb29d9be58e9`), and **staging runtime activated 2026-09-13** (PR #38
+merged; deployed `a66bada23fc533c1d974e9b8b16a33dbd9d77b7c`; scheduler/worker/browser-workers running
+EP-030 code fail-closed; see §11).
 M1+M2 together make the per-site
 monitoring authorization fail-closed for
 all scheduled direct publisher contact: disabled/queued `SCHEDULED` browser work is never executed
 (GATE-1/2) and, if already materialized, is terminalized as SKIPPED at the worker pre-flight
 (GATE-3) with zero contact; public-config scheduled `FETCH`/`VALIDATE` work is skipped at
-enqueue or completed as an intentional worker skip (PC-GATE-1/2/3). **M4, deploying, restarting
-the scheduler, enabling any site, creating EP-031/EP-032, or starting Gate P / Limited Pilot each
-require separate authorizations.**
+enqueue or completed as an intentional worker skip (PC-GATE-1/2/3). Staging deployment + scheduler
+restart occurred under separate authorization (2026-09-13); **enabling any site, creating
+EP-031/EP-032, or starting Gate P / Limited Pilot each require separate authorizations**.

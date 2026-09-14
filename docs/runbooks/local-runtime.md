@@ -24,6 +24,32 @@ Scale browser workers:
 BROWSER_WORKER_REPLICAS=3 docker compose up -d --scale browser-worker=3 browser-worker
 ```
 
+`browser-worker` is a `profiles: ["browser"]` service, so generic `docker compose build` / `up -d`
+exclude it. Deploying new browser-worker code requires the profile explicitly:
+
+```bash
+docker compose --profile browser build browser-worker
+BROWSER_WORKER_REPLICAS=3 docker compose --profile browser up -d --scale browser-worker=3 --no-deps browser-worker
+```
+
+## Deployment checkpoint
+
+Deployment is not a label; verify actual runtime state rather than trusting a previously recorded
+operational status:
+
+- Confirm the deployed source tree is the exact commit being deployed (`git rev-parse HEAD`, working
+  tree clean), then build/up from that tree.
+- Before a scheduler restart, verify live state — not a recorded label: `docker ps`, `docker top
+  <scheduler-container>`, `docker inspect <container>` (image SHA + `State.StartedAt`), and the
+  database itself (site monitoring states, `alembic_version`). A container running the old image can
+  coexist with documentation saying it is stopped (observed 2026-09-13: the EP-030 "staging scheduler
+  STOPPED" label was wrong — an old-image `python -m app.scheduler` had been running for 12 days; safe
+  only because zero sites existed, so no publisher contact occurred).
+- After deploy, verify the running code matches the commit. Images do not embed the git SHA; compare
+  in-container source hashes to the checkout (e.g. `docker exec api sha256sum` of the key files under
+  the app mount) and confirm the containers were recreated after the build (`StartedAt`, image SHA).
+- Record real post-restart evidence (scheduler cycle logs, jobs table by type) rather than intent.
+
 ## Same-origin routing
 
 The frontend intentionally calls the API with relative same-origin paths.
