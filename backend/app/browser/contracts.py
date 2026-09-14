@@ -16,6 +16,7 @@ CheckpointStatus = Literal[
     "BROWSER_ERROR",
     "TIMEOUT",
     "BLOCKED",
+    "SKIPPED",
 ]
 CollectorStatus = Literal["OK", "NOT_PRESENT", "NOT_OBSERVABLE", "ERROR", "TIMEOUT"]
 InteractionStepType = Literal["WAIT", "SCROLL_PERCENT", "INSPECT"]
