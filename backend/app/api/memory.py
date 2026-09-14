@@ -12,6 +12,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import ActorContext, get_current_actor
 from app.connectors.models import DataConnection, MetricPoint, MetricSeries
@@ -31,6 +32,41 @@ router = APIRouter(tags=["memory"])
 
 def _iso(value: datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
+
+
+def _event_entry(item: Event) -> dict[str, Any]:
+    exact_occurred = (
+        _iso(item.occurred_before_at)
+        if item.time_precision == "EXACT" and item.occurred_before_at
+        else None
+    )
+    return {
+        "event_id": str(item.id),
+        "event_type": str(item.event_definition_id),
+        "source": item.source_kind,
+        "provenance": "machine_observed",
+        "severity": item.severity,
+        "status": item.status,
+        "time_precision": item.time_precision,
+        "observed_at": _iso(item.detected_at),
+        "occurred_at": exact_occurred,
+        "occurrence_window_start": _iso(item.occurred_after_at),
+        "occurrence_window_end": _iso(item.occurred_before_at),
+        "site_id": str(item.site_id),
+    }
+
+
+def _manual_note_entry(note: ManualNote) -> dict[str, Any]:
+    return {
+        "note_id": str(note.id),
+        "note_type": note.note_type,
+        "provenance": "human_reported",
+        "source": note.source,
+        "observed_at": _iso(note.created_at),
+        "occurred_at": _iso(note.occurred_at),
+        "text": note.note_text,
+        "site_id": str(note.site_id),
+    }
 
 
 @router.get("/timeline")
@@ -67,43 +103,50 @@ async def timeline(
                 )
             ).all()
         )
-    entries = []
-    for item in events:
-        exact_occurred = (
-            _iso(item.occurred_before_at)
-            if item.time_precision == "EXACT" and item.occurred_before_at
-            else None
-        )
-        entries.append(
-            {
-                "event_id": str(item.id),
-                "event_type": str(item.event_definition_id),
-                "source": item.source_kind,
-                "provenance": "machine_observed",
-                "severity": item.severity,
-                "status": item.status,
-                "time_precision": item.time_precision,
-                "observed_at": _iso(item.detected_at),
-                "occurred_at": exact_occurred,
-                "occurrence_window_start": _iso(item.occurred_after_at),
-                "occurrence_window_end": _iso(item.occurred_before_at),
-                "site_id": str(item.site_id),
-            }
-        )
-    entries.extend(
-        {
-            "note_id": str(note.id),
-            "note_type": note.note_type,
-            "provenance": "human_reported",
-            "source": note.source,
-            "observed_at": _iso(note.created_at),
-            "occurred_at": _iso(note.occurred_at),
-            "text": note.note_text,
-            "site_id": str(note.site_id),
-        }
-        for note in notes
-    )
+    entries = [_event_entry(item) for item in events]
+    entries.extend(_manual_note_entry(note) for note in notes)
     return {"entries": entries}
+
+
+async def recent_activity_entries(
+    session: AsyncSession,
+    *,
+    tenant_id: uuid.UUID,
+    site_id: uuid.UUID,
+    limit: int = 5,
+) -> list[dict[str, Any]]:
+    """EP-031 M1: site-scoped recent activity reusing the exact timeline serializer.
+
+    Fetches the most recent events and manual notes for the site and returns the
+    newest `limit` entries overall, so the overview panel never forks the shapes
+    emitted by `/timeline`.
+    """
+    events = list(
+        (
+            await session.scalars(
+                select(Event)
+                .where(Event.tenant_id == tenant_id, Event.site_id == site_id)
+                .order_by(Event.detected_at.desc())
+                .limit(limit)
+            )
+        ).all()
+    )
+    notes = list(
+        (
+            await session.scalars(
+                select(ManualNote)
+                .where(ManualNote.tenant_id == tenant_id, ManualNote.site_id == site_id)
+                .order_by(ManualNote.created_at.desc())
+                .limit(limit)
+            )
+        ).all()
+    )
+    merged = [_event_entry(item) for item in events] + [_manual_note_entry(note) for note in notes]
+    merged.sort(
+        key=lambda entry: entry["observed_at"] or "",
+        reverse=True,
+    )
+    return merged[:limit]
 
 
 @router.get("/incidents")

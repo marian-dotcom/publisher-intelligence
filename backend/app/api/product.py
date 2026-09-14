@@ -10,12 +10,14 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.memory import recent_activity_entries
 from app.api.site_monitoring import MONITORING_CADENCE
 from app.auth.dependencies import ActorContext, get_current_actor
 from app.browser.access_reliability import classification_from_storage
 from app.browser.cost import breaker_open_for_usage, latest_site_window_usage
 from app.browser.models import Artifact, CheckpointRun, Publisher, Site
 from app.browser.monitoring_control import (
+    MonitoringControlResult,
     SiteMonitoringNotFoundError,
     monitoring_control_result,
 )
@@ -23,7 +25,7 @@ from app.config.settings import Settings
 from app.connectors.freshness import SOURCE_FRESHNESS_THRESHOLDS, freshness_state
 from app.connectors.models import DataConnection
 from app.db.session import get_session_factory
-from app.events.source_health import browser_source_health
+from app.events.source_health import BrowserSourceHealth, browser_source_health
 from app.incidents.models import Incident
 from app.operations import operations_snapshot
 from app.public_config.models import PublicConfigSnapshot
@@ -261,6 +263,45 @@ async def _initial_diagnostic_projection(
     }
 
 
+def _monitoring_projection(mc: MonitoringControlResult) -> dict[str, Any]:
+    """EP-030 monitoring-control projection shared by home/status and overview."""
+    return {
+        "site_id": str(mc.site_id),
+        "enabled": mc.enabled,
+        "monitoring_state_updated_at": (
+            mc.monitoring_state_updated_at.isoformat() if mc.monitoring_state_updated_at else None
+        ),
+        "cadence": MONITORING_CADENCE,
+        "next_scheduled_for": (
+            mc.next_scheduled_for.isoformat() if mc.next_scheduled_for else None
+        ),
+        "in_flight_scheduled_run_status": mc.in_flight_scheduled_run_status,
+    }
+
+
+def _browser_monitoring_detail(reliability: BrowserSourceHealth) -> dict[str, Any]:
+    """Machine-readable explanation of current browser-source health."""
+    return {
+        "source": "BROWSER_MONITORING",
+        "state": reliability.state,
+        "reason": reliability.reason,
+        "detected_at": (reliability.detected_at.isoformat() if reliability.detected_at else None),
+        "source_event_id": (
+            str(reliability.source_event_id) if reliability.source_event_id else None
+        ),
+        "source_event_code": reliability.source_event_code,
+        "evidence_checkpoint_run_id": (
+            str(reliability.evidence_checkpoint_run_id)
+            if reliability.evidence_checkpoint_run_id
+            else None
+        ),
+        "boundary": (
+            "Describes Publisher Intelligence's browser observation source, "
+            "not the publisher/site health."
+        ),
+    }
+
+
 @router.get("/home/status")
 async def home_status(
     actor: ActorContext = Depends(get_current_actor),  # noqa: B008
@@ -305,20 +346,7 @@ async def home_status(
                     tenant_id=actor.tenant_id,
                     site_id=selected.id,
                 )
-                monitoring_projection = {
-                    "site_id": str(selected.id),
-                    "enabled": mc.enabled,
-                    "monitoring_state_updated_at": (
-                        mc.monitoring_state_updated_at.isoformat()
-                        if mc.monitoring_state_updated_at
-                        else None
-                    ),
-                    "cadence": MONITORING_CADENCE,
-                    "next_scheduled_for": (
-                        mc.next_scheduled_for.isoformat() if mc.next_scheduled_for else None
-                    ),
-                    "in_flight_scheduled_run_status": mc.in_flight_scheduled_run_status,
-                }
+                monitoring_projection = _monitoring_projection(mc)
             except SiteMonitoringNotFoundError:
                 monitoring_projection = None
         open_incidents = list(
@@ -379,29 +407,160 @@ async def source_health(
         )
     response: dict[str, object] = {"site_id": str(site_id), "sources": health}
     if reliability.source_event_id is not None:
-        # Machine-readable explanation of current browser-source health.
-        response["browser_monitoring_detail"] = {
-            "source": "BROWSER_MONITORING",
-            "state": reliability.state,
-            "reason": reliability.reason,
-            "detected_at": (
-                reliability.detected_at.isoformat() if reliability.detected_at else None
-            ),
-            "source_event_id": (
-                str(reliability.source_event_id) if reliability.source_event_id else None
-            ),
-            "source_event_code": reliability.source_event_code,
-            "evidence_checkpoint_run_id": (
-                str(reliability.evidence_checkpoint_run_id)
-                if reliability.evidence_checkpoint_run_id
-                else None
-            ),
-            "boundary": (
-                "Describes Publisher Intelligence's browser observation source, "
-                "not the publisher/site health."
-            ),
-        }
+        response["browser_monitoring_detail"] = _browser_monitoring_detail(reliability)
     return response
+
+
+# EP-031 M1: per-site overview read projection. Read-only (get_current_actor, no
+# CSRF), tenant-scoped, and non-disclosing on missing/foreign sites. Reuses the
+# home/source-health projections byte-for-byte so the panel never forks shapes.
+_SCHEDULED_RESULT_STATUSES = (
+    "COMPLETE",
+    "PARTIAL",
+    "SITE_ERROR",
+    "BROWSER_ERROR",
+    "TIMEOUT",
+    "BLOCKED",
+)
+
+
+@router.get("/sites/{site_id}/overview")
+async def site_overview(
+    site_id: uuid.UUID,
+    actor: ActorContext = Depends(get_current_actor),  # noqa: B008
+) -> dict[str, Any]:
+    factory = get_session_factory()
+    async with factory() as session:
+        site = await session.scalar(
+            select(Site).where(Site.id == site_id, Site.tenant_id == actor.tenant_id)
+        )
+        if site is None:
+            raise HTTPException(status_code=404, detail="resource not found")
+        publisher = await session.scalar(select(Publisher).where(Publisher.id == site.publisher_id))
+        initial_diagnostic = await _initial_diagnostic_projection(
+            session, tenant_id=actor.tenant_id, site_id=site_id
+        )
+        latest_scheduled_run = await session.scalar(
+            select(CheckpointRun)
+            .where(
+                CheckpointRun.tenant_id == actor.tenant_id,
+                CheckpointRun.site_id == site_id,
+                CheckpointRun.observation_kind == "SCHEDULED",
+                CheckpointRun.status.in_(_SCHEDULED_RESULT_STATUSES),
+            )
+            .order_by(CheckpointRun.created_at.desc(), CheckpointRun.id.desc())
+            .limit(1)
+        )
+        health = await _source_health_rows(session, tenant_id=actor.tenant_id, site_id=site_id)
+        reliability = await browser_source_health(
+            session, tenant_id=actor.tenant_id, site_id=site_id
+        )
+        monitoring_projection: dict[str, Any] | None = None
+        try:
+            mc = await monitoring_control_result(
+                session, tenant_id=actor.tenant_id, site_id=site_id
+            )
+            monitoring_projection = _monitoring_projection(mc)
+        except SiteMonitoringNotFoundError:
+            monitoring_projection = None
+        open_incident_rows = list(
+            (
+                await session.scalars(
+                    select(Incident)
+                    .where(
+                        Incident.tenant_id == actor.tenant_id,
+                        Incident.site_id == site_id,
+                        Incident.status.in_(("OPEN", "INVESTIGATING")),
+                    )
+                    .order_by(Incident.opened_at.desc())
+                )
+            ).all()
+        )
+        recent_runs = list(
+            (
+                await session.scalars(
+                    select(CheckpointRun)
+                    .where(
+                        CheckpointRun.tenant_id == actor.tenant_id,
+                        CheckpointRun.site_id == site_id,
+                    )
+                    .order_by(CheckpointRun.created_at.desc(), CheckpointRun.id.desc())
+                    .limit(5)
+                )
+            ).all()
+        )
+        recent_activity = await recent_activity_entries(
+            session, tenant_id=actor.tenant_id, site_id=site_id, limit=5
+        )
+    return {
+        "site": {
+            "site_id": str(site.id),
+            "name": site.name,
+            "canonical_domain": site.canonical_domain,
+            "canonical_scheme": site.canonical_scheme,
+            "url": f"{site.canonical_scheme}://{site.canonical_domain}",
+            "publisher_name": publisher.name if publisher else None,
+            "status": site.status,
+            "timezone": site.timezone,
+            "created_at": site.created_at.isoformat(),
+        },
+        "monitoring": monitoring_projection,
+        "initial_diagnostic": initial_diagnostic,
+        "latest_scheduled_run": (
+            {
+                "run_id": str(latest_scheduled_run.id),
+                "status": latest_scheduled_run.status,
+                "started_at": (
+                    latest_scheduled_run.started_at.isoformat()
+                    if latest_scheduled_run.started_at
+                    else None
+                ),
+                "completed_at": (
+                    latest_scheduled_run.completed_at.isoformat()
+                    if latest_scheduled_run.completed_at
+                    else None
+                ),
+                "attempt_count": latest_scheduled_run.attempt_count,
+                "browser_access_classification": _classification_state(latest_scheduled_run),
+            }
+            if latest_scheduled_run is not None
+            else None
+        ),
+        "source_health": health,
+        "browser_monitoring_detail": (
+            _browser_monitoring_detail(reliability) if reliability.source_event_id else None
+        ),
+        "open_incidents": [
+            {
+                "incident_id": str(row.id),
+                "title": row.title,
+                "symptom_family": row.symptom_family,
+                "status": row.status,
+                "severity": row.severity,
+                "reported_start_at": (
+                    row.reported_start_at.isoformat() if row.reported_start_at else None
+                ),
+                "reported_end_at": (
+                    row.reported_end_at.isoformat() if row.reported_end_at else None
+                ),
+                "opened_at": row.opened_at.isoformat(),
+                "site_id": str(row.site_id),
+            }
+            for row in open_incident_rows
+        ],
+        "recent_runs": [
+            {
+                "run_id": str(run.id),
+                "observation_kind": run.observation_kind,
+                "status": run.status,
+                "started_at": run.started_at.isoformat() if run.started_at else None,
+                "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+                "limitations": run.limitations,
+            }
+            for run in recent_runs
+        ],
+        "recent_activity": recent_activity,
+    }
 
 
 # EP-029 M2a: diagnostic-results read surface for initial DIAGNOSTIC/OPERATOR_UI runs.

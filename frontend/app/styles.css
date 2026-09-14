@@ -177,5 +177,24 @@ h2 { font-size: var(--font-size-lg); margin: 0 0 var(--space-3); }
 .severity { font-size: var(--font-size-sm); font-weight: 700; }
 .severity-high, .severity-critical { color: var(--status-action-required); }
 .status-chip { font-size: var(--font-size-sm); border: var(--border); border-radius: var(--radius); padding: 1px var(--space-2); }
+
+/* EP-031 M3 — site overview operational result panels */
+.overview-panels { display: flex; flex-direction: column; gap: var(--space-4); margin-top: var(--space-4); }
+.overview-panel-body { display: flex; flex-direction: column; gap: var(--space-2); }
+.overview-panel-line { margin: 0; }
+.overview-panel-label { color: var(--text-muted); font-size: var(--font-size-sm); }
+.overview-panel-action { margin: var(--space-3) 0 0; }
+.overview-run-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.overview-run-item { border: var(--border); border-radius: var(--radius); padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-1); }
+.overview-run-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.overview-run-kind { color: var(--text-muted); font-size: var(--font-size-sm); font-weight: 600; }
+.overview-run-skipped { color: var(--text-muted); font-size: var(--font-size-sm); }
+.overview-run-time { color: var(--text-muted); font-size: var(--font-size-sm); }
+.overview-run-limitation { color: var(--text-muted); font-size: var(--font-size-sm); font-style: italic; }
+
+/* EP-031 M4 — source status, browser detail, incidents, activity */
+.overview-source-health-grid { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.overview-panel-limitation { color: var(--text-muted); font-size: var(--font-size-sm); font-style: italic; margin: var(--space-3) 0 0; }
+.overview-incident-opened { color: var(--text-muted); font-size: var(--font-size-sm); margin-left: auto; }
 .hypothesis-rank { font-weight: 700; margin-right: var(--space-3); }
 .confidence { color: var(--text-muted); font-size: var(--font-size-sm); }

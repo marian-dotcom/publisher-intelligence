@@ -414,21 +414,13 @@ authorization, revenue, or causal claims.
 The repository still excludes full self-service OAuth onboarding UI, production rollout,
 provider write access, alert delivery, automated incident conclusions, and LLM synthesis.
 Refresh this summary after no more than three completed EPs, and earlier whenever an EP
-materially changes the implemented product or security boundary. **EP-030 is the latest merged and deployed implementation boundary**: EP-030 (per-site monitoring
-controls) M0–M4 are COMPLETE; PR #38 merged and **staging runtime activated at `a66bada23…`
-(2026-09-13)** — API/frontend/Postgres/MinIO healthy, Alembic revision `0029_site_monitoring_controls`,
-and scheduler, worker, and three browser-worker replicas all running the deployed build. The EP-030
-fail-closed gates (GATE-1/2/3 and PC-GATE-1/2/3) are live in staging: `sites` = 0 rows (monitoring
-ON = 0), and after restart only the internal `ENFORCE_RETENTION` job was observed — zero
-`BROWSER_CHECKPOINT`, `FETCH_PUBLIC_CONFIG`, or `VALIDATE_PUBLIC_CONFIG` publisher-contact jobs. No
-site is enabled and **no scheduled publisher contact occurs**: browser `SCHEDULED` observation and
-public-config scheduled fetch/validation remain blocked for any `OFF` site (terminal
-`SKIPPED`/skipped path). This supersedes the EP-029 M2a deployment (`b61494bb…`); the EP-029 M3/M4
-hand-off and its one manual operator-created staging incident (not system-derived, reconciliation
-deferred until Gate P preparation) remain recorded. **Gate P remains a separate HUMAN GATE
-(UNAUTHORIZED) and Limited Pilot remains NOT GRANTED**; the staging scheduler runs EP-030 code
-fail-closed with no site enabled. The future product sequence EP-031 (polished operator UI / Site
-Overview) → EP-032 (minimal CrUX History) →
+materially changes the implemented product or security boundary. **EP-031 is the latest fully covered implementation boundary**: EP-031 (polished operator UI / Site
+Overview) M0–M6 are COMPLETE — one new read-only backend projection endpoint and one new frontend
+route delivering a per-site operational drill-down of Home (identity, monitoring card, latest
+diagnostic, latest scheduled run, recent runs, source health, browser monitoring detail, open
+incidents, recent activity). No schema change, no deployment, no scheduler change, no publisher
+contact. Alembic remains at revision `0029_site_monitoring_controls`. The EP-030 deployment
+(`a66bada23…`) and its fail-closed gates remain the latest merged and deployed build. The future product sequence EP-032 (minimal CrUX History, proposed only) →
 separately authorized Gate P / Limited Pilot → post-pilot LLM Site Intelligence Briefing remains
 **proposed only — not authorized and not yet covered by active ExecPlans**; no further live publisher
 contact, recurring monitoring, or pilot authorization is included beyond the single candidate

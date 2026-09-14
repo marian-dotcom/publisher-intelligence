@@ -1793,6 +1793,25 @@ Boundary rules:
   catalog completeness.
 - Detailed ExecPlans are created one at a time, when an EP becomes active. Do not pre-create
   detailed plans for later EPs.
+- **Post-2026-08-22 practical execution record** (added 2026-09-14, M0 of EP-031). The exact
+  execution has advanced past EP-026 and the sequence above must be read with this record:
+  ```text
+  EP-027 — authentication hardening & rate limiting                         — COMPLETE
+  EP-028 — operator site registration (gate: registration triggers one DIAGNOSTIC) — COMPLETE (PR #34; Gate O EXECUTED / PARTIAL / CONTAINED, 2026-08-30)
+  EP-029 — publisher compatibility & diagnostic-results UI (M2a)           — COMPLETE (PR #35/#36; staging-UI verified 2026-09-01)
+  EP-030 — per-site monitoring controls (ON/OFF, GATE-1/2/3, PC-GATE-1/2/3) — COMPLETE (PR #38; deployed a66bada 2026-09-13; staging runtime activated; 0 sites, ON 0)
+     ↓
+  EP-031 — polished operator UI / Site Overview                            — COMPLETE (M0–M6; no schema change, no deployment; 2026-09-14)
+      ↓
+  EP-032 — minimal CrUX History (origin-level; proposed only, not authorized at this date)
+     ↓
+  separately authorized Gate P / Limited Pilot
+  ```
+  Invariants preserved throughout: Gate P remains a separate HUMAN GATE (UNAUTHORIZED); Limited
+  Pilot is NOT GRANTED; no site is enabled; scheduler/worker run EP-030 code fail-closed; EP-031
+  adds a read-only per-site overview (no schema change, no deployment, no scheduler change, no
+  publisher contact). EP-032 and any Gate P / Limited Pilot work each require separate
+  authorizations.
 
 This sequence may still change if reality justifies it; changes go through this file plus, where
 durable, a new ADR.

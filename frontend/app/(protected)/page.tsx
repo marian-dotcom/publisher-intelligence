@@ -266,6 +266,14 @@ export default function HomePage() {
         <Button variant="secondary" onClick={() => setAddSiteOpen(true)}>
           Add site
         </Button>
+        {selectedSite && (
+          <Button
+            variant="secondary"
+            onClick={() => router.push(`/sites/${encodeURIComponent(selectedSite.site_id)}`)}
+          >
+            Overview
+          </Button>
+        )}
         {selectedSite && hasDiagnostic && (
           <Button
             variant={isTerminal ? "primary" : "secondary"}
