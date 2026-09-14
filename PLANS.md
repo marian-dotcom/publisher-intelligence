@@ -1801,8 +1801,8 @@ Boundary rules:
   EP-029 — publisher compatibility & diagnostic-results UI (M2a)           — COMPLETE (PR #35/#36; staging-UI verified 2026-09-01)
   EP-030 — per-site monitoring controls (ON/OFF, GATE-1/2/3, PC-GATE-1/2/3) — COMPLETE (PR #38; deployed a66bada 2026-09-13; staging runtime activated; 0 sites, ON 0)
      ↓
-  EP-031 — polished operator UI / Site Overview                            — ACTIVE / READY (this ExecPlan; M0–M1 authorized)
-     ↓
+  EP-031 — polished operator UI / Site Overview                            — COMPLETE (M0–M6; no schema change, no deployment; 2026-09-14)
+      ↓
   EP-032 — minimal CrUX History (origin-level; proposed only, not authorized at this date)
      ↓
   separately authorized Gate P / Limited Pilot
